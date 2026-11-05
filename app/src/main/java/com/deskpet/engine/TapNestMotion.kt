@@ -15,6 +15,8 @@ data class TapNestRig(
     val headMode: TapNestHeadMode = TapNestHeadMode.FULL_HEAD,
     /** -1 keeps current expression while stroking; 0..3 selects a dedicated face. */
     val pettingExpression: Int = -1,
+    val blinkExpression: Int = -1,
+    val tapExpression: Int = -1,
     /** Map frame index to a mood; no labels means preserve legacy default face. */
     val expressionEmotions: Map<Int, TapNestEmotion> = emptyMap(),
     val layers: List<TapNestLayer> = emptyList(),
