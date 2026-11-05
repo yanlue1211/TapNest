@@ -364,7 +364,7 @@ class MainActivity : ComponentActivity() {
                     // 提示
                     Text("💡 小提示", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.height(4.dp))
-                    Text("• 每只宠物的位置和大小独立记忆\n• 长按宠物栏卡片可删除宠物\n• 点开底部收纳坞可调大小、导入和备份\n• 划掉本应用不影响宠物显示，关闭请用通知栏或收纳坞\n• 换手机时用备份恢复功能迁移\n• 宠物不含网络权限，纯本地运行")
+                    Text("• 每位伙伴的位置和大小独立保存\n• 长按角色卡片可重新编辑或删除\n• 分层角色的上半部按住并左右划动，可以摸摸头\n• 点开底部控制区可调大小、导入和备份\n• 划掉本应用不影响悬浮显示，关闭请用通知栏或控制区\n• 不联网、不调用 AI；数据留在手机本地")
 
                     Spacer(Modifier.height(8.dp))
 

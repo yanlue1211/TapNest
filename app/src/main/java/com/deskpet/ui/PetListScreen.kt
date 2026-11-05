@@ -172,9 +172,9 @@ fun PetListScreen(
     deleteTarget?.let { id ->
         AlertDialog(
             onDismissRequest = { deleteTarget = null },
-            title = { Text("删除宠物") },
+            title = { Text("删除桌面伙伴") },
             text = {
-                Text("确定删除「${petList.find { it.id == id }?.displayName ?: "该宠物"}」？素材文件将被永久删除，无法恢复。")
+                Text("确定删除「${petList.find { it.id == id }?.displayName ?: "这位伙伴"}」？素材文件将被永久删除，无法恢复。")
             },
             confirmButton = {
                 TextButton({ onDeletePet(id); deleteTarget = null }) {
@@ -241,7 +241,7 @@ fun PetListScreen(
                         ) {
                             Icon(Icons.Default.Add, null, modifier = Modifier.size(16.dp))
                             Spacer(Modifier.width(6.dp))
-                            Text("导入宠物")
+                            Text("导入角色")
                         }
                     }
                 }
@@ -530,7 +530,7 @@ private fun PetDock(
                                     ) {
                                         Icon(Icons.Default.Close, null, modifier = Modifier.size(16.dp))
                                         Spacer(Modifier.width(6.dp))
-                                        Text("关闭宠物")
+                                        Text("关闭悬浮角色")
                                     }
                                 } else {
                                     Button(
@@ -548,7 +548,7 @@ private fun PetDock(
                                     ) {
                                         Icon(Icons.Default.PlayArrow, null, modifier = Modifier.size(16.dp))
                                         Spacer(Modifier.width(6.dp))
-                                        Text(if (canStart) "开启宠物" else "先选择一只宠物")
+                                        Text(if (canStart) "开启桌面伙伴" else "先选择一位伙伴")
                                     }
                                 }
                                 Spacer(Modifier.height(4.dp))
@@ -640,7 +640,7 @@ private fun PetDock(
                                         contentColor = MaterialTheme.colorScheme.onErrorContainer
                                     )
                                 ) {
-                                    Icon(Icons.Default.Close, "关闭宠物", modifier = Modifier.size(20.dp))
+                                    Icon(Icons.Default.Close, "关闭伙伴", modifier = Modifier.size(20.dp))
                                 }
                             } else {
                                 FilledIconButton(
@@ -655,7 +655,7 @@ private fun PetDock(
                                     enabled = canStart,
                                     modifier = Modifier.size(48.dp)
                                 ) {
-                                    Icon(Icons.Default.PlayArrow, "开启宠物", modifier = Modifier.size(20.dp))
+                                    Icon(Icons.Default.PlayArrow, "开启伙伴", modifier = Modifier.size(20.dp))
                                 }
                             }
                             HorizontalDivider(

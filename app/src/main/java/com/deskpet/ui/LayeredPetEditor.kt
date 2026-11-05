@@ -49,7 +49,7 @@ fun LayeredPetEditor(
         mutableStateOf(if (editingPet == null) TapNestTemplates.FAIRY else originalRig.templateId)
     }
     var name by remember(editingPet?.id) { mutableStateOf(editingPet?.displayName ?: "我的小伙伴") }
-    var saveTemplate by remember { mutableStateOf(true) }
+    var saveTemplate by remember(editingPet?.id) { mutableStateOf(editingPet == null) }
     var busy by remember { mutableStateOf(false) }
     var activeLayer by remember { mutableStateOf("body") }
     var newLayerName by remember { mutableStateOf("") }
