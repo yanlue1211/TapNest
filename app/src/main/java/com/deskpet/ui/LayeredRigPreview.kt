@@ -148,17 +148,59 @@ internal fun LayeredRigPreview(
     val newestBoneSelect by rememberUpdatedState(onSelectBone)
     val newestBoneIndex by rememberUpdatedState(selectedBone)
 
-    val dragModifier = if (mode == RigPreviewMode.POSITION)
-        Modifier.pointerInput(selected) {
-            detectDragGestures { change, amount ->
-                change.consume()
-                val current = newestRig
-                val factor = min(
-                    viewport.width / current.canvasWidth.coerceAtLeast(1).toFloat(),
-                    viewport.height / current.canvasHeight.coerceAtLeast(1).toFloat()
-                ).coerceAtLeast(0.01f)
-                newestMove(amount.x / factor, amount.y / factor)
-            }
+    val dragModifier = if (mode == RigPreviewMode.POSITION || mode == RigPreviewMode.BONES)
+        Modifier.pointerInput(selected, mode) {
+            var dragBone = -1
+            detectDragGestures(
+                onDragStart = { point ->
+                    if (mode == RigPreviewMode.BONES) {
+                        val current = newestRig
+                        val layer = current.layers.firstOrNull { it.id == selected }
+                        val art = newestAssets[selected]
+                        dragBone = -1
+                        if (layer != null && art != null && layer.bones.isNotEmpty()) {
+                            val local = previewLocalPoint(point, viewport, current, layer, newestAssets)
+                            val px = local.x / art.width
+                            val py = local.y / art.height
+                            val chosen = layer.bones.indices.minByOrNull { i ->
+                                val dx = layer.bones[i].x - px
+                                val dy = layer.bones[i].y - py
+                                dx * dx + dy * dy
+                            }
+                            if (chosen != null) {
+                                val hit = layer.bones[chosen]
+                                val dx = hit.x - px
+                                val dy = hit.y - py
+                                if (dx * dx + dy * dy < 0.012f) {
+                                    dragBone = chosen
+                                    newestBoneSelect(chosen)
+                                }
+                            }
+                        }
+                    }
+                },
+                onDrag = { change, amount ->
+                    change.consume()
+                    val current = newestRig
+                    if (mode == RigPreviewMode.BONES) {
+                        val layer = current.layers.firstOrNull { it.id == selected }
+                        val art = newestAssets[selected]
+                        if (dragBone >= 0 && layer != null && art != null &&
+                            dragBone < layer.bones.size) {
+                            val local = previewLocalPoint(change.position, viewport, current, layer, newestAssets)
+                            newestBone(dragBone,
+                                (local.x / art.width).coerceIn(0f, 1f),
+                                (local.y / art.height).coerceIn(0f, 1f))
+                        }
+                    } else {
+                        val factor = min(
+                            viewport.width / current.canvasWidth.coerceAtLeast(1).toFloat(),
+                            viewport.height / current.canvasHeight.coerceAtLeast(1).toFloat()
+                        ).coerceAtLeast(0.01f)
+                        newestMove(amount.x / factor, amount.y / factor)
+                    }
+                }
+            )
         } else Modifier
 
     Canvas(
