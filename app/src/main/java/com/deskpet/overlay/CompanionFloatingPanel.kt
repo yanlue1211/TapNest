@@ -98,6 +98,20 @@ internal class CompanionFloatingPanel(
         }
     }
 
+    fun follow(x: Float, y: Float, petWidth: Int, bounds: Rect) {
+        val p = params ?: return
+        val root = view ?: return
+        val panelWidth = p.width
+        val maxHeight = px(455).coerceAtMost(bounds.height() - px(30))
+        p.x = (x + petWidth + px(8)).toInt().let {
+            if (it + panelWidth > bounds.right) (x - panelWidth - px(8)).toInt() else it
+        }.coerceIn(bounds.left + px(7),
+            (bounds.right - panelWidth - px(7)).coerceAtLeast(bounds.left + px(7)))
+        p.y = y.toInt().coerceIn(bounds.top + px(6),
+            (bounds.bottom - maxHeight - px(6)).coerceAtLeast(bounds.top + px(6)))
+        runCatching { wm.updateViewLayout(root, p) }.onFailure { dismiss() }
+    }
+
     fun dismiss() {
         view?.let { v ->
             runCatching { wm.removeView(v) }
@@ -166,9 +180,13 @@ private fun PanelContent(
                             chosen.set(java.util.Calendar.MINUTE, minute)
                             chosen.set(java.util.Calendar.SECOND, 0)
                             noteDate = format.format(chosen.time)
-                        }, cal.get(java.util.Calendar.HOUR_OF_DAY), cal.get(java.util.Calendar.MINUTE), true).show()
+                        }, cal.get(java.util.Calendar.HOUR_OF_DAY), cal.get(java.util.Calendar.MINUTE), true).apply {
+                            window?.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
+                        }.show()
                     }, cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH),
-                        cal.get(java.util.Calendar.DAY_OF_MONTH)).show()
+                        cal.get(java.util.Calendar.DAY_OF_MONTH)).apply {
+                    window?.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
+                }.show()
                 }, modifier = Modifier.fillMaxWidth()) { Text("📆 选择日期与时间") }
                 Button(onClick = {
                     val time = runCatching { format.parse(noteDate)?.time }.getOrNull()

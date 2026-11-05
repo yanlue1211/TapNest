@@ -604,7 +604,9 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
                 }
             }
         }
-        speechBubble?.follow(wx, wy + bounceOffset, anim.petWidth.value, anim.petHeight.value, safeBounds())
+        val bounds = safeBounds()
+        speechBubble?.follow(wx, wy + bounceOffset, anim.petWidth.value, anim.petHeight.value, bounds)
+        floatingPanel?.follow(wx, wy + bounceOffset, anim.petWidth.value, bounds)
     }
 
     private fun clampPosition() {
