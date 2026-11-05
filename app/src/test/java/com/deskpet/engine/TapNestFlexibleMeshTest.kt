@@ -85,6 +85,16 @@ class TapNestFlexibleMeshTest {
         for (i in mid.indices) assertEquals((flex[i] + rigid[i]) / 2f, mid[i], 0.002f)
     }
 
+    @Test fun canSteerHorizontalOrVerticalIndependently() {
+        val theta = Math.toRadians(30.0).toFloat()
+        val h = TapNestFlexibleMesh.moveSegment(100f, 0f, theta, TapNestBoneSwingDirection.HORIZONTAL)
+        val v = TapNestFlexibleMesh.moveSegment(100f, 0f, theta, TapNestBoneSwingDirection.VERTICAL)
+        assertEquals(150f, h.first, 0.02f)
+        assertEquals(0f, h.second, 0.02f)
+        assertEquals(100f, v.first, 0.02f)
+        assertEquals(50f, v.second, 0.02f)
+    }
+
     @Test fun straightNoAmplitudeDoesNotDistortImage() {
         val layer = TapNestLayer("cape", "cape.png", idleSwing = true,
             idleAmplitude = 0f, bones = listOf(root, tip))
