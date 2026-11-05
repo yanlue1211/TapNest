@@ -170,9 +170,7 @@ class LayeredPetPlayer private constructor(
                 springChains.getOrPut(layer.id) { TapNestSpringChain() }.step(layer, now - launchedAtMs)
             } else null
             if (spring && layer.shapePreservation >= 0.999f &&
-                layer.bones.none { it.swingDirection !in setOf(
-                    TapNestBoneSwingDirection.AUTO,
-                    TapNestBoneSwingDirection.ROTATION_REVERSE) } &&
+                layer.bones.all { it.swingDirection == TapNestBoneSwingDirection.AUTO } &&
                 jointAngles != null && jointAngles.isNotEmpty()) {
                 // True rigid mode: draw the intact bitmap instead of running it
                 // through mesh cells, preserving heavy artwork outlines exactly.
