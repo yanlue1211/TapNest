@@ -266,7 +266,7 @@ internal fun LayeredRigPreview(
                                 }
                             }
                             RigPreviewMode.TEST -> {
-                                expression = (expression % 3) + 1
+                                expression = if (newestRig.tapExpression in 0..3) newestRig.tapExpression else (expression % 3) + 1
                                 tappedAt = SystemClock.uptimeMillis()
                                 pettedAt = -10000L
                             }
