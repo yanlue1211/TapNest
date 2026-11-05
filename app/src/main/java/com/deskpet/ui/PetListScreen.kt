@@ -92,6 +92,7 @@ fun PetListScreen(
     onScaleChange: (Float) -> Unit,
     onExportPet: (PetInfo) -> Unit = {},
     onEditLayered: (PetInfo) -> Unit = {},
+    onManageCompanion: (PetInfo) -> Unit = {},
     onSaveDialogues: (String, Boolean, List<String>) -> Unit = { _, _, _ -> },
     onBackupAll: () -> Unit = {},
     onShowHelp: () -> Unit = {}
@@ -119,6 +120,10 @@ fun PetListScreen(
             },
             dismissButton = {
                 Row {
+                    TextButton(onClick = {
+                        actionTarget = null
+                        onManageCompanion(pet)
+                    }) { Text("💚 伙伴小屋") }
                     TextButton(onClick = {
                         actionTarget = null
                         deleteTarget = pet.id

@@ -248,6 +248,7 @@ class MainActivity : ComponentActivity() {
                     showImport = false
                     showLayeredEditor = true
                 },
+                onManageCompanion = { pet -> OverlayState.openCompanion(pet.id) },
                 onDeletePet = { id ->
                     sc.launch {
                         try {
