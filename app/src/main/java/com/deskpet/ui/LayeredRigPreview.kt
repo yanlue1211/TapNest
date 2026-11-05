@@ -230,7 +230,7 @@ internal fun LayeredRigPreview(
             else -> 0
         }
         val facePrefix = if (rig.headMode == TapNestHeadMode.FULL_HEAD) "head_" else "face_"
-        val chosen = "$"+"{facePrefix}$"+"{expressionIndex}"
+        val chosen = facePrefix + expressionIndex
         val face = if (assets.containsKey(chosen)) chosen else facePrefix + "0"
         val nodes = rig.layers.associateBy { it.id }
         fun poseFor(id: String): TapNestPose {
