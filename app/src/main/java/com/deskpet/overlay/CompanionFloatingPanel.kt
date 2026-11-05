@@ -51,7 +51,44 @@ internal class CompanionFloatingPanel(
     private val density get() = context.resources.displayMetrics.density
     private fun px(dp: Int) = (dp * density).toInt()
 
-    fun show(petId: String, title: String, x: Float, y: Float, width: Int, bounds: Rect) {
+    private fun placement(x: Float, y: Float, petW: Int, petH: Int,
+        bounds: Rect, panelW: Int, panelH: Int): Pair<Int, Int> {
+        val gap = px(10)
+        val left = x - bounds.left
+        val right = bounds.right - x - petW
+        val top = y - bounds.top
+        val bottom = bounds.bottom - y - petH
+        val enoughRight = right >= panelW + gap
+        val enoughLeft = left >= panelW + gap
+        val enoughTop = top >= panelH + gap
+        val enoughBottom = bottom >= panelH + gap
+        val position = when {
+            enoughRight || enoughLeft -> {
+                val xx = if (enoughRight && (!enoughLeft || right >= left))
+                    x + petW + gap else x - panelW - gap
+                xx to (y + (petH - panelH) / 2f)
+            }
+            enoughTop || enoughBottom -> {
+                val yy = if (enoughTop && (!enoughBottom || top >= bottom))
+                    y - panelH - gap else y + petH + gap
+                (x + (petW - panelW) / 2f) to yy
+            }
+            maxOf(top, bottom) / panelH >= maxOf(left, right) / panelW -> {
+                (x + (petW - panelW) / 2f) to
+                    (if (top >= bottom) y - panelH - gap else y + petH + gap)
+            }
+            else -> {
+                (if (right >= left) x + petW + gap else x - panelW - gap) to y
+            }
+        }
+        return position.first.toInt().coerceIn(bounds.left + px(5),
+            (bounds.right - panelW - px(5)).coerceAtLeast(bounds.left + px(5))) to
+            position.second.toInt().coerceIn(bounds.top + px(5),
+                (bounds.bottom - panelH - px(5)).coerceAtLeast(bounds.top + px(5)))
+    }
+
+    fun show(petId: String, title: String, x: Float, y: Float, width: Int,
+        height: Int, bounds: Rect) {
         dismiss()
         currentPet = petId
         val root = ComposeView(context).apply {
@@ -71,8 +108,8 @@ internal class CompanionFloatingPanel(
                 }
             }
         }
-        val panelWidth = px(310).coerceAtMost(bounds.width() - px(18))
-        val panelHeight = px(455).coerceAtMost(bounds.height() - px(30))
+        val panelWidth = px(236).coerceAtMost(bounds.width() - px(18))
+        val panelHeight = px(310).coerceAtMost(bounds.height() - px(30))
         val p = WindowManager.LayoutParams(
             panelWidth, WindowManager.LayoutParams.WRAP_CONTENT,
             WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
@@ -82,11 +119,9 @@ internal class CompanionFloatingPanel(
         ).apply {
             gravity = Gravity.TOP or Gravity.LEFT
             softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE
-            this.x = (x + width + px(8)).toInt().let {
-                if (it + panelWidth > bounds.right) (x - panelWidth - px(8)).toInt() else it
-            }.coerceIn(bounds.left + px(7), (bounds.right - panelWidth - px(7)).coerceAtLeast(bounds.left + px(7)))
-            this.y = y.toInt().coerceIn(bounds.top + px(6),
-                (bounds.bottom - panelHeight - px(6)).coerceAtLeast(bounds.top + px(6)))
+            val (xx, yy) = placement(x, y, width, height, bounds, panelWidth, panelHeight)
+            this.x = xx
+            this.y = yy
         }
         try {
             wm.addView(root, p)
@@ -99,17 +134,14 @@ internal class CompanionFloatingPanel(
         }
     }
 
-    fun follow(x: Float, y: Float, petWidth: Int, bounds: Rect) {
+    fun follow(x: Float, y: Float, petWidth: Int, petHeight: Int, bounds: Rect) {
         val p = params ?: return
         val root = view ?: return
         val panelWidth = p.width
-        val maxHeight = px(455).coerceAtMost(bounds.height() - px(30))
-        p.x = (x + petWidth + px(8)).toInt().let {
-            if (it + panelWidth > bounds.right) (x - panelWidth - px(8)).toInt() else it
-        }.coerceIn(bounds.left + px(7),
-            (bounds.right - panelWidth - px(7)).coerceAtLeast(bounds.left + px(7)))
-        p.y = y.toInt().coerceIn(bounds.top + px(6),
-            (bounds.bottom - maxHeight - px(6)).coerceAtLeast(bounds.top + px(6)))
+        val maxHeight = px(310).coerceAtMost(bounds.height() - px(30))
+        val (xx, yy) = placement(x, y, petWidth, petHeight, bounds, panelWidth, maxHeight)
+        p.x = xx
+        p.y = yy
         runCatching { wm.updateViewLayout(root, p) }.onFailure { dismiss() }
     }
 
@@ -140,18 +172,18 @@ private fun PanelContent(
     var noteDate by remember { mutableStateOf(format.format(Date(System.currentTimeMillis() + 3_600_000L))) }
     val foreground = Color(0xFF314B3B)
     Surface(
-        modifier = Modifier.fillMaxWidth().heightIn(max = 455.dp)
+        modifier = Modifier.fillMaxWidth().heightIn(max = 310.dp)
             .border(1.dp, Color(0xFFB8DEC5), RoundedCornerShape(22.dp)),
         shape = RoundedCornerShape(22.dp),
         shadowElevation = 12.dp,
         color = Color(0xFFFCFFFB)
     ) {
         Column(
-            Modifier.verticalScroll(rememberScrollState()).padding(14.dp),
-            verticalArrangement = Arrangement.spacedBy(10.dp)
+            Modifier.verticalScroll(rememberScrollState()).padding(10.dp),
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("🌱 $title", style = MaterialTheme.typography.titleMedium,
+                Text("🌱 $title", style = MaterialTheme.typography.titleSmall,
                     color = foreground, modifier = Modifier.weight(1f))
                 TextButton(onClick = {
                     if (page != null || notes) { page = null; notes = false }
@@ -268,25 +300,29 @@ private fun PanelContent(
                 Text("💕 好感度 $affection / 100", style = MaterialTheme.typography.bodyMedium,
                     color = foreground)
                 LinearProgressIndicator(progress = { affection / 100f }, modifier = Modifier.fillMaxWidth())
-                Text("今天想和我做什么？", color = foreground)
-                for ((kind, text) in listOf(
-                    CompanionAction.FEED to "🍪 喂食",
-                    CompanionAction.BATH to "🫧 洗澡",
-                    CompanionAction.PLAY to "🧸 玩耍"
-                )) {
-                    Surface(onClick = { page = kind },
-                        shape = RoundedCornerShape(14.dp), color = Color(0xFFEBF7EE)) {
-                        Row(Modifier.fillMaxWidth().padding(13.dp)) {
-                            Text(text, color = foreground, modifier = Modifier.weight(1f))
-                            Text("›", color = Color(0xFF5D9172))
+                Row(modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(5.dp)) {
+                    for ((kind, text) in listOf(
+                        CompanionAction.FEED to "🍪 喂食",
+                        CompanionAction.BATH to "🫧 洗澡",
+                        CompanionAction.PLAY to "🧸 玩耍"
+                    )) {
+                        Surface(onClick = { page = kind },
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(12.dp),
+                            color = Color(0xFFEBF7EE)) {
+                            Box(Modifier.padding(vertical = 12.dp, horizontal = 2.dp),
+                                contentAlignment = Alignment.Center) {
+                                Text(text, color = foreground,
+                                    style = MaterialTheme.typography.labelMedium,
+                                    maxLines = 1)
+                            }
                         }
                     }
                 }
                 OutlinedButton(onClick = { notes = true }, modifier = Modifier.fillMaxWidth()) {
-                    Text("📝 查看／新增定时备忘录")
+                    Text("📝 定时备忘录", style = MaterialTheme.typography.labelMedium)
                 }
-                Text("道具图片、专属动画、性格及台词可在主界面长按角色设置。",
-                    style = MaterialTheme.typography.labelSmall)
             }
             if (error.isNotBlank()) Text(error, color = MaterialTheme.colorScheme.error,
                 style = MaterialTheme.typography.bodySmall)
