@@ -8,6 +8,12 @@ on:
   pull_request:
     branches: [main]
 
+# A fresh code change supersedes previous builds on the same branch.
+# Avoid parallel Robolectric SDK downloads and rate-limiting on Maven Central.
+concurrency:
+  group: tapnest-${{ github.ref }}
+  cancel-in-progress: true
+
 # 打 v 标签时需要写权限才能创建 GitHub Release 并上传 APK
 permissions:
   contents: write
