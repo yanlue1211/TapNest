@@ -333,17 +333,52 @@ fun LayeredPetEditor(
                     Switch(checked = layer.idleSwing, onCheckedChange = { update(layer.copy(idleSwing = it)) })
                 }
                 if (layer.idleSwing) {
-                    BindingSlider("晃动幅度（度）", layer.idleAmplitude, 0f, 40f) {
-                        update(layer.copy(idleAmplitude = it))
+                    Text("🎐 晃动方式", fontWeight = FontWeight.SemiBold)
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        FilterChip(
+                            selected = layer.swingMode == TapNestSwingMode.DELAY,
+                            onClick = { update(layer.copy(swingMode = TapNestSwingMode.DELAY)) },
+                            label = { Text("原版延迟") }
+                        )
+                        FilterChip(
+                            selected = layer.swingMode == TapNestSwingMode.SPRING,
+                            onClick = { update(layer.copy(swingMode = TapNestSwingMode.SPRING)) },
+                            label = { Text("🌀 弹簧惯性") }
+                        )
                     }
+                    if (layer.swingMode == TapNestSwingMode.SPRING) {
+                        Text("尾根带头左右摇，上半段像弹簧一样延迟跟随，转向时会回弹。",
+                            style = MaterialTheme.typography.bodySmall)
+                        OutlinedButton(
+                            onClick = {
+                                update(layer.copy(
+                                    idleSwing = true, swingMode = TapNestSwingMode.SPRING,
+                                    idleAmplitude = 65f, idleSpeed = 0.50f,
+                                    springSoftness = 0.78f, springDamping = 0.38f
+                                ))
+                            }
+                        ) { Text("🐶 一键试试「短尾大幅软弹」") }
+                    }
+                    BindingSlider("左右摆动幅度（度）", layer.idleAmplitude, 0f,
+                        if (layer.swingMode == TapNestSwingMode.SPRING) 85f else 40f
+                    ) { update(layer.copy(idleAmplitude = it)) }
                     BindingSlider("晃动速度（次／秒）", layer.idleSpeed, 0.1f, 3f) {
                         update(layer.copy(idleSpeed = it))
                     }
-                    if (layer.bones.size >= 3) {
+                    if (layer.swingMode == TapNestSwingMode.SPRING) {
+                        BindingSlider("弹簧柔软度（越高越软）", layer.springSoftness, 0f, 1f) {
+                            update(layer.copy(springSoftness = it))
+                        }
+                        BindingSlider("回弹阻尼（越低越弹）", layer.springDamping, 0.1f, 1.3f) {
+                            update(layer.copy(springDamping = it))
+                        }
+                        Text("建议尾巴至少 3 个点，根→中→尖排列；柔软度可先用 0.78、阻尼 0.38。短尾巴被大脑袋挡住的部分无法凭动画显示出来。",
+                            style = MaterialTheme.typography.bodySmall)
+                    } else if (layer.bones.size >= 3) {
                         BindingSlider("上段跟随延迟（秒）", layer.idleLagSeconds, 0f, 0.45f) {
                             update(layer.copy(idleLagSeconds = it))
                         }
-                        Text("靠近尾根的下段先摆动，上段稍晚跟上；短尾巴建议 3 个点、延迟 0.12～0.20 秒。",
+                        Text("延迟模式靠近根部先摆、上段稍晚跟上。",
                             style = MaterialTheme.typography.bodySmall)
                     }
                 }

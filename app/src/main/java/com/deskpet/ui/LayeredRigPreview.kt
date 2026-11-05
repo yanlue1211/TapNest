@@ -124,12 +124,16 @@ internal fun LayeredRigPreview(
     var tappedAt by remember { mutableLongStateOf(-10000L) }
     var pettedAt by remember { mutableLongStateOf(-10000L) }
     var clock by remember { mutableLongStateOf(SystemClock.uptimeMillis()) }
+    val springChains = remember { mutableMapOf<String, TapNestSpringChain>() }
+    var previewStartedAt by remember { mutableLongStateOf(SystemClock.uptimeMillis()) }
 
     LaunchedEffect(mode) {
         if (mode == RigPreviewMode.TEST) {
+            springChains.clear()
+            previewStartedAt = SystemClock.uptimeMillis()
             while (isActive) {
                 clock = SystemClock.uptimeMillis()
-                delay(50L) // preview-only 20 FPS; it stops immediately on leaving TEST mode
+                delay(33L) // 30 FPS for smooth spring preview; stops on leaving TEST mode
             }
         } else {
             tappedAt = -10000L
@@ -355,11 +359,18 @@ internal fun LayeredRigPreview(
                 native.translate(-pivotX, -pivotY)
             }
             paint.alpha = (poseFor(layer.id).alpha.coerceIn(0f, 1f) * 255).toInt()
+            val spring = mode == RigPreviewMode.TEST && layer.idleSwing &&
+                layer.bones.size >= 2 && layer.swingMode == TapNestSwingMode.SPRING
+            val resolution = if (spring) TapNestFlexibleMesh.SPRING_GRID else TapNestFlexibleMesh.GRID
+            val elapsed = (now - previewStartedAt).coerceAtLeast(0L)
+            val jointAngles = if (spring) {
+                springChains.getOrPut(layer.id) { TapNestSpringChain() }.step(layer, elapsed)
+            } else null
             val mesh = if (mode == RigPreviewMode.TEST) TapNestFlexibleMesh.vertices(
-                layer, art.width, art.height, now) else null
+                layer, art.width, art.height, elapsed, resolution, jointAngles) else null
             if (mesh != null) {
-                native.drawBitmapMesh(art.bitmap, TapNestFlexibleMesh.GRID,
-                    TapNestFlexibleMesh.GRID, mesh, 0, null, 0, paint)
+                native.drawBitmapMesh(art.bitmap, resolution,
+                    resolution, mesh, 0, null, 0, paint)
             } else native.drawBitmap(art.bitmap, null,
                 RectF(0f, 0f, art.width.toFloat(), art.height.toFloat()), paint)
             if (mode != RigPreviewMode.TEST && selected == layer.id) {

@@ -12,6 +12,8 @@ import kotlin.math.cos
  */
 object TapNestFlexibleMesh {
     const val GRID = 16
+    /** Finer mesh for tiny spring-driven tails on a full transparent canvas. */
+    const val SPRING_GRID = 32
     private data class Point(val x: Float, val y: Float)
     private fun rotate(p: Point, rad: Float) = Point(
         (p.x * cos(rad) - p.y * sin(rad)), (p.x * sin(rad) + p.y * cos(rad))
@@ -46,14 +48,15 @@ object TapNestFlexibleMesh {
     }
 
     fun vertices(layer: TapNestLayer, width: Int, height: Int, elapsedMs: Long,
-                 mesh: Int = GRID): FloatArray? {
+                 mesh: Int = GRID, jointAngles: FloatArray? = null): FloatArray? {
         if (!layer.idleSwing || layer.bones.size !in 2..8 ||
             width !in 1..4096 || height !in 1..4096 || mesh !in 2..32) return null
         val base = layer.bones.map { Point(it.x.coerceIn(0f, 1f) * width,
                                           it.y.coerceIn(0f, 1f) * height) }
         val transformed = ArrayList<Point>(base.size)
         transformed.add(base.first())
-        val angles = segmentAngles(layer, elapsedMs)
+        val angles = jointAngles?.takeIf { it.size == base.size - 1 }
+            ?: segmentAngles(layer, elapsedMs)
         var accumulated = 0f
         for (i in 1 until base.size) {
             accumulated += Math.toRadians(angles[i - 1].toDouble()).toFloat()

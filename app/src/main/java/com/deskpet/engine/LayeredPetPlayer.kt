@@ -26,6 +26,7 @@ class LayeredPetPlayer private constructor(
     private val frames = Array(3) { Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888) }
     private var frameIndex = 0
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+    private val springChains = mutableMapOf<String, TapNestSpringChain>()
     @Volatile private var tappedAtMs = -10000L
     @Volatile private var pettingAtMs = -10000L
     @Volatile private var expression = 0
@@ -159,11 +160,18 @@ class LayeredPetPlayer private constructor(
             }
             paint.alpha = (poseFor(layer).alpha.coerceIn(0f, 1f) * 255).toInt()
             val source = sourceSizes[id] ?: Pair(picture.width, picture.height)
-            val flexible = TapNestFlexibleMesh.vertices(layer, source.first, source.second,
-                now - launchedAtMs)
+            val spring = layer.idleSwing && layer.bones.size >= 2 &&
+                layer.swingMode == TapNestSwingMode.SPRING
+            val mesh = if (spring) TapNestFlexibleMesh.SPRING_GRID else TapNestFlexibleMesh.GRID
+            val jointAngles = if (spring) {
+                springChains.getOrPut(layer.id) { TapNestSpringChain() }.step(layer, now - launchedAtMs)
+            } else null
+            val flexible = TapNestFlexibleMesh.vertices(
+                layer, source.first, source.second, now - launchedAtMs, mesh, jointAngles
+            )
             if (flexible != null) {
-                canvas.drawBitmapMesh(picture, TapNestFlexibleMesh.GRID,
-                    TapNestFlexibleMesh.GRID, flexible, 0, null, 0, paint)
+                canvas.drawBitmapMesh(picture, mesh,
+                    mesh, flexible, 0, null, 0, paint)
             } else {
                 canvas.drawBitmap(picture, null,
                     RectF(0f, 0f, source.first.toFloat(), source.second.toFloat()), paint)
