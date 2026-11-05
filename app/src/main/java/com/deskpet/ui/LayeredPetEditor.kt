@@ -6,6 +6,7 @@ import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
@@ -32,7 +33,7 @@ import kotlinx.coroutines.withContext
  * Entirely on-device character creation: pick artwork, reuse a layout, adjust anchors,
  * or start with a blank manual rig. Does not require a desktop or Cubism.
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun LayeredPetEditor(
     petRepository: PetRepository,
