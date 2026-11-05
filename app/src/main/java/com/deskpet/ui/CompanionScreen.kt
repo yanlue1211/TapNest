@@ -42,6 +42,22 @@ fun CompanionScreen(pet: PetInfo, onBack: () -> Unit) {
     var tab by remember(pet.id) { mutableIntStateOf(0) }
     var action by remember { mutableStateOf(CompanionAction.FEED) }
     var iconItemId by remember { mutableStateOf("") }
+    var visualAction by remember { mutableStateOf(CompanionAction.FEED) }
+    val visualPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        if (uri != null) {
+            val selectedAction = visualAction
+            val snapshot = profile
+            scope.launch {
+                runCatching {
+                    val imageName = withContext(Dispatchers.IO) {
+                        store.save(pet.id, snapshot)
+                        store.importActionVisual(pet.id, selectedAction, uri)
+                    }
+                    profile = snapshot.copy(actionVisuals = snapshot.actionVisuals + (selectedAction to imageName))
+                }.onFailure { Toast.makeText(context, it.message ?: "动画导入失败", Toast.LENGTH_LONG).show() }
+            }
+        }
+    }
     val iconPicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         val itemId = iconItemId
         if (uri != null && itemId.isNotBlank()) {
@@ -118,6 +134,25 @@ fun CompanionScreen(pet: PetInfo, onBack: () -> Unit) {
                 }
                 Text("点击道具进行互动；名称、Emoji、图片和专属台词都可以自己修改。",
                     style = MaterialTheme.typography.bodySmall)
+                Surface(color = MaterialTheme.colorScheme.primaryContainer,
+                    shape = RoundedCornerShape(14.dp)) {
+                    Column(Modifier.fillMaxWidth().padding(12.dp)) {
+                        Text("🎬 本类互动专属动作素材", fontWeight = FontWeight.Bold)
+                        Text("导入 PNG 或 GIF 后，互动时整只伙伴暂时显示该素材，持续一分钟自动恢复正常。没有上传则使用轻量骨骼动作。",
+                            style = MaterialTheme.typography.bodySmall)
+                        Text("当前：${profile.actionVisuals[action] ?: "默认动作"}",
+                            style = MaterialTheme.typography.bodySmall)
+                        Row {
+                            TextButton(onClick = {
+                                visualAction = action
+                                visualPicker.launch(arrayOf("image/png", "image/gif"))
+                            }) { Text("上传 PNG / GIF") }
+                            TextButton(onClick = {
+                                profile = profile.copy(actionVisuals = profile.actionVisuals - action)
+                            }, enabled = profile.actionVisuals[action] != null) { Text("恢复默认") }
+                        }
+                    }
+                }
                 for (item in profile.items.filter { it.action == action }) {
                     key(item.id) {
                         ElevatedCard(shape = RoundedCornerShape(16.dp),

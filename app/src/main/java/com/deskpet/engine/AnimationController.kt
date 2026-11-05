@@ -57,6 +57,15 @@ class AnimationController(
     /** 动画循环在 Main 线程读、reload 在 IO 线程写，必须 volatile 保证可见性 */
     @Volatile private var loader: PetEngine.PetLoader? = null
     private var fj: Job? = null
+    @Volatile private var actionVisual: TemporaryActionVisual? = null
+
+    /** Decoding never runs on the main UI thread. */
+    suspend fun playActionArtwork(file: java.io.File?) {
+        val w = baseW
+        val h = baseH
+        val visual = withContext(Dispatchers.IO) { TemporaryActionVisual.load(file, w, h) }
+        actionVisual = visual
+    }
     private var s = 1f
     private var baseW = PetEngine.DEFAULT_PET_WIDTH
     private var baseH = PetEngine.DEFAULT_PET_HEIGHT
@@ -66,6 +75,7 @@ class AnimationController(
         // 先清掉上一只的帧再创建新 loader：createLoader 内部会释放旧引擎资源
         // （如 GIF 双缓冲位图），必须保证渲染端不再引用它们
         _frame.value = null
+        actionVisual = null
         loader = petEngine.createLoader(p) ?: return false
         val (w, h) = petEngine.getPetSize(loader!!)
         baseW = w
@@ -95,9 +105,12 @@ class AnimationController(
             var lt = System.nanoTime()
             while (isActive) {
                 val l = loader ?: break
+                val visual = actionVisual
                 val bitmap = withContext(Dispatchers.IO) {
-                    petEngine.getCurrentFrame(l, _state.value, fi)
+                    if (visual != null && !visual.expired()) visual.frame()
+                    else petEngine.getCurrentFrame(l, _state.value, fi)
                 }
+                if (visual != null && visual.expired()) actionVisual = null
                 if (bitmap != null) {
                     _frame.value = Frame(bitmap, ++frameSeq)
                 }
@@ -124,6 +137,7 @@ class AnimationController(
                 val idle = _state.value == PetAnimationState.IDLE &&
                     (isCodexPet() || l is PetEngine.PetLoader.Png)
                 var ns = when {
+                    actionVisual != null -> LAYERED_FRAME_INTERVAL_NS
                     l is PetEngine.PetLoader.Layered -> LAYERED_FRAME_INTERVAL_NS
                     idle -> IDLE_FRAME_INTERVAL_NS
                     else -> ANIM_FRAME_INTERVAL_NS

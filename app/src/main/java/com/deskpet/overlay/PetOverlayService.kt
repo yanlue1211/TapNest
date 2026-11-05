@@ -53,6 +53,7 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
     private var speechJob: Job? = null
     private lateinit var companionStore: com.deskpet.data.CompanionStore
     private var reminderJob: Job? = null
+    private var floatingPanel: CompanionFloatingPanel? = null
     private var currentPet: PetInfo? = null
     private var touchLineIndex = 0
     private var petId: String? = null
@@ -146,13 +147,26 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
 
     private fun onDoubleTap() {
         val id = petId ?: return
-        OverlayState.openCompanion(id)
-        val launch = Intent(this, com.deskpet.MainActivity::class.java).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or
-                Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        val person = currentPet ?: return
+        floatingPanel?.dismiss()
+        floatingPanel = CompanionFloatingPanel(
+            this, wm, this, this, this, companionStore,
+            onAction = { action, line, affection, artwork ->
+                anim.setAffection(affection)
+                anim.interactCompanion(action)
+                displayTapLine(line)
+                if (artwork != null) sc.launch {
+                    val source = companionStore.actionVisualFile(id, action, artwork)
+                    anim.playActionArtwork(source)
+                }
+            },
+            onClose = {
+                floatingPanel?.dismiss()
+                floatingPanel = null
+            }
+        ).also {
+            it.show(id, person.displayName, wx, wy, anim.petWidth.value, safeBounds())
         }
-        runCatching { startActivity(launch) }
-            .onFailure { Log.w(TAG, "Could not open companion settings", it) }
     }
 
     private fun displayTapLine(line: String, durationMs: Long = 3200L) {
@@ -372,6 +386,8 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         auto?.stop()
         speechJob?.cancel()
         reminderJob?.cancel()
+        floatingPanel?.dismiss()
+        floatingPanel = null
         speechBubble?.dismiss()
         speechBubble = null
         currentPet = null
@@ -442,6 +458,8 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         }
         speechJob?.cancel()
         reminderJob?.cancel()
+        floatingPanel?.dismiss()
+        floatingPanel = null
         speechBubble?.dismiss()
         currentPet = info
         touchLineIndex = 0
