@@ -65,6 +65,12 @@ android {
     testOptions {
         unitTests {
             isIncludeAndroidResources = true
+            // repo1.maven.org intermittently returns HTTP 429 on ephemeral CI runners.
+            // Robolectric downloads android-all lazily, outside Gradle's normal cache.
+            all {
+                it.systemProperty("robolectric.dependency.repo.url", "https://repo.maven.apache.org/maven2")
+                it.systemProperty("robolectric.dependency.repo.id", "mavenCentral")
+            }
         }
     }
 }
