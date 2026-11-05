@@ -7,6 +7,8 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.relocation.BringIntoViewRequester
+import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -22,6 +24,7 @@ import com.deskpet.data.TapNestLayeredStore
 import com.deskpet.data.model.PetInfo
 import com.deskpet.engine.*
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
@@ -52,6 +55,8 @@ fun LayeredPetEditor(
     var saveTemplate by remember(editingPet?.id) { mutableStateOf(editingPet == null) }
     var busy by remember { mutableStateOf(false) }
     var activeLayer by remember { mutableStateOf("body") }
+    var selectedBone by remember(activeLayer) { mutableIntStateOf(0) }
+    val editorRequester = remember { BringIntoViewRequester() }
     var previewMode by remember(editingPet?.id) { mutableStateOf(RigPreviewMode.POSITION) }
     var newLayerName by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
@@ -150,62 +155,6 @@ fun LayeredPetEditor(
             }
             OutlinedTextField(value = name, onValueChange = { name = it.take(60) },
                 label = { Text("这只桌宠的名字") }, modifier = Modifier.fillMaxWidth())
-            Text("🖼️ 实时合成预览", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                FilterChip(
-                    selected = previewMode == RigPreviewMode.POSITION,
-                    onClick = { previewMode = RigPreviewMode.POSITION },
-                    label = { Text("移动图层", maxLines = 1) },
-                    modifier = Modifier.weight(1f)
-                )
-                FilterChip(
-                    selected = previewMode == RigPreviewMode.PIVOT,
-                    onClick = { previewMode = RigPreviewMode.PIVOT },
-                    label = { Text("点设锚点", maxLines = 1) },
-                    modifier = Modifier.weight(1f)
-                )
-                FilterChip(
-                    selected = previewMode == RigPreviewMode.TEST,
-                    onClick = { previewMode = RigPreviewMode.TEST },
-                    label = { Text("试玩互动", maxLines = 1) },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            Text(
-                when (previewMode) {
-                    RigPreviewMode.POSITION ->
-                        "点击预览上的角色部件可选中图层，再拖动改变 X/Y；下方也能精细调整。"
-                    RigPreviewMode.PIVOT ->
-                        "先选中图层，再直接点击预览中的旋转根部，绿点就会移动到该处。"
-                    RigPreviewMode.TEST ->
-                        "点击小伙伴试表情、翅膀和蝴蝶结；长按上半部试摸摸头。点击后会恢复默认表情。"
-                },
-                style = MaterialTheme.typography.bodySmall
-            )
-            LayeredRigPreview(
-                rig = rig,
-                uris = images.toMap(),
-                selected = activeLayer,
-                mode = previewMode,
-                onSelectLayer = { id -> activeLayer = id },
-                onDragLayer = { dx, dy ->
-                    rig = rig.copy(layers = rig.layers.map { layer ->
-                        if (layer.id == activeLayer)
-                            layer.copy(x = (layer.x + dx).coerceIn(-2048f, 2048f),
-                                y = (layer.y + dy).coerceIn(-2048f, 2048f))
-                        else layer
-                    })
-                },
-                onSetPivot = { x, y ->
-                    rig = rig.copy(layers = rig.layers.map { layer ->
-                        if (layer.id == activeLayer) layer.copy(pivotX = x, pivotY = y)
-                        else layer
-                    })
-                }
-            )
             Text("导入图片到对应图层", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Text("推荐所有 PNG 使用相同透明画布尺寸；也可选中图层调位置、缩放、旋转中心。带 ①② 的素材是两帧切换，不需要绘制中间帧。",
                 style = MaterialTheme.typography.bodySmall)
@@ -232,6 +181,13 @@ fun LayeredPetEditor(
                     }) { Text(if (uri == null) "导入" else "已选 ✓") }
                     if (uri != null) TextButton(onClick = { images.remove(slot.id) }) { Text("清除") }
                 }
+                if (activeLayer != slot.id || uri != null) {
+                    TextButton(onClick = {
+                        activeLayer = slot.id
+                        previewMode = RigPreviewMode.POSITION
+                        scope.launch { delay(80); editorRequester.bringIntoView() }
+                    }) { Text("🦴 设置本部位的绑骨、大小与日常动作 ›") }
+                }
             }
             if (rig.templateId == TapNestTemplates.MANUAL) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -253,11 +209,86 @@ fun LayeredPetEditor(
                 }
             }
             HorizontalDivider()
-            Text("调整图层位置和绑骨锚点", style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold)
+            Text("🦴 当前部位绑骨编辑", modifier = Modifier.bringIntoViewRequester(editorRequester),
+                style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             val layer = rig.layers.firstOrNull { it.id == activeLayer }
             if (layer != null) {
                 Text("当前：${TapNestTemplates.slotsFor(rig).firstOrNull { it.id == activeLayer }?.label ?: activeLayer}")
+            Text("🖼️ 实时合成预览", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Row(modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(
+                    selected = previewMode == RigPreviewMode.POSITION,
+                    onClick = { previewMode = RigPreviewMode.POSITION },
+                    label = { Text("移动图层", maxLines = 1) },
+                    modifier = Modifier.weight(1f)
+                )
+                FilterChip(
+                    selected = previewMode == RigPreviewMode.PIVOT,
+                    onClick = { previewMode = RigPreviewMode.PIVOT },
+                    label = { Text("点设锚点", maxLines = 1) },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            Row(modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                FilterChip(
+                    selected = previewMode == RigPreviewMode.BONES,
+                    onClick = { previewMode = RigPreviewMode.BONES },
+                    label = { Text("编辑骨骼点", maxLines = 1) },
+                    modifier = Modifier.weight(1f)
+                )
+                FilterChip(
+                    selected = previewMode == RigPreviewMode.TEST,
+                    onClick = { previewMode = RigPreviewMode.TEST },
+                    label = { Text("试玩互动", maxLines = 1) },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            Text(
+                when (previewMode) {
+                    RigPreviewMode.POSITION ->
+                        "点击预览上的角色部件可选中图层，再拖动改变 X/Y；下方也能精细调整。"
+                    RigPreviewMode.PIVOT ->
+                        "直接点击当前部件的旋转中心，绿点会移动到点击位置。"
+                    RigPreviewMode.BONES ->
+                        "点击橙色骨骼点可选中；点击图上其他位置可移动选中的点。至少 2 个点才能柔性弯曲。"
+                    RigPreviewMode.TEST ->
+                        "点击小伙伴试表情、翅膀和蝴蝶结；长按上半部试摸摸头。点击后会恢复默认表情。"
+                },
+                style = MaterialTheme.typography.bodySmall
+            )
+            LayeredRigPreview(
+                rig = rig,
+                uris = images.toMap(),
+                selected = activeLayer,
+                mode = previewMode,
+                selectedBone = selectedBone,
+                onSelectBone = { selectedBone = it },
+                onSetBone = { index, bx, by ->
+                    rig = rig.copy(layers = rig.layers.map { layer ->
+                        if (layer.id == activeLayer) layer.copy(bones = layer.bones.mapIndexed { i, bone ->
+                            if (i == index) TapNestBonePoint(bx, by) else bone
+                        }) else layer
+                    })
+                },
+                onSelectLayer = { id -> activeLayer = id },
+                onDragLayer = { dx, dy ->
+                    rig = rig.copy(layers = rig.layers.map { layer ->
+                        if (layer.id == activeLayer)
+                            layer.copy(x = (layer.x + dx).coerceIn(-2048f, 2048f),
+                                y = (layer.y + dy).coerceIn(-2048f, 2048f))
+                        else layer
+                    })
+                },
+                onSetPivot = { x, y ->
+                    rig = rig.copy(layers = rig.layers.map { layer ->
+                        if (layer.id == activeLayer) layer.copy(pivotX = x, pivotY = y)
+                        else layer
+                    })
+                }
+            )
+
                 fun update(p: TapNestLayer) {
                     rig = rig.copy(layers = rig.layers.map { if (it.id == activeLayer) p else it })
                 }
@@ -291,6 +322,68 @@ fun LayeredPetEditor(
                 BindingSlider("前后层级", layer.zIndex.toFloat(), 0f, 50f) {
                     update(layer.copy(zIndex = it.toInt()))
                 }
+                HorizontalDivider()
+                Text("🌿 多点柔性绑骨与日常动作", style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold)
+                Text("这里的设置仅作用于「${layer.id}」这张图片。单点会围绕锚点摆动；添加 2～8 个点则可让整张 PNG 像柔软尾巴一样弯曲。",
+                    style = MaterialTheme.typography.bodySmall)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("闲置时自动晃动", modifier = Modifier.weight(1f))
+                    Switch(checked = layer.idleSwing, onCheckedChange = { update(layer.copy(idleSwing = it)) })
+                }
+                if (layer.idleSwing) {
+                    BindingSlider("晃动幅度（度）", layer.idleAmplitude, 0f, 40f) {
+                        update(layer.copy(idleAmplitude = it))
+                    }
+                    BindingSlider("晃动速度（次／秒）", layer.idleSpeed, 0.1f, 3f) {
+                        update(layer.copy(idleSpeed = it))
+                    }
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("控制点 ${layer.bones.size}/8", modifier = Modifier.weight(1f))
+                    TextButton(onClick = {
+                        if (layer.bones.size < 8) {
+                            val end = layer.bones.lastOrNull()
+                            val point = if (end == null) TapNestBonePoint(layer.pivotX, layer.pivotY)
+                                else TapNestBonePoint((end.x + 0.09f).coerceIn(0f, 1f),
+                                    (end.y - 0.08f).coerceIn(0f, 1f))
+                            update(layer.copy(bones = layer.bones + point))
+                            selectedBone = layer.bones.size
+                            previewMode = RigPreviewMode.BONES
+                        }
+                    }, enabled = layer.bones.size < 8) { Text("＋ 添加点位") }
+                }
+                if (layer.bones.isNotEmpty()) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        layer.bones.indices.forEach { index ->
+                            FilterChip(selected = selectedBone == index, onClick = {
+                                selectedBone = index
+                                previewMode = RigPreviewMode.BONES
+                            }, label = { Text("${index + 1}") })
+                        }
+                    }
+                    val boneIndex = selectedBone.coerceIn(0, layer.bones.lastIndex)
+                    val bone = layer.bones[boneIndex]
+                    BindingSlider("点位 ${boneIndex + 1} · 横向 X", bone.x, 0f, 1f) {
+                        update(layer.copy(bones = layer.bones.mapIndexed { i, old ->
+                            if (i == boneIndex) old.copy(x = it) else old
+                        }))
+                    }
+                    BindingSlider("点位 ${boneIndex + 1} · 纵向 Y", bone.y, 0f, 1f) {
+                        update(layer.copy(bones = layer.bones.mapIndexed { i, old ->
+                            if (i == boneIndex) old.copy(y = it) else old
+                        }))
+                    }
+                    TextButton(onClick = {
+                        update(layer.copy(bones = layer.bones.filterIndexed { i, _ -> i != boneIndex }))
+                        selectedBone = (boneIndex - 1).coerceAtLeast(0)
+                    }) { Text("删除选中的骨骼点") }
+                }
+                if (layer.bones.size >= 2 && layer.idleSwing) {
+                    Text("✨ 已启用多点柔性变形。可点上方「试玩互动」查看动态效果。",
+                        color = MaterialTheme.colorScheme.primary)
+                }
+
             }
             if (rig.templateId != TapNestTemplates.MANUAL ||
                 rig.layers.any { it.id.startsWith("head_") || it.id.startsWith("face_") }) {
