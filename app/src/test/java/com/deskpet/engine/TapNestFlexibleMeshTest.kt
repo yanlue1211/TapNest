@@ -49,6 +49,42 @@ class TapNestFlexibleMeshTest {
         assertEquals(12f, peak.sum(), 0.01f)
     }
 
+    @Test fun thickOutlineShapePreservationKeepsRigidWidthEvenWithSpringAngles() {
+        val base = TapNestLayer("tail", "tail.png", idleSwing = true,
+            swingMode = TapNestSwingMode.SPRING, shapePreservation = 1f,
+            bones = listOf(TapNestBonePoint(0.5f, 0.85f),
+                TapNestBonePoint(0.5f, 0.65f),
+                TapNestBonePoint(0.5f, 0.45f)))
+        val angles = floatArrayOf(55f, -30f)
+        val vertices = requireNotNull(TapNestFlexibleMesh.vertices(
+            base, 320, 320, 500, TapNestFlexibleMesh.GRID, angles))
+        // In full preservation mode all vertex distances stay unchanged.
+        val centerX = vertices[0]
+        val centerY = vertices[1]
+        val corner = TapNestFlexibleMesh.GRID * 2
+        val dx = vertices[corner] - centerX
+        val dy = vertices[corner + 1] - centerY
+        assertEquals(320f, kotlin.math.sqrt(dx * dx + dy * dy), 0.05f)
+    }
+
+    @Test fun partialPreservationBlendsRigidAndSoftSkin() {
+        val bones = listOf(TapNestBonePoint(0.5f, 0.9f),
+            TapNestBonePoint(0.5f, 0.6f),
+            TapNestBonePoint(0.5f, 0.3f))
+        val basic = TapNestLayer("tail", "tail.png", idleSwing = true,
+            swingMode = TapNestSwingMode.SPRING, bones = bones)
+        val angles = floatArrayOf(60f, -50f)
+        val flex = requireNotNull(TapNestFlexibleMesh.vertices(
+            basic, 320, 320, 300, TapNestFlexibleMesh.GRID, angles))
+        val rigid = requireNotNull(TapNestFlexibleMesh.vertices(
+            basic.copy(shapePreservation = 1f),
+            320, 320, 300, TapNestFlexibleMesh.GRID, angles))
+        val mid = requireNotNull(TapNestFlexibleMesh.vertices(
+            basic.copy(shapePreservation = 0.5f),
+            320, 320, 300, TapNestFlexibleMesh.GRID, angles))
+        for (i in mid.indices) assertEquals((flex[i] + rigid[i]) / 2f, mid[i], 0.002f)
+    }
+
     @Test fun straightNoAmplitudeDoesNotDistortImage() {
         val layer = TapNestLayer("cape", "cape.png", idleSwing = true,
             idleAmplitude = 0f, bones = listOf(root, tip))

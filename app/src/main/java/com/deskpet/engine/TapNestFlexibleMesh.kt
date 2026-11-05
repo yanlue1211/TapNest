@@ -3,7 +3,7 @@ package com.deskpet.engine
 import kotlin.math.PI
 import kotlin.math.atan2
 import kotlin.math.cos
- import kotlin.math.sin
+import kotlin.math.sin
 
 /**
  * Lightweight 2D skinning of a single PNG. Users place 2..8 points along a limb,
@@ -21,6 +21,12 @@ object TapNestFlexibleMesh {
     private operator fun Point.plus(o: Point) = Point(x + o.x, y + o.y)
     private operator fun Point.minus(o: Point) = Point(x - o.x, y - o.y)
     private operator fun Point.times(k: Float) = Point(x * k, y * k)
+
+    /** Interpolate wrap-safe rotations at both sides of a joint to avoid a seam. */
+    private fun mixAngle(from: Float, to: Float, fraction: Float): Float {
+        val difference = atan2(sin(to - from), cos(to - from))
+        return from + difference * fraction
+    }
 
     /**
      * Root-driven propagation: the first segment is the driver, then successively
@@ -63,6 +69,26 @@ object TapNestFlexibleMesh {
             val source = base[i] - base[i - 1]
             transformed.add(transformed.last() + rotate(source, accumulated))
         }
+        // At a thick outline, an abrupt switch between two adjacent segment
+        // transforms stretches the pixels either side of the joint. Interpolate
+        // their rotation at each joint so the skin remains continuous.
+        val segments = base.size - 1
+        val segmentRotations = FloatArray(segments) { i ->
+            val original = base[i + 1] - base[i]
+            val deformed = transformed[i + 1] - transformed[i]
+            atan2(deformed.y, deformed.x) - atan2(original.y, original.x)
+        }
+        val jointRotations = FloatArray(base.size) { index ->
+            when (index) {
+                0 -> segmentRotations[0]
+                base.lastIndex -> segmentRotations[segments - 1]
+                else -> mixAngle(segmentRotations[index - 1], segmentRotations[index], 0.5f)
+            }
+        }
+        val preserve = if (layer.swingMode == TapNestSwingMode.SPRING)
+            layer.shapePreservation.coerceIn(0f, 1f) else 0f
+        val root = base.first()
+        val rootRotation = jointRotations.first()
         val coords = FloatArray((mesh + 1) * (mesh + 1) * 2)
         var index = 0
         for (row in 0..mesh) for (col in 0..mesh) {
@@ -94,8 +120,12 @@ object TapNestFlexibleMesh {
             val newV = transformed[i + 1] - newA
             val originalProjection = oldA + oldV * nearestProgress
             val newProjection = newA + newV * nearestProgress
-            val angleDelta = atan2(newV.y, newV.x) - atan2(oldV.y, oldV.x)
-            val result = newProjection + rotate(vertex - originalProjection, angleDelta)
+            // Same angle on either side of a joint, including at the tail tip.
+            val uSmooth = nearestProgress * nearestProgress * (3f - 2f * nearestProgress)
+            val angleDelta = mixAngle(jointRotations[i], jointRotations[i + 1], uSmooth)
+            val soft = newProjection + rotate(vertex - originalProjection, angleDelta)
+            val rigid = root + rotate(vertex - root, rootRotation)
+            val result = soft * (1f - preserve) + rigid * preserve
             coords[index++] = result.x
             coords[index++] = result.y
         }

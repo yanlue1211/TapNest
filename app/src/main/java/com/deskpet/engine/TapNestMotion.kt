@@ -50,7 +50,9 @@ data class TapNestLayer(
     /** Higher means a softer spring, not a larger static deflection. */
     val springSoftness: Float = 0.72f,
     /** Damping ratio: low values add overshoot; high values settle quickly. */
-    val springDamping: Float = 0.40f
+    val springDamping: Float = 0.40f,
+    /** 0: freely bend the skin, 1: preserve the original stroke as a rigid shape. */
+    val shapePreservation: Float = 0f
 )
 
 @Serializable

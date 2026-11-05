@@ -354,7 +354,8 @@ fun LayeredPetEditor(
                                 update(layer.copy(
                                     idleSwing = true, swingMode = TapNestSwingMode.SPRING,
                                     idleAmplitude = 65f, idleSpeed = 0.50f,
-                                    springSoftness = 0.78f, springDamping = 0.38f
+                                    springSoftness = 0.78f, springDamping = 0.38f,
+                                    shapePreservation = 0.78f
                                 ))
                             }
                         ) { Text("🐶 一键试试「短尾大幅软弹」") }
@@ -372,7 +373,12 @@ fun LayeredPetEditor(
                         BindingSlider("回弹阻尼（越低越弹）", layer.springDamping, 0.1f, 1.3f) {
                             update(layer.copy(springDamping = it))
                         }
-                        Text("建议尾巴至少 3 个点，根→中→尖排列；柔软度可先用 0.78、阻尼 0.38。短尾巴被大脑袋挡住的部分无法凭动画显示出来。",
+                        BindingSlider("🖍️ 粗线条保形（越高越不扭曲）", layer.shapePreservation, 0f, 1f) {
+                            update(layer.copy(shapePreservation = it))
+                        }
+                        Text("粗轮廓或短胖尾巴建议保形 0.7～0.85；保形为 1 时整张图刚性摇摆，不再弯曲。幅度控制左右大摆，柔软度与阻尼控制末端跟随。",
+                            style = MaterialTheme.typography.bodySmall)
+                        Text("建议至少 3 个点，按根→中→尖排列；大脑袋挡住的尾巴需要在图层位置上调整可见部分。",
                             style = MaterialTheme.typography.bodySmall)
                     } else if (layer.bones.size >= 3) {
                         BindingSlider("上段跟随延迟（秒）", layer.idleLagSeconds, 0f, 0.45f) {
