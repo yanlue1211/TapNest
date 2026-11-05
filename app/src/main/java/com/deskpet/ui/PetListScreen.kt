@@ -91,10 +91,50 @@ fun PetListScreen(
     onDeletePet: (String) -> Unit,
     onScaleChange: (Float) -> Unit,
     onExportPet: (PetInfo) -> Unit = {},
+    onSaveDialogues: (String, Boolean, List<String>) -> Unit = { _, _, _ -> },
     onBackupAll: () -> Unit = {},
     onShowHelp: () -> Unit = {}
 ) {
     var deleteTarget by remember { mutableStateOf<String?>(null) }
+    var dialogueTarget by remember { mutableStateOf<String?>(null) }
+
+    petList.firstOrNull { it.id == dialogueTarget }?.let { pet ->
+        var enabled by remember(pet.id) { mutableStateOf(pet.tapBubbleEnabled) }
+        var draft by remember(pet.id) { mutableStateOf(pet.tapDialogues.joinToString("\n")) }
+        AlertDialog(
+            onDismissRequest = { dialogueTarget = null },
+            title = { Text("💬 ${pet.displayName} 的点击台词") },
+            text = {
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("点击时显示文字气泡", modifier = Modifier.weight(1f))
+                        Switch(checked = enabled, onCheckedChange = { enabled = it })
+                    }
+                    Spacer(Modifier.height(12.dp))
+                    Text("一行一句，依次轮流出现。最多 20 句，每句 60 字。", style = MaterialTheme.typography.bodySmall)
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = draft,
+                        onValueChange = { draft = it.take(2400) },
+                        enabled = enabled,
+                        minLines = 4,
+                        maxLines = 7,
+                        label = { Text("预设台词") },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text("全部清空也可以让小人不说话；文字只存在手机里。", style = MaterialTheme.typography.bodySmall)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    onSaveDialogues(pet.id, enabled, draft.lines())
+                    dialogueTarget = null
+                }) { Text("保存") }
+            },
+            dismissButton = { TextButton(onClick = { dialogueTarget = null }) { Text("取消") } }
+        )
+    }
     // 横竖屏判定提前到最上面：网格右缘避让和收纳坞形态都要用
     val isLandscape = LocalConfiguration.current.orientation == Configuration.ORIENTATION_LANDSCAPE
 
@@ -199,7 +239,8 @@ fun PetListScreen(
                         modifier = Modifier.animateItem(),
                         onClick = { onPetSelected(pet.id) },
                         onLongClick = { deleteTarget = pet.id },
-                        onExport = { onExportPet(pet) }
+                        onExport = { onExportPet(pet) },
+                        onEditDialogue = { dialogueTarget = pet.id }
                     )
                 }
             }
@@ -720,7 +761,8 @@ private fun PetGridCard(
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
-    onExport: () -> Unit = {}
+    onExport: () -> Unit = {},
+    onEditDialogue: () -> Unit = {}
 ) {
     val scale by animateFloatAsState(
         if (isActive) 1.04f else 1f,
@@ -788,6 +830,14 @@ private fun PetGridCard(
                     color = if (isActive) MaterialTheme.colorScheme.onPrimaryContainer
                     else MaterialTheme.colorScheme.onSurface
                 )
+            }
+            Box(
+                Modifier.align(Alignment.BottomStart).size(42.dp)
+                    .clickable(onClickLabel = "编辑点击台词", onClick = onEditDialogue)
+                    .semantics { contentDescription = "编辑点击台词" },
+                contentAlignment = Alignment.Center
+            ) {
+                Text("💬", style = MaterialTheme.typography.bodyMedium)
             }
             IconButton(onClick = onExport, modifier = Modifier.align(Alignment.BottomEnd).size(28.dp)) {
                 Icon(

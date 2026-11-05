@@ -26,6 +26,8 @@ import androidx.savedstate.SavedStateRegistryOwner
 import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.deskpet.R
 import com.deskpet.data.PetRepository
+import com.deskpet.data.model.PetInfo
+import com.deskpet.data.model.TapDialogue
 import com.deskpet.data.model.DragDirection
 import com.deskpet.data.model.PetAnimationState
 import com.deskpet.engine.*
@@ -47,6 +49,10 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
     private lateinit var gesture: GestureHandler
     private lateinit var parser: SpritesheetParser
     private var auto: AutonomousBehavior? = null
+    private var speechBubble: TapSpeechBubble? = null
+    private var speechJob: Job? = null
+    private var currentPet: PetInfo? = null
+    private var touchLineIndex = 0
     private var petId: String? = null
     private var job: Job? = null
     private var scaleJob: Job? = null
@@ -119,6 +125,25 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
             bounce()
         }
         auto?.onUserTouch()
+        val pet = currentPet
+        if (pet != null && pet.tapBubbleEnabled) {
+            val line = TapDialogue.at(pet.tapDialogues, touchLineIndex)
+            if (line != null) {
+                touchLineIndex = (touchLineIndex + 1) % pet.tapDialogues.size
+                displayTapLine(line)
+            }
+        }
+    }
+
+    private fun displayTapLine(line: String) {
+        speechJob?.cancel()
+        val bubble = speechBubble ?: TapSpeechBubble(this, wm).also { speechBubble = it }
+        bubble.show(line)
+        bubble.follow(wx, wy + bounceOffset, anim.petWidth.value, anim.petHeight.value, safeBounds())
+        speechJob = sc.launch {
+            delay(3200L)
+            bubble.dismiss()
+        }
     }
 
     private fun onScale(zoom: Float, focusX: Float, focusY: Float) {
@@ -308,6 +333,10 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         removeOverlayView()
         if (::anim.isInitialized) anim.stop()
         auto?.stop()
+        speechJob?.cancel()
+        speechBubble?.dismiss()
+        speechBubble = null
+        currentPet = null
         if (::engine.isInitialized) engine.release()
         try {
             unregisterReceiver(screenReceiver)
@@ -373,6 +402,10 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
                 Log.w(TAG, "Failed to save previous pet position", e)
             }
         }
+        speechJob?.cancel()
+        speechBubble?.dismiss()
+        currentPet = info
+        touchLineIndex = 0
         petId = id
         wx = info.positionX
         wy = info.positionY
@@ -412,6 +445,11 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         scaleJob = sc.launch {
             repo.getAllPets().collect { pets ->
                 val info = pets.find { it.id == id } ?: return@collect
+                currentPet = info
+                if (!info.tapBubbleEnabled || info.tapDialogues.isEmpty()) {
+                    speechJob?.cancel()
+                    speechBubble?.dismiss()
+                }
                 if (abs(info.scale - savedScale) > 0.001f) {
                     savedScale = info.scale
                     anim.setScale(info.scale)
@@ -429,6 +467,8 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
             // 系统静默拦截（有 SYSTEM_ALERT_WINDOW 的 App 才豁免），跳了也白跳。
             return false
         }
+        speechJob?.cancel()
+        speechBubble?.dismiss()
         removeOverlayView()
         cv = ComposeView(this).apply {
             setViewTreeLifecycleOwner(this@PetOverlayService)
@@ -487,6 +527,7 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
                 }
             }
         }
+        speechBubble?.follow(wx, wy + bounceOffset, anim.petWidth.value, anim.petHeight.value, safeBounds())
     }
 
     private fun clampPosition() {

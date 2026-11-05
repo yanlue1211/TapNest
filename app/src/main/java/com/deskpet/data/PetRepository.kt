@@ -113,6 +113,20 @@ class PetRepository(private val petStore: IPetStore) {
         }
     }
 
+    /** Update one pet's spoken lines; leave artwork/position/other pets untouched. */
+    suspend fun setTapDialogues(petId: String, enabled: Boolean, lines: List<String>) {
+        val safe = com.deskpet.data.model.TapDialogue.sanitize(lines)
+        writeMutex.withLock {
+            val pets = petStore.petListFlow.first()
+            val idx = pets.indexOfFirst { it.id == petId }
+            if (idx < 0) return@withLock
+            val changed = pets[idx].copy(tapBubbleEnabled = enabled, tapDialogues = safe)
+            if (changed != pets[idx]) {
+                petStore.updatePetList(pets.toMutableList().apply { set(idx, changed) })
+            }
+        }
+    }
+
     suspend fun getPet(petId: String): PetInfo? {
         return petStore.petListFlow.first().find { it.id == petId }
     }

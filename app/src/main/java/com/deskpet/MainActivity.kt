@@ -230,6 +230,16 @@ class MainActivity : ComponentActivity() {
                             .onFailure { e -> Log.e("MainActivity", "setScale failed", e) } }
                     }
                 },
+                onSaveDialogues = { id, enabled, lines ->
+                    sc.launch {
+                        try {
+                            repo.setTapDialogues(id, enabled, lines)
+                        } catch (e: Exception) {
+                            Log.e("MainActivity", "setTapDialogues failed", e)
+                            Toast.makeText(this@MainActivity, "保存台词失败：${e.message}", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                },
                 onExportPet = { pet ->
                     sc.launch {
                         try {
