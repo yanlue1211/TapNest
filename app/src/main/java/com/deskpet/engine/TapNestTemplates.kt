@@ -15,9 +15,15 @@ object TapNestTemplates {
     const val FAIRY = "fairy_twinkle_v1"
     const val MANUAL = "manual"
 
+    // Default for a front-facing, seated cat/dog: the tail emerges from behind
+    // the lower-right hip. PNG layers should share a transparent canvas.
+    // These are editable in the mobile rig preview for other art layouts.
+    const val SITTING_TAIL_PIVOT_X = 0.77f
+    const val SITTING_TAIL_PIVOT_Y = 0.73f
+
     val fairySlots: List<TapNestSlotSpec> = listOf(
         TapNestSlotSpec("body", "身体（静态）", false),
-        TapNestSlotSpec("tail", "尾巴（单张 PNG，自动摇摆）"),
+        TapNestSlotSpec("tail", "尾巴（坐姿后侧，单图摇摆）"),
         TapNestSlotSpec("wing_0", "翅膀 · 平时"),
         TapNestSlotSpec("wing_1", "翅膀 · 戳动"),
         TapNestSlotSpec("head_blank", "空白头部"),
@@ -57,11 +63,11 @@ object TapNestTemplates {
                     else -> "body"
                 },
                 pivotX = when (slot.id) {
-                    "tail" -> 0.15f
+                    "tail" -> SITTING_TAIL_PIVOT_X
                     else -> 0.5f
                 },
                 pivotY = when {
-                    slot.id == "tail" -> 0.15f
+                    slot.id == "tail" -> SITTING_TAIL_PIVOT_Y
                     isHead -> 0.75f
                     else -> 0.5f
                 }
