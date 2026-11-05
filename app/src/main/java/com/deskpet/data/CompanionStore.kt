@@ -131,7 +131,10 @@ class CompanionStore(private val context: Context) {
     /** Mark as delivered before displaying; a restart cannot replay the same reminder. */
     @Synchronized fun due(id: String, now: Long = System.currentTimeMillis()): List<CompanionReminder> {
         val p = load(id)
+        // Show at most one per poll; multiple notes scheduled at the same time
+        // should never overwrite each other before the user can read them.
         val due = p.reminders.filter { !it.delivered && it.atMillis in 1..now }
+            .sortedBy { it.atMillis }.take(1)
         if (due.isNotEmpty()) {
             val ids = due.map { it.id }.toSet()
             save(id, p.copy(reminders = p.reminders.map { if (it.id in ids) it.copy(delivered = true) else it }))
