@@ -26,13 +26,15 @@ import kotlinx.coroutines.withContext
 import kotlin.math.max
 import kotlin.math.min
 
+private data class PreviewAsset(val bitmap: Bitmap, val width: Int, val height: Int)
+
 /** Canvas preview shares parent, pivot, scale and z-order logic with the floating player. */
 @Composable
 internal fun LayeredRigPreview(rig: TapNestRig, uris: Map<String, Uri>, selected: String,
     onDragLayer: (Float, Float) -> Unit
 ) {
     val ctx = LocalContext.current
-    val bitmaps by produceState<Map<String, Bitmap>>(emptyMap(), uris) {
+    val bitmaps by produceState<Map<String, PreviewAsset>>(emptyMap(), uris) {
         value = withContext(Dispatchers.IO) {
             uris.mapNotNull { (id, uri) ->
                 runCatching {
@@ -47,7 +49,7 @@ internal fun LayeredRigPreview(rig: TapNestRig, uris: Map<String, Uri>, selected
                     ctx.contentResolver.openInputStream(uri)?.use {
                         BitmapFactory.decodeStream(it, null,
                             BitmapFactory.Options().apply { inSampleSize = sample })
-                    }?.let { id to it }
+                    }?.let { id to PreviewAsset(it, bounds.outWidth, bounds.outHeight) }
                 }.getOrNull()
             }.toMap()
         }
@@ -85,8 +87,9 @@ internal fun LayeredRigPreview(rig: TapNestRig, uris: Map<String, Uri>, selected
                 layer.id.startsWith("bow_") -> layer.id == "bow_0"
                 else -> true
             }
-            val art = bitmaps[layer.id]
-            if (!visible || art == null) continue
+            val asset = bitmaps[layer.id]
+            if (!visible || asset == null) continue
+            val art = asset.bitmap
             val chain = mutableListOf<TapNestLayer>()
             val seen = mutableSetOf<String>()
             var node: TapNestLayer? = layer
@@ -103,16 +106,18 @@ internal fun LayeredRigPreview(rig: TapNestRig, uris: Map<String, Uri>, selected
                 c.scale(scale, scale)
                 c.translate(-px, -py)
             }
-            c.drawBitmap(art, 0f, 0f, Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
+            c.drawBitmap(art, null, android.graphics.RectF(0f, 0f,
+                asset.width.toFloat(), asset.height.toFloat()),
+                Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG))
             if (selected == layer.id) {
                 val border = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     color = android.graphics.Color.rgb(63, 163, 99)
                     style = Paint.Style.STROKE
                     strokeWidth = 2f / factor.coerceAtLeast(0.1f)
                 }
-                c.drawRect(0f, 0f, art.width.toFloat(), art.height.toFloat(), border)
+                c.drawRect(0f, 0f, asset.width.toFloat(), asset.height.toFloat(), border)
                 border.style = Paint.Style.FILL
-                c.drawCircle(art.width * layer.pivotX, art.height * layer.pivotY,
+                c.drawCircle(asset.width * layer.pivotX, asset.height * layer.pivotY,
                     5f / factor.coerceAtLeast(0.1f), border)
             }
             c.restore()
