@@ -22,7 +22,7 @@ class LayeredPetPlayer private constructor(
     private val canvas = Canvas(frame)
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     @Volatile private var tappedAtMs = -10000L
-    @Volatile private var expression = -1
+    @Volatile private var expression = 0
     private val launchedAtMs = SystemClock.uptimeMillis()
 
     fun tap() {
@@ -49,6 +49,21 @@ class LayeredPetPlayer private constructor(
         }
         val sx = width.toFloat() / rig.canvasWidth.coerceAtLeast(1)
         val sy = height.toFloat() / rig.canvasHeight.coerceAtLeast(1)
+        val nodes = rig.layers.associateBy { it.id }
+        // Parent transformations are evaluated even when a parent image is hidden or optional.
+        // Drawing uses a shared canvas coordinate system so cropped PNGs keep their natural size.
+        fun poseFor(node: TapNestLayer): TapNestPose {
+            val id = node.id
+            var p = TapNestPose()
+            if (id == "tail") {
+                p = TapNestMotion.sample(TapNestPresets.wag(id), id, now - launchedAtMs)
+            } else if ((id.startsWith("head_") || id == "head_blank") && touched) {
+                p = TapNestMotion.sample(TapNestPresets.nod(id), id, elapsed)
+            }
+            rig.clips.firstOrNull { c -> c.tracks.any { it.layerId == id } }
+                ?.let { p = TapNestMotion.sample(it, id, if (it.loop) now - launchedAtMs else elapsed) }
+            return p
+        }
         for (layer in rig.layers.sortedBy { it.zIndex }) {
             val id = layer.id
             val visible = when {
@@ -62,26 +77,28 @@ class LayeredPetPlayer private constructor(
             }
             if (!visible) continue
             val picture = pictures[id] ?: continue
-            var pose = TapNestPose()
-            if (id == "tail") {
-                pose = TapNestMotion.sample(TapNestPresets.wag(id), id, now - launchedAtMs)
-            } else if ((id.startsWith("head_") || id == "head_blank") && touched) {
-                pose = TapNestMotion.sample(TapNestPresets.nod(id), id, elapsed)
+            val chain = mutableListOf<TapNestLayer>()
+            val visited = mutableSetOf<String>()
+            var node: TapNestLayer? = layer
+            while (node != null && visited.add(node.id) && chain.size < 32) {
+                chain.add(node)
+                node = node.parentId?.let(nodes::get)
             }
-            // User-defined clips can supply another motion track independently of image assets.
-            rig.clips.firstOrNull { clip -> clip.tracks.any { it.layerId == id } }
-                ?.let { pose = TapNestMotion.sample(it, id, if (it.loop) now - launchedAtMs else elapsed) }
-            val px = layer.pivotX.coerceIn(0f, 1f) * picture.width
-            val py = layer.pivotY.coerceIn(0f, 1f) * picture.height
-            val x = (layer.x + pose.x) * sx
-            val y = (layer.y + pose.y) * sy
-            val scale = layer.restScale.coerceIn(0.1f, 4f)
             canvas.save()
-            canvas.translate(x + px * sx * scale, y + py * sy * scale)
-            canvas.rotate(pose.angle)
-            canvas.scale(scale * pose.scaleX * sx, scale * pose.scaleY * sy)
-            paint.alpha = (pose.alpha.coerceIn(0f, 1f) * 255).toInt()
-            canvas.drawBitmap(picture, -px, -py, paint)
+            canvas.scale(sx, sy)
+            for (part in chain.asReversed()) {
+                val pose = poseFor(part)
+                val art = pictures[part.id]
+                val pivotX = part.pivotX.coerceIn(0f, 1f) * (art?.width ?: rig.canvasWidth)
+                val pivotY = part.pivotY.coerceIn(0f, 1f) * (art?.height ?: rig.canvasHeight)
+                val scale = part.restScale.coerceIn(0.1f, 4f)
+                canvas.translate(part.x + pose.x + pivotX * scale, part.y + pose.y + pivotY * scale)
+                canvas.rotate(pose.angle)
+                canvas.scale(scale * pose.scaleX, scale * pose.scaleY)
+                canvas.translate(-pivotX, -pivotY)
+            }
+            paint.alpha = (poseFor(layer).alpha.coerceIn(0f, 1f) * 255).toInt()
+            canvas.drawBitmap(picture, 0f, 0f, paint)
             canvas.restore()
         }
         return frame

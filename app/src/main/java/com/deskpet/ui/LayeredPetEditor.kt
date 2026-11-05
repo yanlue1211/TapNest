@@ -168,6 +168,28 @@ fun LayeredPetEditor(
                 fun update(p: TapNestLayer) {
                     rig = rig.copy(layers = rig.layers.map { if (it.id == activeLayer) p else it })
                 }
+                var parentMenu by remember(activeLayer) { mutableStateOf(false) }
+                Box {
+                    TextButton(onClick = { parentMenu = true }) {
+                        Text("绑定到父图层：${layer.parentId ?: "无（独立）"}  ▾")
+                    }
+                    DropdownMenu(expanded = parentMenu, onDismissRequest = { parentMenu = false }) {
+                        DropdownMenuItem(text = { Text("无（独立）") }, onClick = {
+                            update(layer.copy(parentId = null)); parentMenu = false
+                        })
+                        for (parent in rig.layers.filter { it.id != layer.id }) {
+                            val lineage = mutableSetOf<String>()
+                            var n: TapNestLayer? = parent
+                            while (n != null && lineage.add(n.id)) {
+                                n = rig.layers.firstOrNull { it.id == n?.parentId }
+                            }
+                            if (layer.id in lineage) continue
+                            DropdownMenuItem(text = { Text(parent.id) }, onClick = {
+                                update(layer.copy(parentId = parent.id)); parentMenu = false
+                            })
+                        }
+                    }
+                }
                 BindingSlider("水平位置 X", layer.x, -512f, 512f) { update(layer.copy(x = it)) }
                 BindingSlider("垂直位置 Y", layer.y, -512f, 512f) { update(layer.copy(y = it)) }
                 BindingSlider("旋转中心 X", layer.pivotX, 0f, 1f) { update(layer.copy(pivotX = it)) }

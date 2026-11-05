@@ -51,6 +51,11 @@ object TapNestTemplates {
             }
             TapNestLayer(
                 id = slot.id, image = "", zIndex = order,
+                parentId = when {
+                    slot.id.startsWith("face_") -> "head_blank"
+                    slot.id == "body" -> null
+                    else -> "body"
+                },
                 pivotX = when (slot.id) {
                     "tail" -> 0.15f
                     else -> 0.5f
