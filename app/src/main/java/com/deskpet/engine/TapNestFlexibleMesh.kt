@@ -114,6 +114,16 @@ object TapNestFlexibleMesh {
             layer.shapePreservation.coerceIn(0f, 1f) else 0f
         val root = base.first()
         val rootRotation = jointRotations.first()
+        // Horizontal/vertical flapping must not be suppressed by a high
+        // outline-preservation setting. Only rotation has a rigid equivalent.
+        val containsLinearSteering = layer.bones.any {
+            it.swingDirection in setOf(
+                TapNestBoneSwingDirection.HORIZONTAL,
+                TapNestBoneSwingDirection.HORIZONTAL_REVERSE,
+                TapNestBoneSwingDirection.VERTICAL,
+                TapNestBoneSwingDirection.VERTICAL_REVERSE
+            )
+        }
         val coords = FloatArray((mesh + 1) * (mesh + 1) * 2)
         var index = 0
         for (row in 0..mesh) for (col in 0..mesh) {
@@ -151,7 +161,8 @@ object TapNestFlexibleMesh {
                 mixAngle(jointRotations[i], jointRotations[i + 1], uSmooth)
             else segmentRotations[i] // Keep classic DELAY appearance unchanged.
             val soft = newProjection + rotate(vertex - originalProjection, angleDelta)
-            val rigid = root + rotate(vertex - root, rootRotation)
+            val rigid = if (containsLinearSteering) soft
+                else root + rotate(vertex - root, rootRotation)
             val result = soft * (1f - preserve) + rigid * preserve
             coords[index++] = result.x
             coords[index++] = result.y
