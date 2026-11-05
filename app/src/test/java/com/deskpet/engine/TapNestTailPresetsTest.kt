@@ -6,12 +6,22 @@ import org.junit.Test
 class TapNestTailPresetsTest {
     @Test fun allFourPresetsHaveExpectedPointCountAndRanges() {
         assertEquals(4, TapNestTailPresets.ALL.size)
-        assertEquals(listOf(3, 4, 3, 4), TapNestTailPresets.ALL.map { it.bonePercentages.size })
+        assertEquals(listOf(4, 5, 4, 5), TapNestTailPresets.ALL.map { it.bonePercentages.size })
         assertEquals(listOf(TapNestSwingRange.CENTERED, TapNestSwingRange.CENTERED,
             TapNestSwingRange.OUTWARD_ONLY, TapNestSwingRange.OUTWARD_ONLY),
             TapNestTailPresets.ALL.map { it.swingRange })
         assertTrue(TapNestTailPresets.ALL.all { it.bonePercentages.first() == 0 &&
             it.bonePercentages.last() in 85..90 && it.bonePercentages == it.bonePercentages.sorted() })
+    }
+
+    @Test fun dogPresetMatchesHandTunedPictureValues() {
+        val dog = TapNestTailPresets.ALL.first()
+        assertEquals(85f, dog.amplitude, 0.001f)
+        assertEquals(0.48f, dog.speed, 0.001f)
+        assertEquals(0.85f, dog.softness, 0.001f)
+        assertEquals(0.45f, dog.damping, 0.001f)
+        assertEquals(0.30f, dog.preservation, 0.001f)
+        assertEquals(listOf(0, 28, 57, 85), dog.bonePercentages)
     }
 
     @Test fun applyOnlySettingsNeverErasesExistingPointsOrLayerIdentity() {
@@ -48,7 +58,7 @@ class TapNestTailPresetsTest {
             TapNestBonePoint(.7f,.2f))
         val cat = TapNestTailPresets.ALL[1]
         val result = TapNestTailPresets.repositionBones(points, cat)
-        assertEquals(4, result.size)
+        assertEquals(5, result.size)
         assertEquals(points.first(), result.first())
         assertEquals(points.last(), result.last())
         assertTrue(result[1].x > .2f)
