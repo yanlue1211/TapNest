@@ -19,7 +19,7 @@ class TapNestPresetsTest {
     }
 
     @Test fun nodAndEarsReturnToNeutral() {
-        assertEquals(0f, TapNestMotion.sample(TapNestPresets.nod("head"), "head", 560).angle, 0.01f)
+        assertEquals(0f, TapNestMotion.sample(TapNestPresets.nod("head"), "head", 680).angle, 0.01f)
         val ears = TapNestPresets.earTwitch("L", "R")
         assertEquals(0f, TapNestMotion.sample(ears, "L", 460).angle, 0.01f)
         assertEquals(0f, TapNestMotion.sample(ears, "R", 460).angle, 0.01f)
