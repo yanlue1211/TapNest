@@ -1,0 +1,23 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><title>糯米机桌宠 · 启动脚本复制器</title><style>
+*{box-sizing:border-box}body{font:16px/1.65 system-ui,"Noto Sans SC",sans-serif;margin:0;padding:18px;background:linear-gradient(150deg,#f3fff8,#f3f9ff);color:#2d6556}main{max-width:550px;margin:0 auto}section{background:white;border-radius:22px;padding:22px 18px;margin:12px 0;box-shadow:0 6px 26px #338a6917}h1{font-size:23px;margin:3px 0}h2{font-size:16px;margin:0 0 10px}p{margin:7px 0}button,a.button{display:inline-block;border:0;border-radius:14px;padding:13px 18px;font-size:16px;font-weight:700;background:#67d7b5;color:#165244;text-decoration:none;margin:9px 4px 6px 0}button:disabled{opacity:.5}li{margin:7px 0}#status{font-size:14px;white-space:pre-wrap}textarea{width:100%;height:165px;border:1px solid #bddccd;border-radius:12px;padding:12px;display:none}small{color:#688a7a}
+</style></head><body><main>
+<section><h1>🐶 桌宠远程网页 V0.2</h1><p>第一步先在浏览器看预览。第二步复制启动脚本，粘贴到你已经装好的 AutoJs6 里运行。</p><a class="button" href="./index.html?v=02">🐾 预览小狗</a><button id="copy">📋 一键复制 AutoJs6 脚本</button><p id="status" role="status">不需要安装新插件，也不用给糯米机打包 APK。</p><textarea id="raw" spellcheck="false"></textarea></section>
+<section><h2>🔨 宝宝巴士 · 就三步</h2><ol><li>点击上面「一键复制 AutoJs6 脚本」。</li><li>打开 AutoJs6 →「文件」→ 黄色＋ →「新建脚本」。</li><li>粘贴代码，保存，点击 ▶。回桌面看到会眨眼的小狗，戳一戳！</li></ol><p><b>手势：</b>单击有预设文字，拖动可以移动整个悬浮窗，长按可尝试弹出文字输入框。</p><small>这只是远程网页 + 透明悬浮的第二阶段原型。还没有绑定 Char、请求 AI 或写入糯米机记忆。若长按后键盘没弹出，说明窗口输入焦点仍需要适配。</small></section>
+<section><h2>如果复制失败</h2><p>可以打开 <a href="../autojs6-remote-pet-v02.js">脚本原文</a> 长按全选复制，也可在下方文本框中长按复制。测试结束，在 AutoJs6 的「任务」页停止脚本即可关闭桌宠。</p></section>
+</main><script>
+const $=q=>document.querySelector(q);
+$('#copy').onclick=async()=>{
+const button=$('#copy'),status=$('#status'),textarea=$('#raw');
+button.disabled=true;status.textContent='正在读取 GitHub 上的最新测试脚本…';
+try {
+ const response=await fetch('../autojs6-remote-pet-v02.js?v=02',{cache:'no-store'});
+ if(!response.ok)throw Error('HTTP '+response.status);
+ const source=await response.text();
+ if(!source.includes('floaty.rawWindow(')||!source.includes('win.pet'))throw Error('脚本内容不完整');
+ textarea.value=source;
+ try{await navigator.clipboard.writeText(source);status.textContent='✅ 已复制！现在去 AutoJs6 新建脚本，长按粘贴就行。';}
+ catch(e){textarea.style.display='block';textarea.focus();textarea.select();const copied=document.execCommand('copy');status.textContent=copied?'✅ 已复制，去 AutoJs6 粘贴即可。':'自动复制被浏览器拦截了，请长按下方代码全选复制。'}
+}catch(e){status.textContent='⚠️ 网络加载失败：'+e.message+'。可以点击下面的「脚本原文」再复制。';}
+finally{button.disabled=false}
+};
+</script></body></html>
