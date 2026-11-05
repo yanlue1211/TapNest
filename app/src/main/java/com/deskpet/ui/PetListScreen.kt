@@ -91,11 +91,42 @@ fun PetListScreen(
     onDeletePet: (String) -> Unit,
     onScaleChange: (Float) -> Unit,
     onExportPet: (PetInfo) -> Unit = {},
+    onEditLayered: (PetInfo) -> Unit = {},
     onSaveDialogues: (String, Boolean, List<String>) -> Unit = { _, _, _ -> },
     onBackupAll: () -> Unit = {},
     onShowHelp: () -> Unit = {}
 ) {
     var deleteTarget by remember { mutableStateOf<String?>(null) }
+    var actionTarget by remember { mutableStateOf<String?>(null) }
+
+    petList.firstOrNull { it.id == actionTarget }?.let { pet ->
+        AlertDialog(
+            onDismissRequest = { actionTarget = null },
+            title = { Text("${pet.displayName} · 角色操作") },
+            text = { Text("可以继续编辑已有角色，不需要重新导入创建。") },
+            confirmButton = {
+                if (pet.type == PetType.LAYERED)
+                    TextButton(onClick = {
+                        actionTarget = null
+                        onEditLayered(pet)
+                    }) { Text("重新编辑绑骨") }
+                else
+                    TextButton(onClick = {
+                        actionTarget = null
+                        dialogueTarget = pet.id
+                    }) { Text("编辑点击台词") }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(onClick = {
+                        actionTarget = null
+                        deleteTarget = pet.id
+                    }) { Text("删除", color = MaterialTheme.colorScheme.error) }
+                    TextButton(onClick = { actionTarget = null }) { Text("取消") }
+                }
+            }
+        )
+    }
     var dialogueTarget by remember { mutableStateOf<String?>(null) }
 
     petList.firstOrNull { it.id == dialogueTarget }?.let { pet ->
@@ -169,10 +200,10 @@ fun PetListScreen(
             // 空态 Box(fillMaxSize) 会先吃掉全部高度，头部被压成 0（标题曾因此
             // 在所有设备上不可见）。剩余空间改由内容区用 weight(1f) 主动认领。
             Column {
-                Text("宠物栏", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
+                Text("桌面伙伴", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
                 if (!isLoading && petList.isNotEmpty()) {
                     Text(
-                        "${petList.size} 只宠物 · " + if (isOverlayRunning) "运行中" else "未开启",
+                        "${petList.size} 位伙伴 · " + if (isOverlayRunning) "运行中" else "未开启",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -194,10 +225,10 @@ fun PetListScreen(
                     ) {
                         Text("🐾", style = MaterialTheme.typography.headlineLarge)
                         Spacer(Modifier.height(10.dp))
-                        Text("还没有宠物", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text("还没有小伙伴", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            "从手机导入自己画的 PNG\n长按宠物可删除",
+                            "从手机导入自己画的角色\n长按卡片可重新编辑或删除",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center
@@ -238,7 +269,7 @@ fun PetListScreen(
                         isActive = pet.id == activePetId,
                         modifier = Modifier.animateItem(),
                         onClick = { onPetSelected(pet.id) },
-                        onLongClick = { deleteTarget = pet.id },
+                        onLongClick = { actionTarget = pet.id },
                         onExport = { onExportPet(pet) },
                         onEditDialogue = { dialogueTarget = pet.id }
                     )
@@ -447,7 +478,7 @@ private fun PetDock(
                             Column(Modifier.padding(start = 14.dp, end = 14.dp, bottom = 14.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     Text(
-                                        "宠物大小",
+                                        "伙伴大小",
                                         style = MaterialTheme.typography.labelMedium,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant
                                     )

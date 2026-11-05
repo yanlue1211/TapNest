@@ -76,6 +76,7 @@ class MainActivity : ComponentActivity() {
         val sc = rememberCoroutineScope()
         var showImport by remember { mutableStateOf(false) }
         var showLayeredEditor by remember { mutableStateOf(false) }
+        var editingPetId by remember { mutableStateOf<String?>(null) }
         var pendingStart by remember { mutableStateOf(false) }
         var showHelp by remember { mutableStateOf(false) }
         val petList by repo.getAllPets().collectAsStateWithLifecycle(emptyList())
@@ -183,14 +184,22 @@ class MainActivity : ComponentActivity() {
         if (showLayeredEditor) {
             com.deskpet.ui.LayeredPetEditor(
                 petRepository = repo,
+                editingPet = petList.firstOrNull { it.id == editingPetId },
                 onCreated = { pet ->
+                    val wasEdit = editingPetId != null
                     sc.launch {
-                        repo.setActivePet(pet.id)
+                        if (!wasEdit) repo.setActivePet(pet.id)
                         showLayeredEditor = false
                         showImport = false
+                        editingPetId = null
+                        if (wasEdit && OverlayState.petId.value == pet.id) startOverlay(pet.id)
                     }
                 },
-                onBack = { showLayeredEditor = false; showImport = true }
+                onBack = {
+                    showLayeredEditor = false
+                    showImport = editingPetId == null
+                    editingPetId = null
+                }
             )
         } else if (showImport) {
             ImportScreen(
@@ -228,6 +237,11 @@ class MainActivity : ComponentActivity() {
                 },
                 onStopOverlay = { stopOverlay() },
                 onImportClick = { showImport = true },
+                onEditLayered = { pet ->
+                    editingPetId = pet.id
+                    showImport = false
+                    showLayeredEditor = true
+                },
                 onDeletePet = { id ->
                     sc.launch {
                         try {
