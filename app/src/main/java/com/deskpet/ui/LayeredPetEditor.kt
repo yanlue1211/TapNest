@@ -52,6 +52,7 @@ fun LayeredPetEditor(
     var saveTemplate by remember(editingPet?.id) { mutableStateOf(editingPet == null) }
     var busy by remember { mutableStateOf(false) }
     var activeLayer by remember { mutableStateOf("body") }
+    var previewMode by remember(editingPet?.id) { mutableStateOf(RigPreviewMode.POSITION) }
     var newLayerName by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
     val images = remember(editingPet?.id) {
@@ -72,6 +73,25 @@ fun LayeredPetEditor(
         }
     }
 
+    // Keep the preview canvas dimensions consistent with the body PNG actually saved.
+    LaunchedEffect(images["body"]) {
+        val uri = images["body"] ?: return@LaunchedEffect
+        val dimensions = withContext(Dispatchers.IO) {
+            runCatching {
+                val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                ctx.contentResolver.openInputStream(uri)?.use {
+                    android.graphics.BitmapFactory.decodeStream(it, null, bounds)
+                }
+                if (bounds.outWidth in 1..4096 && bounds.outHeight in 1..4096)
+                    bounds.outWidth to bounds.outHeight else null
+            }.getOrNull()
+        }
+        if (dimensions != null && (rig.canvasWidth != dimensions.first ||
+                rig.canvasHeight != dimensions.second)) {
+            rig = rig.copy(canvasWidth = dimensions.first, canvasHeight = dimensions.second)
+        }
+    }
+
     fun select(key: String) {
         templateChoice = key
         rig = when (key) {
@@ -85,6 +105,7 @@ fun LayeredPetEditor(
         }
         images.clear()
         activeLayer = rig.layers.firstOrNull()?.id ?: "body"
+        previewMode = RigPreviewMode.POSITION
         error = null
     }
 
@@ -130,17 +151,57 @@ fun LayeredPetEditor(
             OutlinedTextField(value = name, onValueChange = { name = it.take(60) },
                 label = { Text("这只桌宠的名字") }, modifier = Modifier.fillMaxWidth())
             Text("🖼️ 实时合成预览", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Text("点击下方图层名称选择，手指在预览图上拖动可调整位置；大小、旋转中心在下面的滑块微调。",
-                style = MaterialTheme.typography.bodySmall)
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
+            ) {
+                FilterChip(
+                    selected = previewMode == RigPreviewMode.POSITION,
+                    onClick = { previewMode = RigPreviewMode.POSITION },
+                    label = { Text("移动图层", maxLines = 1) },
+                    modifier = Modifier.weight(1f)
+                )
+                FilterChip(
+                    selected = previewMode == RigPreviewMode.PIVOT,
+                    onClick = { previewMode = RigPreviewMode.PIVOT },
+                    label = { Text("点设锚点", maxLines = 1) },
+                    modifier = Modifier.weight(1f)
+                )
+                FilterChip(
+                    selected = previewMode == RigPreviewMode.TEST,
+                    onClick = { previewMode = RigPreviewMode.TEST },
+                    label = { Text("试玩互动", maxLines = 1) },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+            Text(
+                when (previewMode) {
+                    RigPreviewMode.POSITION ->
+                        "点击预览上的角色部件可选中图层，再拖动改变 X/Y；下方也能精细调整。"
+                    RigPreviewMode.PIVOT ->
+                        "先选中图层，再直接点击预览中的旋转根部，绿点就会移动到该处。"
+                    RigPreviewMode.TEST ->
+                        "点击小伙伴试表情、翅膀和蝴蝶结；长按上半部试摸摸头。点击后会恢复默认表情。"
+                },
+                style = MaterialTheme.typography.bodySmall
+            )
             LayeredRigPreview(
                 rig = rig,
                 uris = images.toMap(),
                 selected = activeLayer,
+                mode = previewMode,
+                onSelectLayer = { id -> activeLayer = id },
                 onDragLayer = { dx, dy ->
                     rig = rig.copy(layers = rig.layers.map { layer ->
                         if (layer.id == activeLayer)
                             layer.copy(x = (layer.x + dx).coerceIn(-2048f, 2048f),
                                 y = (layer.y + dy).coerceIn(-2048f, 2048f))
+                        else layer
+                    })
+                },
+                onSetPivot = { x, y ->
+                    rig = rig.copy(layers = rig.layers.map { layer ->
+                        if (layer.id == activeLayer) layer.copy(pivotX = x, pivotY = y)
                         else layer
                     })
                 }
