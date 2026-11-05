@@ -15,12 +15,14 @@ object TapNestPresets {
         ))
     ))
 
-    fun nod(head: String) = TapNestClip("nod", 560, tracks = listOf(
+    fun nod(head: String) = TapNestClip("nod", 680, tracks = listOf(
         TapNestTrack(head, listOf(
             frame(0, TapNestPose()),
-            frame(180, TapNestPose(angle = 10f, y = 3f)),
-            frame(370, TapNestPose(angle = -3f, y = -1f)),
-            frame(560, TapNestPose())
+            frame(120, TapNestPose(angle = 3f, y = 1f)),
+            frame(270, TapNestPose(angle = 8f, y = 3f)),
+            frame(440, TapNestPose(angle = -2.5f, y = -1f)),
+            frame(560, TapNestPose(angle = -1f)),
+            frame(680, TapNestPose())
         ))
     ))
 
@@ -73,10 +75,12 @@ object TapNestPresets {
     fun petHead(head: String) = TapNestClip("pet_head", 1450, tracks = listOf(
         TapNestTrack(head, listOf(
             frame(0, TapNestPose()),
-            frame(200, TapNestPose(angle = -8f, y = 2f)),
-            frame(460, TapNestPose(angle = 8f, y = -1f)),
-            frame(730, TapNestPose(angle = -7f, y = 2f)),
-            frame(1020, TapNestPose(angle = 6f)),
+            frame(180, TapNestPose(angle = -3f, y = 1f)),
+            frame(360, TapNestPose(angle = -6f, y = 2f)),
+            frame(590, TapNestPose(angle = 5f, y = -1f)),
+            frame(790, TapNestPose(angle = -4f, y = 1f)),
+            frame(1030, TapNestPose(angle = 3f)),
+            frame(1210, TapNestPose(angle = -1f)),
             frame(1450, TapNestPose())
         ))
     ))

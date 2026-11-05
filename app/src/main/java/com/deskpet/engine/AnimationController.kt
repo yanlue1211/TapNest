@@ -23,7 +23,7 @@ class AnimationController(
     companion object {
         private const val IDLE_FRAME_INTERVAL_NS = 500_000_000L
         private const val ANIM_FRAME_INTERVAL_NS = 200_000_000L
-        private const val LAYERED_FRAME_INTERVAL_NS = 50_000_000L // 20 FPS
+        private const val LAYERED_FRAME_INTERVAL_NS = 33_333_333L // 30 FPS; smoother motion
         private const val MIN_FRAME_DELAY_NS = 16_000_000L
         private const val LOOP_COUNT_BEFORE_IDLE = 2
         private const val MIN_PET_SIZE_PX = 32
@@ -163,6 +163,9 @@ class AnimationController(
     fun isLayeredPet() = loader is PetEngine.PetLoader.Layered
     fun tapLayeredPet() { (loader as? PetEngine.PetLoader.Layered)?.player?.tap() }
     fun petLayeredHead() { (loader as? PetEngine.PetLoader.Layered)?.player?.petHead() }
+    fun setAffection(value: Int) {
+        (loader as? PetEngine.PetLoader.Layered)?.player?.setAffection(value)
+    }
 
     private fun applyScale() {
         _w.value = (baseW * s).toInt().coerceAtLeast(MIN_PET_SIZE_PX)

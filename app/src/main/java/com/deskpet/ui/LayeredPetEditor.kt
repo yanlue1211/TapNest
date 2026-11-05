@@ -292,6 +292,44 @@ fun LayeredPetEditor(
                     update(layer.copy(zIndex = it.toInt()))
                 }
             }
+            if (rig.templateId != TapNestTemplates.MANUAL ||
+                rig.layers.any { it.id.startsWith("head_") || it.id.startsWith("face_") }) {
+                Text("🎭 表情与情感绑定", style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold)
+                Text("好感度下降会自动使用「不开心」或「生气」表情；点击互动仍可临时换表情。",
+                    style = MaterialTheme.typography.bodySmall)
+                for (frameIndex in 0..3) {
+                    val current = rig.expressionEmotions[frameIndex] ?: TapNestEmotion.NEUTRAL
+                    var opened by remember(frameIndex) { mutableStateOf(false) }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("第 ${frameIndex + 1} 张表情", modifier = Modifier.weight(1f))
+                        Box {
+                            OutlinedButton(onClick = { opened = true }) { Text(when(current) {
+                                TapNestEmotion.NEUTRAL -> "平常"
+                                TapNestEmotion.HAPPY -> "开心"
+                                TapNestEmotion.SAD -> "不开心"
+                                TapNestEmotion.ANGRY -> "生气"
+                                TapNestEmotion.SHY -> "害羞"
+                            } + " ▾") }
+                            DropdownMenu(expanded = opened, onDismissRequest = { opened = false }) {
+                                for (emotion in TapNestEmotion.entries) {
+                                    DropdownMenuItem(text = { Text(when(emotion) {
+                                        TapNestEmotion.NEUTRAL -> "平常"
+                                        TapNestEmotion.HAPPY -> "开心"
+                                        TapNestEmotion.SAD -> "不开心"
+                                        TapNestEmotion.ANGRY -> "生气"
+                                        TapNestEmotion.SHY -> "害羞"
+                                    }) }, onClick = {
+                                        rig = rig.copy(expressionEmotions =
+                                            rig.expressionEmotions + (frameIndex to emotion))
+                                        opened = false
+                                    })
+                                }
+                            }
+                        }
+                    }
+                }
+            }
             Text("4 个头部表情在点击后短暂出现，再恢复默认表情。蝴蝶结、翅膀会短暂换帧。尾巴按旋转锚点摆动。",
                 style = MaterialTheme.typography.bodySmall)
             if (rig.templateId != TapNestTemplates.MANUAL) {

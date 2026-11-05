@@ -27,6 +27,22 @@ class LayeredPetPlayer private constructor(
     @Volatile private var tappedAtMs = -10000L
     @Volatile private var pettingAtMs = -10000L
     @Volatile private var expression = 0
+    @Volatile private var affection = 70
+    fun setAffection(value: Int) { affection = value.coerceIn(0, 100) }
+
+    private fun naturalExpression(): Int {
+        val desired = when {
+            affection < 25 -> TapNestEmotion.ANGRY
+            affection < 45 -> TapNestEmotion.SAD
+            affection >= 90 -> TapNestEmotion.HAPPY
+            else -> TapNestEmotion.NEUTRAL
+        }
+        return rig.expressionEmotions.entries
+            .firstOrNull { it.value == desired && it.key in 0..3 }?.key
+            ?: if (affection < 45) rig.expressionEmotions.entries.firstOrNull {
+                it.value == TapNestEmotion.SAD && it.key in 0..3
+            }?.key ?: 0 else 0
+    }
     private val launchedAtMs = SystemClock.uptimeMillis()
 
     fun tap() {
@@ -54,7 +70,7 @@ class LayeredPetPlayer private constructor(
         val activeExpression = when {
             petting && rig.pettingExpression in 0..3 -> rig.pettingExpression
             elapsed < 1800 -> expression.coerceIn(0, 3)
-            else -> 0
+            else -> naturalExpression()
         }
         val shown = when (rig.headMode) {
             TapNestHeadMode.FULL_HEAD -> {

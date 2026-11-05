@@ -4,6 +4,9 @@ import kotlinx.serialization.Serializable
 
 /** Local rig format. Paths are relative to a character pack, not remote URLs. */
 @Serializable
+enum class TapNestEmotion { NEUTRAL, HAPPY, SAD, ANGRY, SHY }
+
+@Serializable
 data class TapNestRig(
     val formatVersion: Int = 1,
     val canvasWidth: Int,
@@ -12,6 +15,8 @@ data class TapNestRig(
     val headMode: TapNestHeadMode = TapNestHeadMode.FULL_HEAD,
     /** -1 keeps current expression while stroking; 0..3 selects a dedicated face. */
     val pettingExpression: Int = -1,
+    /** Map frame index to a mood; no labels means preserve legacy default face. */
+    val expressionEmotions: Map<Int, TapNestEmotion> = emptyMap(),
     val layers: List<TapNestLayer> = emptyList(),
     val clips: List<TapNestClip> = emptyList()
 )
