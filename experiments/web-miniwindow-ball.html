@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no,viewport-fit=cover">
+<title>小圆球 · 系统小窗测试</title>
+<style>
+:root{color-scheme:light;--mint:#59cdb0}
+*{box-sizing:border-box}
+html,body{width:100%;height:100%;margin:0;background:transparent!important;font-family:system-ui,-apple-system,'Noto Sans SC',sans-serif;overflow:hidden;touch-action:pan-x pan-y}
+#stage{position:fixed;inset:0;overflow:hidden;background:transparent}
+#bounds{position:fixed;inset:3px;border:2px dashed #aab4c2;pointer-events:none;display:none;border-radius:12px}
+#info{position:fixed;top:calc(env(safe-area-inset-top,0px) + 12px);left:12px;right:12px;max-width:430px;margin:auto;background:#fffef9ef;border:1px solid #e2e9e8;border-radius:18px;padding:12px 14px;box-shadow:0 7px 24px #0002;z-index:4;font-size:13px;color:#4b6261}
+h1{font-size:15px;margin:0 0 7px;color:#278d7b}
+p{margin:5px 0;line-height:1.5}
+.row{display:flex;gap:7px;flex-wrap:wrap;margin-top:9px}
+button{border:0;background:#d8f5ed;color:#166454;border-radius:10px;padding:9px 10px;font-size:13px;font-weight:600}
+button:active{filter:brightness(.94)}
+#ball{position:fixed;left:0;top:0;width:94px;height:94px;border-radius:50%;background:radial-gradient(circle at 32% 25%,#d8fff2,#86ead2 44%,#3abfa5 95%);border:4px solid #ffffffb0;box-shadow:0 10px 28px #1aa68b70;display:grid;place-items:center;color:#126e5d;font-weight:800;font-size:17px;touch-action:none;user-select:none;z-index:2;cursor:grab}
+#ball:active{cursor:grabbing}
+#say{position:fixed;display:none;max-width:210px;background:#fff;border:1px solid #cef0e7;border-radius:13px;padding:9px 12px;box-shadow:0 4px 16px #0002;z-index:3;color:#266a60;font-size:14px}
+#entry{position:fixed;left:10px;bottom:calc(env(safe-area-inset-bottom,0px) + 12px);width:calc(100% - 20px);display:none;gap:8px;padding:9px;border-radius:15px;background:white;box-shadow:0 6px 28px #0004;z-index:6}
+#entry input{min-width:0;flex:1;border:1px solid #cfe4df;border-radius:9px;padding:9px;font-size:15px}
+#log{display:block;margin-top:6px;font-size:11px;word-break:break-word;color:#747f83}
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<div id="bounds"></div>
+<div id="info">
+ <h1>🐾 系统小窗测试 · 第二版</h1>
+ <p>这页<strong>不是画中画</strong>。请用系统的「智慧多窗 / 小窗」，或支持悬浮网页的浏览器，将<strong>这个页面</strong>切成系统级小窗，再返回手机桌面。</p>
+ <p>观察：① 是否留在桌面？② 只有圆球还是整个矩形？③ 能不能摸球、拖动？</p>
+ <div class="row">
+  <button id="toggle">收起说明</button>
+  <button id="border">显示/隐藏窗口边框</button>
+  <button id="bg">切换白色背景</button>
+  <button id="reset">球回到中央</button>
+ </div>
+ <span id="log">准备就绪</span>
+</div>
+<div id="ball" role="button" aria-label="拖我或长按聊天">戳我</div>
+<div id="say"></div>
+<div id="entry"><input id="txt" placeholder="长按输入想说的话"><button id="send">发送</button><button id="close">×</button></div>
+<script>
+(()=>{
+const $=s=>document.querySelector(s),ball=$('#ball'),say=$('#say'),entry=$('#entry');
+let x=0,y=0,startX=0,startY=0,bx=0,by=0,down=false,moved=false,longPress=false,timer=null,infoVisible=true,bg=false,dragId=null;
+const bound=(v,a,b)=>Math.min(Math.max(v,a),b);
+function move(X,Y){x=bound(X,0,Math.max(0,innerWidth-ball.offsetWidth));y=bound(Y,0,Math.max(0,innerHeight-ball.offsetHeight));ball.style.transform='translate3d('+x+'px,'+y+'px,0)';say.style.left=bound(x,4,Math.max(4,innerWidth-214))+'px';say.style.top=bound(y-53,4,Math.max(4,innerHeight-55))+'px'}
+function center(){move((innerWidth-94)/2,(innerHeight-94)*.54)}
+function bubble(t){say.textContent=t;say.style.display='block';clearTimeout(bubble.timer);bubble.timer=setTimeout(()=>say.style.display='none',2900)}
+function logs(t){$('#log').textContent=t+'｜页面 '+document.visibilityState+'｜窗口 '+innerWidth+'×'+innerHeight}
+function edit(){entry.style.display='flex';$('#txt').focus();bubble('想和我说什么？')}
+ball.addEventListener('pointerdown',e=>{if(down)return;down=true;dragId=e.pointerId;moved=false;longPress=false;startX=e.clientX;startY=e.clientY;bx=x;by=y;ball.setPointerCapture(e.pointerId);timer=setTimeout(()=>{if(down&&!moved){longPress=true;edit()}},680)});
+ball.addEventListener('pointermove',e=>{if(!down||e.pointerId!==dragId)return;const dx=e.clientX-startX,dy=e.clientY-startY;if(Math.hypot(dx,dy)>10){moved=true;clearTimeout(timer)}if(moved)move(bx+dx,by+dy)});
+function finish(e){if(!down||e.pointerId!==dragId)return;down=false;clearTimeout(timer);if(!moved&&!longPress)bubble('摸到啦！✦')}
+ball.addEventListener('pointerup',finish);ball.addEventListener('pointercancel',finish);
+$('#send').onclick=()=>{const t=$('#txt').value.trim();if(t)bubble('收到：'+t);$('#txt').value='';entry.style.display='none';$('#txt').blur()};
+$('#txt').addEventListener('keydown',e=>{if(e.key==='Enter')$('#send').click()});
+$('#close').onclick=()=>{entry.style.display='none';$('#txt').blur()};
+$('#toggle').onclick=()=>{infoVisible=!infoVisible;$('#info').style.width=infoVisible?'':'122px';$('#info').style.right=infoVisible?'12px':'auto';$('#info').style.left='12px';Array.from($('#info').children).forEach(el=>{if(el.tagName==='P'||el.className==='row'||el.id==='log')el.style.display=infoVisible?'':'none'});$('#info').querySelector('h1').textContent=infoVisible?'🐾 系统小窗测试 · 第二版':'🐾 小圆球';if(!infoVisible)$('#info').onclick=()=>{$('#info').onclick=null;$('#toggle').click()};else $('#info').onclick=null};
+$('#border').onclick=()=>{$('#bounds').style.display=$('#bounds').style.display==='block'?'none':'block'};
+$('#bg').onclick=()=>{bg=!bg;$('#stage').style.background=bg?'white':'transparent';$('#bg').textContent=bg?'切换透明背景':'切换白色背景'};
+$('#reset').onclick=center;
+window.addEventListener('resize',()=>{center();logs('窗口大小变化')});
+document.addEventListener('visibilitychange',()=>logs('页面可见性变化'));
+center();logs('点击和长按可以测试互动');
+})();
+</script>
+</body>
+</html>
