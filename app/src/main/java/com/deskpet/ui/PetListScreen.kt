@@ -98,6 +98,7 @@ fun PetListScreen(
 ) {
     var deleteTarget by remember { mutableStateOf<String?>(null) }
     var actionTarget by remember { mutableStateOf<String?>(null) }
+    var dialogueTarget by remember { mutableStateOf<String?>(null) }
 
     petList.firstOrNull { it.id == actionTarget }?.let { pet ->
         AlertDialog(
@@ -127,7 +128,6 @@ fun PetListScreen(
             }
         )
     }
-    var dialogueTarget by remember { mutableStateOf<String?>(null) }
 
     petList.firstOrNull { it.id == dialogueTarget }?.let { pet ->
         var enabled by remember(pet.id) { mutableStateOf(pet.tapBubbleEnabled) }
