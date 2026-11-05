@@ -370,9 +370,7 @@ internal fun LayeredRigPreview(
                 springChains.getOrPut(layer.id) { TapNestSpringChain() }.step(layer, elapsed)
             } else null
             if (spring && layer.shapePreservation >= 0.999f &&
-                layer.bones.none { it.swingDirection !in setOf(
-                    TapNestBoneSwingDirection.AUTO,
-                    TapNestBoneSwingDirection.ROTATION_REVERSE) } &&
+                layer.bones.all { it.swingDirection == TapNestBoneSwingDirection.AUTO } &&
                 jointAngles != null && jointAngles.isNotEmpty()) {
                 val root = layer.bones.first()
                 native.save()
