@@ -110,12 +110,11 @@ class CompanionStore(private val context: Context) {
             else emptySet()
         }.getOrDefault(emptySet())
         val sanitized = profile.copy(
-            reminders = profile.reminders.map {
-                if (it.id in delivered) it.copy(delivered = true) else it
-            },
             affection = profile.affection.coerceIn(0, 100),
             items = profile.items.take(80).map { it.copy(name = it.name.take(35), emoji = it.emoji.take(8), reply = it.reply.take(240)) },
-            reminders = profile.reminders.take(100).map { it.copy(message = it.message.take(120)) }
+            reminders = profile.reminders.take(100).map {
+                it.copy(message = it.message.take(120), delivered = it.delivered || it.id in delivered)
+            }
         )
         val tmp = File(dest.parentFile, "profile.tmp")
         tmp.writeText(json.encodeToString(sanitized))
