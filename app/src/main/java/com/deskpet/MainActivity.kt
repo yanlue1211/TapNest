@@ -267,27 +267,27 @@ class MainActivity : ComponentActivity() {
         val ctx = LocalContext.current
         AlertDialog(
             onDismissRequest = onDismiss,
-            title = { Text("🐾 欢迎使用桌面宠物", fontWeight = FontWeight.Bold) },
+            title = { Text("🐾 欢迎来到点点栖", fontWeight = FontWeight.Bold) },
             text = {
                 Column(Modifier.verticalScroll(rememberScrollState())) {
                     // 权限
                     Text("📌 权限说明", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.height(4.dp))
-                    Text("点击「开启」后如提示需悬浮窗权限，请允许。各手机路径不同，通常：设置 → 应用 → 桌面宠物 → 显示在其他应用上层")
+                    Text("点击「开启」后如提示需悬浮窗权限，请允许。各手机路径不同，通常：设置 → 应用 → 点点栖 → 显示在其他应用上层")
 
                     Spacer(Modifier.height(12.dp))
 
                     // 操作
                     Text("🖐 操作方式", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.height(4.dp))
-                    Text("• 单击悬浮窗宠物 = 招手\n• 长按拖拽 = 移动位置\n• 拖拽方向 = 切换跑动/跳跃动画\n• 双指捏合 = 快速缩放\n• 界面滑块 = 精确控制大小")
+                    Text("• 点击 PNG/GIF 宠物 = 轻轻弹跳\n• 点击 Codex 宠物 = 招手\n• 长按拖拽 = 移动位置\n• Codex 宠物拖拽方向 = 切换动作\n• 双指捏合 = 快速缩放\n• 界面滑块 = 精确控制大小")
 
                     Spacer(Modifier.height(12.dp))
 
                     // 导入
-                    Text("📦 导入 Codex 宠物", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    Text("📦 导入你自己画的宠物", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.height(4.dp))
-                    Text("应用内置了原创示例宠物「橘团」。你也可以导入更多：\n1. 点击底部的圆钮，展开控制面板\n2. 选择「导入」\n3. 选择「导入 Codex Pet 素材包」并选取下载的 .zip 文件")
+                    Text("点点栖不自带人物图片，所有素材由你从手机本地导入。\n1. 点击「导入宠物」\n2. 选择「自绘 PNG」导入一张透明底立绘\n3. 也可以导入 GIF 或 Codex Pet 素材包")
 
                     Spacer(Modifier.height(8.dp))
                     Text("从哪里下载 Codex 宠物？", fontWeight = FontWeight.Bold)
@@ -329,7 +329,7 @@ class MainActivity : ComponentActivity() {
                     // 部分国产 ROM 会把前台服务一起清掉，给用户自救路径
                     Text("⚠️ 小米/OPPO/vivo 等机型注意", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
                     Spacer(Modifier.height(4.dp))
-                    Text("部分手机系统在「清理后台」时会连同宠物一起关闭（系统限制，所有悬浮窗应用都一样）。解决办法：\n1. 最近任务界面长按/下拉本应用卡片，点 🔒 锁定\n2. 设置 → 应用 → 桌面宠物 → 省电策略选「无限制」\n3. 允许「自启动」\n万一宠物被清掉，重新打开本应用会自动恢复。")
+                    Text("部分手机系统在「清理后台」时会连同宠物一起关闭（系统限制，所有悬浮窗应用都一样）。解决办法：\n1. 最近任务界面长按/下拉本应用卡片，点 🔒 锁定\n2. 设置 → 应用 → 点点栖 → 省电策略选「无限制」\n3. 允许「自启动」\n万一宠物被清掉，重新打开本应用会自动恢复。")
                 }
             },
             confirmButton = { TextButton(onClick = onDismiss) { Text("知道了") } }
