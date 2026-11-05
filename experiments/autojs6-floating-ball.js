@@ -6,7 +6,7 @@
 // screen is left to whatever app is underneath.
 // First grant "Display over other apps" permission to AutoJs6.
 
-if (!floaty.checkPermission()) {
+if (!floaty.hasPermission()) {
     toast("请先给 AutoJs6 开启「显示在其他应用上层」权限，然后重新运行脚本");
     floaty.requestPermission();
     exit();
