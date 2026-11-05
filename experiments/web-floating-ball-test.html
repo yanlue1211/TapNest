@@ -1,0 +1,172 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+  <meta name="theme-color" content="#f3fbf8">
+  <title>小圆球 · 浏览器悬浮测试</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui,-apple-system,"PingFang SC","Microsoft YaHei",sans-serif; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100svh; background:linear-gradient(160deg,#edfaf5 0%,#f7faff 62%,#faf4ff 100%); color:#24413c; }
+    main { max-width:530px; margin:0 auto; padding:30px 20px 110px; }
+    h1 { font-size:24px; letter-spacing:-.4px; margin:0 0 8px; }
+    .lead { margin:0 0 18px; line-height:1.65; color:#667b79; font-size:14px; }
+    .card { background:rgba(255,255,255,.92); box-shadow:0 10px 30px rgba(58,105,94,.07); border:1px solid #e3f1ec; border-radius:20px; padding:19px 17px; margin:15px 0; }
+    .eyebrow { color:#4b9d87; font-size:12px; font-weight:800; letter-spacing:1px; margin-bottom:7px; }
+    h2 { font-size:17px; margin:0 0 9px; }
+    p { margin:7px 0; line-height:1.68; font-size:14px; }
+    .hint { color:#71817d; font-size:12px; }
+    button { cursor:pointer; border:0; font:inherit; border-radius:14px; font-size:15px; font-weight:750; min-height:44px; padding:10px 16px; }
+    button.primary { background:#60b8a0; color:#fff; box-shadow:0 4px 15px #60b8a04a; width:100%; margin-top:10px; }
+    button.secondary { background:#e7f6f0; color:#23715b; width:100%; margin-top:8px; }
+    .smallrow { display:flex; align-items:center; gap:12px; }
+    #preview { width:96px; height:96px; border-radius:15px; background:#ecf6f4; object-fit:contain; border:1px solid #dbeae5; flex:none; }
+    #ball { width:86px; height:86px; border-radius:50%; position:fixed; right:19px; top:57%; z-index:999999; touch-action:none; user-select:none; -webkit-user-select:none; cursor:grab; border:3px solid #ffffffb0; box-shadow:0 14px 25px #439d8870,inset -9px -11px 17px #257b6d33,inset 7px 8px 17px #ffffff87; background:radial-gradient(circle at 31% 29%,#e7fff7 0%,#a8eed9 28%,#6ad2b2 69%,#3aa98d 100%); display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:800; color:#237760; transition: transform .12s ease; }
+    #ball:active { cursor:grabbing; }
+    #ball.poked { transform:scale(1.15); }
+    #ball span { text-shadow:0 1px #ffffff80; pointer-events:none; }
+    .info { background:#f5faf8; border-radius:12px; padding:11px 12px; font-size:12px; color:#52756c; word-break:break-word; line-height:1.6; }
+    .ok { color:#087f58; }
+    .no { color:#ae6650; }
+    #log { margin:10px 0 0; min-height:45px; max-height:190px; overflow:auto; color:#526c64; font-size:12px; line-height:1.6; white-space:pre-wrap; word-break:break-word; }
+    footer { color:#81918b; text-align:center; margin-top:20px; font-size:11px; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>🟢 小圆球悬浮测试</h1>
+    <p class="lead">专门试试「永恒浏览器」能不能把网页里的小球带到手机桌面。纯前端、不联网请求、不读任何手机数据。</p>
+    <div class="card">
+      <div class="eyebrow">测试 1 · 网页内</div>
+      <h2>先戳一下右边的小绿球</h2>
+      <p>小球应该弹一下，长按拖动可以改变位置。这里只能证明网页里的触摸和动画正常。</p>
+      <p id="tapCount" class="hint">已戳 0 次</p>
+      <button class="secondary" type="button" id="reset">把球移回来</button>
+    </div>
+    <div class="card">
+      <div class="eyebrow">测试 2 · 真正切出浏览器</div>
+      <h2>尝试系统「画中画」</h2>
+      <div class="smallrow">
+        <video id="preview" autoplay muted playsinline></video>
+        <p class="hint">左侧是测试画面。启动成功后，按手机主页键，看看绿球会不会留在桌面。此模式通常是一个小矩形窗口。</p>
+      </div>
+      <button class="primary" type="button" id="pip">启动画中画小圆球</button>
+      <button class="secondary" type="button" id="leavePip">退出画中画</button>
+      <p class="hint" id="pipStatus">等待测试</p>
+    </div>
+    <div class="card">
+      <div class="eyebrow">测试 3 · 浏览器自己的悬浮窗</div>
+      <h2>再试永恒浏览器的菜单</h2>
+      <p>如果浏览器菜单里有「小窗 / 悬浮窗 / 画中画」，请把<strong>这个网页</strong>切换成小窗，再返回手机桌面。</p>
+      <p class="hint">观察它是完整矩形网页、矩形画中画、透明圆球，还是完全消失。只有能越过浏览器边界，才算系统层面悬浮。</p>
+    </div>
+    <div class="card">
+      <div class="eyebrow">诊断信息</div>
+      <div id="supports" class="info">正在检测……</div>
+      <div id="log" aria-live="polite"></div>
+      <button type="button" class="secondary" id="copy">复制诊断结果</button>
+    </div>
+    <footer>独立测试页 · 不连接糯米机，不修改已有应用</footer>
+  </main>
+  <div id="ball" aria-label="可戳可拖动的小圆球" role="button" tabindex="0"><span id="ballText">戳我</span></div>
+  <canvas id="surface" width="260" height="260" hidden></canvas>
+  <script>
+  (() => {
+    'use strict';
+    const $ = s => document.querySelector(s);
+    const ball = $('#ball'), ballText = $('#ballText');
+    const canvas = $('#surface'), ctx = canvas.getContext('2d');
+    const video = $('#preview'), notes = [], t0 = performance.now();
+    let tapped = 0, dragging = false, moved = false, startX = 0, startY = 0, baseX = 0, baseY = 0;
+    const log = s => { notes.push(new Date().toLocaleTimeString() + ' ' + s); $('#log').textContent = notes.slice(-12).join('\n'); };
+    const supports = [
+      ['视频画中画', !!(document.pictureInPictureEnabled && typeof video.requestPictureInPicture === 'function')],
+      ['Canvas 视频流', typeof canvas.captureStream === 'function'],
+      ['交互式 Document PiP', !!window.documentPictureInPicture],
+      ['当前是安全上下文 HTTPS', window.isSecureContext]
+    ];
+    $('#supports').innerHTML = supports.map(([label,ok]) => `<div class="${ok?'ok':'no'}">${ok?'✓':'×'} ${label}</div>`).join('') + '<div>浏览器：' + (navigator.userAgent || '未知').replace(/</g,'&lt;') + '</div>';
+    log('测试页面已打开');
+
+    // A draggable on-page ball. Drag is not mistaken for a tap.
+    const place = (x,y) => {
+      const w = ball.offsetWidth, h=ball.offsetHeight;
+      const xx=Math.min(Math.max(3,x),window.innerWidth-w-3);
+      const yy=Math.min(Math.max(3,y),window.innerHeight-h-3);
+      ball.style.left = xx + 'px'; ball.style.top = yy + 'px'; ball.style.right='auto';
+    };
+    const poke = () => {
+      tapped++;
+      $('#tapCount').textContent='已戳 '+tapped+' 次';
+      ballText.textContent='+'+tapped;
+      ball.classList.add('poked');
+      setTimeout(()=>{ball.classList.remove('poked');ballText.textContent='戳我';},330);
+      log('网页小球点击成功');
+    };
+    ball.addEventListener('pointerdown', e=>{
+      dragging=true; moved=false; startX=e.clientX;startY=e.clientY;
+      const rect=ball.getBoundingClientRect();baseX=rect.left;baseY=rect.top;
+      ball.setPointerCapture(e.pointerId);
+    });
+    ball.addEventListener('pointermove', e=>{
+      if(!dragging)return;
+      const dx=e.clientX-startX, dy=e.clientY-startY;
+      if(Math.hypot(dx,dy)>9)moved=true;
+      if(moved)place(baseX+dx,baseY+dy);
+    });
+    const finish=()=>{if(!dragging)return;dragging=false;if(!moved)poke();};
+    ball.addEventListener('pointerup',finish);
+    ball.addEventListener('pointercancel',()=>dragging=false);
+    ball.addEventListener('keydown',e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();poke();}});
+    $('#reset').addEventListener('click',()=>{ball.style.left='auto';ball.style.right='19px';ball.style.top='57%';log('网页小球位置已复位');});
+
+    // The video is sourced entirely from this page's canvas; no camera/mic permission.
+    function drawFrame() {
+      const s=260,t=(performance.now()-t0)/1000;
+      ctx.clearRect(0,0,s,s);
+      ctx.fillStyle='#ebfbf4';ctx.fillRect(0,0,s,s);
+      const dy=Math.sin(t*2.7)*11;
+      const grad=ctx.createRadialGradient(91,75+dy,12,132,125+dy,93);
+      grad.addColorStop(0,'#ecfff8');grad.addColorStop(.5,'#89dfc5');grad.addColorStop(1,'#389c82');
+      ctx.fillStyle=grad; ctx.beginPath();ctx.arc(130,122+dy,83,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#2b7663';ctx.font='bold 17px system-ui';ctx.textAlign='center';ctx.fillText('桌面小球',130,130+dy);
+      ctx.font='bold 23px system-ui';ctx.fillText(String(Math.floor(t))+'s',130,230);
+      requestAnimationFrame(drawFrame);
+    }
+    drawFrame();
+    try { if(typeof canvas.captureStream==='function')video.srcObject=canvas.captureStream(25); }
+    catch(e){ log('视频流初始化失败：'+e.message); }
+    video.addEventListener('enterpictureinpicture',()=>{log('已进入画中画');$('#pipStatus').textContent='✅ 画中画已启动！现在按手机主页键，看看是否还在。';});
+    video.addEventListener('leavepictureinpicture',()=>{log('已退出画中画');$('#pipStatus').textContent='画中画已关闭';});
+    $('#pip').addEventListener('click',async()=>{
+      if(typeof canvas.captureStream!=='function' || !document.pictureInPictureEnabled || typeof video.requestPictureInPicture!=='function') {
+        $('#pipStatus').textContent='❌ 当前浏览器没有开放视频画中画 API。仍可试浏览器菜单里的悬浮小窗。';
+        log('视频画中画 API 不可用'); return;
+      }
+      $('#pipStatus').textContent='正在请求画中画……';
+      try {
+        if (!video.srcObject) video.srcObject=canvas.captureStream(25);
+        await video.play();
+        if (document.pictureInPictureElement !== video) await video.requestPictureInPicture();
+        $('#pipStatus').textContent='✅ 已申请画中画。请切到手机桌面观察。';
+      } catch(e) {
+        const message=(e?.name||'Error') + '：' + (e?.message||'未知原因');
+        $('#pipStatus').textContent='❌ 画中画失败：'+message;
+        log('画中画请求失败 '+message);
+      }
+    });
+    $('#leavePip').addEventListener('click',async()=>{
+      try { if(document.pictureInPictureElement) await document.exitPictureInPicture(); }
+      catch(e){log('退出画中画失败 '+e.message);}
+    });
+    document.addEventListener('visibilitychange',()=>log('网页状态 '+document.visibilityState));
+    $('#copy').addEventListener('click',async()=>{
+      const report='小圆球悬浮测试\n'+$('#supports').innerText+'\n'+notes.join('\n');
+      try{await navigator.clipboard.writeText(report);$('#copy').textContent='已复制 ✓';}
+      catch{window.prompt('长按复制诊断内容',report);}
+    });
+  })();
+  </script>
+</body>
+</html>
