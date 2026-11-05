@@ -40,8 +40,17 @@ object TapNestTemplates {
         headMode = mode,
         layers = fairySlots.mapIndexed { index, slot ->
             val isHead = slot.id.startsWith("head") || slot.id.startsWith("face")
+            val order = when {
+                slot.id == "tail" -> 0
+                slot.id.startsWith("wing") -> 1
+                slot.id == "body" -> 10
+                slot.id.startsWith("head") -> 20
+                slot.id.startsWith("face") -> 21
+                slot.id.startsWith("bow") -> 30
+                else -> index
+            }
             TapNestLayer(
-                id = slot.id, image = "", zIndex = index,
+                id = slot.id, image = "", zIndex = order,
                 pivotX = when (slot.id) {
                     "tail" -> 0.15f
                     else -> 0.5f

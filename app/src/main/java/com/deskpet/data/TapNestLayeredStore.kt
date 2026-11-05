@@ -85,7 +85,7 @@ class TapNestLayeredStore(private val context: Context) {
                 displayName = name.trim().take(60).ifBlank { "我的分层宠物" },
                 petJsonPath = config.absolutePath,
                 spritesheetPath = body.absolutePath,
-                sourceId = "layered:$"+"id"
+                sourceId = "layered:" + id
             )
         } catch (e: Exception) {
             dest.deleteRecursively()

@@ -8,6 +8,8 @@ data class TapNestRig(
     val formatVersion: Int = 1,
     val canvasWidth: Int,
     val canvasHeight: Int,
+    val templateId: String = "manual",
+    val headMode: TapNestHeadMode = TapNestHeadMode.FULL_HEAD,
     val layers: List<TapNestLayer> = emptyList(),
     val clips: List<TapNestClip> = emptyList()
 )
@@ -21,7 +23,8 @@ data class TapNestLayer(
     val pivotX: Float = 0.5f,
     val pivotY: Float = 0.5f,
     val x: Float = 0f,
-    val y: Float = 0f
+    val y: Float = 0f,
+    val restScale: Float = 1f
 )
 
 @Serializable
