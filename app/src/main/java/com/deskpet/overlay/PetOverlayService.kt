@@ -166,7 +166,8 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
                 floatingPanel = null
             }
         ).also {
-            it.show(id, person.displayName, wx, wy, anim.petWidth.value, safeBounds())
+            it.show(id, person.displayName, wx, wy,
+                anim.petWidth.value, anim.petHeight.value, safeBounds())
         }
     }
 
@@ -615,7 +616,8 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         }
         val bounds = safeBounds()
         speechBubble?.follow(wx, wy + bounceOffset, anim.petWidth.value, anim.petHeight.value, bounds)
-        floatingPanel?.follow(wx, wy + bounceOffset, anim.petWidth.value, bounds)
+        floatingPanel?.follow(wx, wy + bounceOffset,
+            anim.petWidth.value, anim.petHeight.value, bounds)
     }
 
     private fun clampPosition() {
