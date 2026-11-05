@@ -24,19 +24,19 @@ object TapNestTailPresets {
     val ALL = listOf(
         TapNestTailPreset("upright_dog", "🐶 竖直狗尾（粗·半长）",
             "较粗、与身体差不多长、从身后竖起；大幅摇摆但尽量保护轮廓。",
-            listOf(0, 45, 85), 58f, 0.48f, 0.72f, 0.45f, 0.82f,
+            listOf(0, 28, 57, 85), 85f, 0.48f, 0.85f, 0.45f, 0.30f,
             TapNestSwingRange.CENTERED),
         TapNestTailPreset("upright_cat", "🐱 竖直猫尾（细·略长）",
             "细长直立或微弯尾巴；弯曲层次丰富，尾尖有更明显的惯性。",
-            listOf(0, 30, 60, 88), 68f, 0.52f, 0.84f, 0.32f, 0.48f,
+            listOf(0, 22, 44, 66, 88), 74f, 0.46f, 0.88f, 0.40f, 0.24f,
             TapNestSwingRange.CENTERED),
         TapNestTailPreset("diagonal_dog", "🐶 斜向狗尾（单侧）",
             "身体左边或右边的斜狗尾；在原始姿势向外摇，不穿越另一侧。",
-            listOf(0, 45, 85), 28f, 0.44f, 0.68f, 0.52f, 0.86f,
+            listOf(0, 28, 57, 85), 48f, 0.46f, 0.82f, 0.48f, 0.45f,
             TapNestSwingRange.OUTWARD_ONLY),
         TapNestTailPreset("diagonal_cat", "🐱 斜向猫尾（单侧）",
             "身体左边或右边的细长斜猫尾；在同一侧柔和摇摆、保留跟随感。",
-            listOf(0, 28, 58, 88), 36f, 0.50f, 0.82f, 0.34f, 0.56f,
+            listOf(0, 22, 44, 66, 88), 55f, 0.44f, 0.90f, 0.38f, 0.28f,
             TapNestSwingRange.OUTWARD_ONLY)
     )
 
@@ -87,7 +87,8 @@ object TapNestTailPresets {
                     val u = ((target - lengths[index - 1]) / part).coerceIn(0f, 1f)
                     TapNestBonePoint(
                         (start.x + (end.x - start.x) * u).coerceIn(0f, 1f),
-                        (start.y + (end.y - start.y) * u).coerceIn(0f, 1f)
+                        (start.y + (end.y - start.y) * u).coerceIn(0f, 1f),
+                        end.swingDirection
                     )
                 }
             }
