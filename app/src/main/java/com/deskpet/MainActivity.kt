@@ -75,6 +75,7 @@ class MainActivity : ComponentActivity() {
     private fun App(repo: PetRepository) {
         val sc = rememberCoroutineScope()
         var showImport by remember { mutableStateOf(false) }
+        var showLayeredEditor by remember { mutableStateOf(false) }
         var pendingStart by remember { mutableStateOf(false) }
         var showHelp by remember { mutableStateOf(false) }
         val petList by repo.getAllPets().collectAsStateWithLifecycle(emptyList())
@@ -179,8 +180,25 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        if (showImport) {
-            ImportScreen(repo, { showImport = false }, { showImport = false })
+        if (showLayeredEditor) {
+            com.deskpet.ui.LayeredPetEditor(
+                petRepository = repo,
+                onCreated = { pet ->
+                    sc.launch {
+                        repo.setActivePet(pet.id)
+                        showLayeredEditor = false
+                        showImport = false
+                    }
+                },
+                onBack = { showLayeredEditor = false; showImport = true }
+            )
+        } else if (showImport) {
+            ImportScreen(
+                repo,
+                { showImport = false },
+                { showImport = false },
+                onCreateLayered = { showImport = false; showLayeredEditor = true }
+            )
         } else {
             PetListScreen(
                 petList = petList,

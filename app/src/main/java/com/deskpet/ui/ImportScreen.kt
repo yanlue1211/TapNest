@@ -43,7 +43,8 @@ private val importMutex = Mutex()
 fun ImportScreen(
     petRepository: PetRepository,
     onImportSuccess: () -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onCreateLayered: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val fileManager = remember { FileManager(context) }
@@ -170,10 +171,19 @@ fun ImportScreen(
             Spacer(Modifier.height(28.dp))
 
             ImportOption(
+                icon = "🦋",
+                title = "创建分层／绑骨桌宠",
+                subtitle = "内置模板、我的模板或完全手动绑骨",
+                filled = true,
+                enabled = !isImporting
+            ) { onCreateLayered() }
+            Spacer(Modifier.height(12.dp))
+
+            ImportOption(
                 icon = "🌱",
                 title = "自绘 PNG（无需分层）",
                 subtitle = "从手机导入透明背景 PNG，点击会弹跳",
-                filled = true,
+                filled = false,
                 enabled = !isImporting
             ) { pngLauncher.launch(arrayOf("image/png")) }
             Spacer(Modifier.height(12.dp))

@@ -40,7 +40,8 @@ class TapNestLayeredStore(private val context: Context) {
         name: String, rig: TapNestRig, inputs: Map<String, Uri>, saveAsTemplate: Boolean
     ): PetInfo {
         if (!inputs.containsKey("body") ||
-            !inputs.containsKey(if (rig.headMode == TapNestHeadMode.FULL_HEAD) "head_0" else "head_blank")) {
+            (rig.templateId != TapNestTemplates.MANUAL &&
+             !inputs.containsKey(if (rig.headMode == TapNestHeadMode.FULL_HEAD) "head_0" else "head_blank"))) {
             throw ImportException.InvalidFormat("至少要导入身体和第一张完整头部（或空白头部）")
         }
         val id = UUID.randomUUID().toString()
