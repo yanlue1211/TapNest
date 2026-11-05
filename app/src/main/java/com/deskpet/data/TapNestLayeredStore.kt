@@ -94,6 +94,79 @@ class TapNestLayeredStore(private val context: Context) {
         }
     }
 
+    /** Existing rig stays intact until a complete and verified replacement is staged. */
+    suspend fun updatePet(
+        old: PetInfo, name: String, rig: TapNestRig,
+        inputs: Map<String, Uri>, saveAsTemplate: Boolean
+    ): PetInfo {
+        require(old.type == PetType.LAYERED && ZipExtractor.isSafePetId(old.id))
+        val originalDir = File(pets, old.id)
+        if (!originalDir.isDirectory) throw ImportException.FileNotFound("原有图层目录不存在")
+        val stage = File(pets, ".editing-" + UUID.randomUUID()).also { it.mkdirs() }
+        val archive = File(pets, ".previous-" + UUID.randomUUID())
+        var archived = false
+        try {
+            if (!inputs.containsKey("body") ||
+                (rig.templateId != TapNestTemplates.MANUAL &&
+                    !inputs.containsKey(if (rig.headMode == TapNestHeadMode.FULL_HEAD) "head_0" else "head_blank"))) {
+                throw ImportException.InvalidFormat("请至少提供身体和当前模式的第一张头部")
+            }
+            val copied = rig.layers.map { layer ->
+                val uri = inputs[layer.id] ?: return@map layer.copy(image = "")
+                if (!layer.id.matches(Regex("[A-Za-z][A-Za-z0-9_]{0,34}"))) {
+                    throw ImportException.InvalidFormat("图层名不合法")
+                }
+                val file = File(stage, layer.id + ".png")
+                context.contentResolver.openInputStream(uri)?.use { input ->
+                    ZipExtractor.copyWithLimit(input, file, 10L * 1024 * 1024)
+                } ?: throw ImportException.FileNotFound("无法读取：${layer.id}")
+                val sign = byteArrayOf(137.toByte(), 80, 78, 71, 13, 10, 26, 10)
+                val header = ByteArray(8)
+                file.inputStream().use {
+                    if (it.read(header) != 8 || !header.contentEquals(sign))
+                        throw ImportException.InvalidFormat("不是 PNG：${layer.id}")
+                }
+                val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                BitmapFactory.decodeFile(file.absolutePath, options)
+                if (options.outWidth <= 0 || options.outHeight <= 0 ||
+                    options.outWidth.toLong() * options.outHeight > 16_000_000L)
+                    throw ImportException.InvalidFormat("图片尺寸无效：${layer.id}")
+                layer.copy(image = file.name)
+            }
+            val body = File(stage, "body.png")
+            val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeFile(body.absolutePath, options)
+            if (options.outWidth <= 0 || options.outHeight <= 0)
+                throw ImportException.InvalidFormat("身体图片不可用")
+            val savedRig = rig.copy(canvasWidth = options.outWidth, canvasHeight = options.outHeight, layers = copied)
+            File(stage, "rig.json").writeText(json.encodeToString(savedRig))
+            // Validate the actual new rig and image files before modifying the old directory.
+            if (com.deskpet.engine.LayeredPetPlayer.load(File(stage, "rig.json")) == null)
+                throw ImportException.InvalidFormat("图层无法合成，请检查尺寸和素材")
+            if (!originalDir.renameTo(archive)) throw IllegalStateException("无法保留旧版角色")
+            archived = true
+            if (!stage.renameTo(originalDir)) throw IllegalStateException("新图层保存失败")
+            archive.deleteRecursively()
+            if (saveAsTemplate) saveTemplate(name, savedRig)
+            return old.copy(
+                displayName = name.trim().take(60).ifBlank { old.displayName },
+                petJsonPath = File(originalDir, "rig.json").absolutePath,
+                spritesheetPath = File(originalDir, "body.png").absolutePath
+            )
+        } catch (e: Exception) {
+            if (archived && archive.exists()) {
+                if (originalDir.exists()) originalDir.deleteRecursively()
+                archive.renameTo(originalDir)
+            }
+            throw e
+        } finally { stage.deleteRecursively() }
+    }
+
+    fun loadRig(pet: PetInfo): TapNestRig? =
+        pet.petJsonPath?.let { file ->
+            runCatching { json.decodeFromString<TapNestRig>(File(file).readText()) }.getOrNull()
+        }
+
     companion object {
         /** Only file names inside the character directory are accepted, never absolute paths. */
         fun safeAsset(fileName: String): Boolean =

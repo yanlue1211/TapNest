@@ -127,6 +127,16 @@ class PetRepository(private val petStore: IPetStore) {
         }
     }
 
+    /** Replace metadata for one existing companion without changing its identity or siblings. */
+    suspend fun replacePet(petInfo: PetInfo) {
+        writeMutex.withLock {
+            val pets = petStore.petListFlow.first()
+            val idx = pets.indexOfFirst { it.id == petInfo.id }
+            if (idx < 0) error("待编辑的角色已不存在")
+            petStore.updatePetList(pets.toMutableList().apply { set(idx, petInfo) })
+        }
+    }
+
     suspend fun getPet(petId: String): PetInfo? {
         return petStore.petListFlow.first().find { it.id == petId }
     }
