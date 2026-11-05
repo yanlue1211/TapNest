@@ -31,8 +31,10 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.withContext
 import kotlin.math.max
 import kotlin.math.min
+import kotlin.math.PI
+import kotlin.math.sin
 
-internal enum class RigPreviewMode { POSITION, PIVOT, TEST }
+internal enum class RigPreviewMode { POSITION, PIVOT, BONES, TEST }
 private data class PreviewAsset(val bitmap: Bitmap, val width: Int, val height: Int)
 
 /**
@@ -83,9 +85,12 @@ private fun visibleLayer(id: String, headMode: TapNestHeadMode, face: String, to
 @Composable
 internal fun LayeredRigPreview(
     rig: TapNestRig, uris: Map<String, Uri>, selected: String, mode: RigPreviewMode,
+    selectedBone: Int,
     onSelectLayer: (String) -> Unit,
     onDragLayer: (Float, Float) -> Unit,
-    onSetPivot: (Float, Float) -> Unit
+    onSetPivot: (Float, Float) -> Unit,
+    onSetBone: (Int, Float, Float) -> Unit,
+    onSelectBone: (Int) -> Unit
 ) {
     val context = LocalContext.current
     val assets by produceState<Map<String, PreviewAsset>>(emptyMap(), uris) {
@@ -139,6 +144,9 @@ internal fun LayeredRigPreview(
     val newestSelect by rememberUpdatedState(onSelectLayer)
     val newestMove by rememberUpdatedState(onDragLayer)
     val newestPivot by rememberUpdatedState(onSetPivot)
+    val newestBone by rememberUpdatedState(onSetBone)
+    val newestBoneSelect by rememberUpdatedState(onSelectBone)
+    val newestBoneIndex by rememberUpdatedState(selectedBone)
 
     val dragModifier = if (mode == RigPreviewMode.POSITION)
         Modifier.pointerInput(selected) {
@@ -189,6 +197,28 @@ internal fun LayeredRigPreview(
                                         (local.y / art.height).coerceIn(0f, 1f))
                                 }
                             }
+                            RigPreviewMode.BONES -> {
+                                val layer = current.layers.firstOrNull { it.id == selected }
+                                val art = pictures[selected]
+                                if (layer != null && art != null && layer.bones.isNotEmpty()) {
+                                    val local = previewLocalPoint(point, viewport, current, layer, pictures)
+                                    val nx = (local.x / art.width).coerceIn(0f, 1f)
+                                    val ny = (local.y / art.height).coerceIn(0f, 1f)
+                                    val nearest = layer.bones.indices.minByOrNull { i ->
+                                        val dx = layer.bones[i].x - nx
+                                        val dy = layer.bones[i].y - ny
+                                        dx * dx + dy * dy
+                                    } ?: 0
+                                    // Click an existing handle to select; click elsewhere to move the selected handle.
+                                    val distance = layer.bones[nearest].let {
+                                        val dx = it.x - nx
+                                        val dy = it.y - ny
+                                        dx * dx + dy * dy
+                                    }
+                                    if (distance < 0.0025f) newestBoneSelect(nearest)
+                                    else newestBone(newestBoneIndex.coerceIn(0, layer.bones.lastIndex), nx, ny)
+                                }
+                            }
                             RigPreviewMode.TEST -> {
                                 expression = (expression % 3) + 1
                                 tappedAt = SystemClock.uptimeMillis()
@@ -236,7 +266,8 @@ internal fun LayeredRigPreview(
         fun poseFor(id: String): TapNestPose {
             val phase = if (mode == RigPreviewMode.TEST) clock else 0L
             var pose = TapNestPose()
-            if (id == "tail" && mode == RigPreviewMode.TEST) {
+            val layer = nodes[id]
+            if (id == "tail" && mode == RigPreviewMode.TEST && layer?.idleSwing != true) {
                 pose = TapNestMotion.sample(TapNestPresets.wag(id), id, phase)
             } else if (id.startsWith("head_") || id == "head_blank") {
                 if (petting) pose = TapNestMotion.sample(TapNestPresets.petHead(id), id, petElapsed)
@@ -245,6 +276,11 @@ internal fun LayeredRigPreview(
             rig.clips.firstOrNull { it.tracks.any { track -> track.layerId == id } }?.let {
                 if (mode == RigPreviewMode.TEST) pose = TapNestMotion.sample(
                     it, id, if (it.loop) phase else (if (petting) petElapsed else touchElapsed).coerceAtLeast(0L))
+            }
+            if (mode == RigPreviewMode.TEST && layer?.idleSwing == true && layer.bones.size < 2) {
+                val angle = sin((phase / 1000.0 * layer.idleSpeed.coerceIn(0.1f, 3f) *
+                    2 * PI)).toFloat() * layer.idleAmplitude.coerceIn(0f, 40f)
+                pose = pose.copy(angle = pose.angle + angle)
             }
             return pose
         }
@@ -277,7 +313,12 @@ internal fun LayeredRigPreview(
                 native.translate(-pivotX, -pivotY)
             }
             paint.alpha = (poseFor(layer.id).alpha.coerceIn(0f, 1f) * 255).toInt()
-            native.drawBitmap(art.bitmap, null,
+            val mesh = if (mode == RigPreviewMode.TEST) TapNestFlexibleMesh.vertices(
+                layer, art.width, art.height, now) else null
+            if (mesh != null) {
+                native.drawBitmapMesh(art.bitmap, TapNestFlexibleMesh.GRID,
+                    TapNestFlexibleMesh.GRID, mesh, 0, null, 0, paint)
+            } else native.drawBitmap(art.bitmap, null,
                 RectF(0f, 0f, art.width.toFloat(), art.height.toFloat()), paint)
             if (mode != RigPreviewMode.TEST && selected == layer.id) {
                 val accent = Paint(Paint.ANTI_ALIAS_FLAG).apply {
@@ -289,6 +330,27 @@ internal fun LayeredRigPreview(
                 accent.style = Paint.Style.FILL
                 native.drawCircle(art.width * layer.pivotX, art.height * layer.pivotY,
                     5f / factor.coerceAtLeast(0.1f), accent)
+                if (layer.bones.isNotEmpty()) {
+                    val track = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+                        color = android.graphics.Color.rgb(223, 139, 40)
+                        strokeWidth = 2f / factor.coerceAtLeast(0.1f)
+                        style = Paint.Style.STROKE
+                    }
+                    val path = android.graphics.Path()
+                    layer.bones.forEachIndexed { i, bone ->
+                        val px = bone.x * art.width
+                        val py = bone.y * art.height
+                        if (i == 0) path.moveTo(px, py) else path.lineTo(px, py)
+                    }
+                    native.drawPath(path, track)
+                    layer.bones.forEachIndexed { i, bone ->
+                        accent.color = if (i == selectedBone)
+                            android.graphics.Color.rgb(234, 116, 35)
+                        else android.graphics.Color.rgb(58, 146, 114)
+                        native.drawCircle(art.width * bone.x, art.height * bone.y,
+                            (if (i == selectedBone) 7f else 5f) / factor.coerceAtLeast(0.1f), accent)
+                    }
+                }
             }
             native.restore()
         }
