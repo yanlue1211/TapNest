@@ -34,21 +34,37 @@ import kotlinx.coroutines.withContext
 fun LayeredPetEditor(
     petRepository: PetRepository,
     onCreated: (PetInfo) -> Unit,
-    onBack: () -> Unit
+    onBack: () -> Unit,
+    editingPet: PetInfo? = null
 ) {
     val ctx = LocalContext.current
     val store = remember { TapNestLayeredStore(ctx) }
     val scope = rememberCoroutineScope()
     val templates = remember { store.savedTemplates() }
-    var rig by remember { mutableStateOf(TapNestTemplates.fairy()) }
-    var templateChoice by remember { mutableStateOf(TapNestTemplates.FAIRY) }
-    var name by remember { mutableStateOf("我的小桌宠") }
+    val originalRig = remember(editingPet?.id) {
+        editingPet?.let(store::loadRig) ?: TapNestTemplates.fairy()
+    }
+    var rig by remember(editingPet?.id) { mutableStateOf(originalRig) }
+    var templateChoice by remember(editingPet?.id) {
+        mutableStateOf(if (editingPet == null) TapNestTemplates.FAIRY else originalRig.templateId)
+    }
+    var name by remember(editingPet?.id) { mutableStateOf(editingPet?.displayName ?: "我的小伙伴") }
     var saveTemplate by remember { mutableStateOf(true) }
     var busy by remember { mutableStateOf(false) }
     var activeLayer by remember { mutableStateOf("body") }
     var newLayerName by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
-    val images = remember { mutableStateMapOf<String, Uri>() }
+    val images = remember(editingPet?.id) {
+        mutableStateMapOf<String, Uri>().apply {
+            val dir = editingPet?.petJsonPath?.let { java.io.File(it).parentFile }
+            if (dir != null) originalRig.layers.forEach { layer ->
+                if (TapNestLayeredStore.safeAsset(layer.image)) {
+                    val file = java.io.File(dir, layer.image)
+                    if (file.isFile) put(layer.id, Uri.fromFile(file))
+                }
+            }
+        }
+    }
     var pickingLayer by remember { mutableStateOf("") }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null && pickingLayer.isNotEmpty()) {
@@ -74,7 +90,7 @@ fun LayeredPetEditor(
 
     BackHandler(!busy) { onBack() }
     Scaffold(topBar = {
-        TopAppBar(title = { Text("🦋 制作分层桌宠") },
+        TopAppBar(title = { Text(if (editingPet == null) "🦋 制作桌面伙伴" else "🦴 重新编辑 · ${editingPet.displayName}") },
             navigationIcon = { TextButton(onClick = onBack, enabled = !busy) { Text("返回") } })
     }) { padding ->
         Column(
@@ -113,6 +129,22 @@ fun LayeredPetEditor(
             }
             OutlinedTextField(value = name, onValueChange = { name = it.take(60) },
                 label = { Text("这只桌宠的名字") }, modifier = Modifier.fillMaxWidth())
+            Text("🖼️ 实时合成预览", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Text("点击下方图层名称选择，手指在预览图上拖动可调整位置；大小、旋转中心在下面的滑块微调。",
+                style = MaterialTheme.typography.bodySmall)
+            LayeredRigPreview(
+                rig = rig,
+                uris = images.toMap(),
+                selected = activeLayer,
+                onDragLayer = { dx, dy ->
+                    rig = rig.copy(layers = rig.layers.map { layer ->
+                        if (layer.id == activeLayer)
+                            layer.copy(x = (layer.x + dx).coerceIn(-2048f, 2048f),
+                                y = (layer.y + dy).coerceIn(-2048f, 2048f))
+                        else layer
+                    })
+                }
+            )
             Text("导入图片到对应图层", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Text("推荐所有 PNG 使用相同透明画布尺寸；也可选中图层调位置、缩放、旋转中心。带 ①② 的素材是两帧切换，不需要绘制中间帧。",
                 style = MaterialTheme.typography.bodySmall)
@@ -199,8 +231,27 @@ fun LayeredPetEditor(
                     update(layer.copy(zIndex = it.toInt()))
                 }
             }
-            Text("尾巴可用上面的旋转中心设置根部，点击后自动执行局部动画。4 个头部表情、蝴蝶结两帧、翅膀两帧会按触摸切换。",
+            Text("4 个头部表情在点击后短暂出现，再恢复默认表情。蝴蝶结、翅膀会短暂换帧。尾巴按旋转锚点摆动。",
                 style = MaterialTheme.typography.bodySmall)
+            if (rig.templateId != TapNestTemplates.MANUAL) {
+                var pettingMenu by remember { mutableStateOf(false) }
+                Box {
+                    OutlinedButton(onClick = { pettingMenu = true }) {
+                        Text("摸摸头专属表情：${if (rig.pettingExpression < 0) "不单独指定" else "第 ${rig.pettingExpression + 1} 帧"} ▾")
+                    }
+                    DropdownMenu(expanded = pettingMenu, onDismissRequest = { pettingMenu = false }) {
+                        for (i in -1..3) {
+                            DropdownMenuItem(
+                                text = { Text(if (i < 0) "不单独指定" else "第 ${i + 1} 帧") },
+                                onClick = {
+                                    rig = rig.copy(pettingExpression = i)
+                                    pettingMenu = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("把本次绑骨布局存为以后可复用的模板", Modifier.weight(1f))
                 Switch(checked = saveTemplate, onCheckedChange = { saveTemplate = it })
@@ -212,11 +263,13 @@ fun LayeredPetEditor(
                     error = null
                     scope.launch {
                         try {
-                            val newPet = withContext(Dispatchers.IO) {
-                                store.createPet(name, rig, images.toMap(), saveTemplate)
+                            val resultPet = withContext(Dispatchers.IO) {
+                                if (editingPet == null) store.createPet(name, rig, images.toMap(), saveTemplate)
+                                else store.updatePet(editingPet, name, rig, images.toMap(), saveTemplate)
                             }
-                            petRepository.addPetDirect(newPet)
-                            onCreated(newPet)
+                            if (editingPet == null) petRepository.addPetDirect(resultPet)
+                            else petRepository.replacePet(resultPet)
+                            onCreated(resultPet)
                         } catch (e: Exception) {
                             Log.e("TapNestEditor", "createPet failed", e)
                             error = e.message ?: "制作失败"
@@ -227,7 +280,8 @@ fun LayeredPetEditor(
                 enabled = !busy,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text(if (busy) "正在保存…" else "创建桌宠并保存模板")
+                Text(if (busy) "正在保存…" else if (editingPet != null) "保存当前角色的修改"
+                    else "创建桌宠并保存模板")
             }
             Spacer(Modifier.height(18.dp))
         }
