@@ -27,6 +27,8 @@ class PetEngine(
         data class Gif(val filePath: String) : PetLoader()
 
         data class Png(val bitmap: Bitmap) : PetLoader()
+
+        data class Layered(val player: LayeredPetPlayer) : PetLoader()
     }
 
     fun createLoader(petInfo: PetInfo): PetLoader? {
@@ -53,6 +55,10 @@ class PetEngine(
                     }) ?: return null
                 PetLoader.Png(bitmap)
             }
+            PetType.LAYERED -> {
+                petInfo.petJsonPath?.let { LayeredPetPlayer.load(java.io.File(it)) }
+                    ?.let { PetLoader.Layered(it) }
+            }
             PetType.GIF -> {
                 if (gifRenderer.load(petInfo.spritesheetPath)) {
                     PetLoader.Gif(petInfo.spritesheetPath)
@@ -78,6 +84,7 @@ class PetEngine(
                 )
             }
             is PetLoader.Png -> loader.bitmap
+            is PetLoader.Layered -> loader.player.render()
             is PetLoader.Gif -> {
                 gifRenderer.getFrame()
             }
@@ -89,6 +96,7 @@ class PetEngine(
             is PetLoader.CodexPet -> spritesheetParser.getFrameCount(loader.config, state)
             is PetLoader.Gif -> 1  // GIF 不分帧，每帧独立
             is PetLoader.Png -> 1
+            is PetLoader.Layered -> 1
         }
     }
 
@@ -113,6 +121,7 @@ class PetEngine(
             }
             is PetLoader.Gif -> Pair(gifRenderer.width, gifRenderer.height)
             is PetLoader.Png -> Pair(loader.bitmap.width, loader.bitmap.height)
+            is PetLoader.Layered -> Pair(loader.player.width, loader.player.height)
         }
     }
 

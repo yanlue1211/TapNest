@@ -23,6 +23,7 @@ class AnimationController(
     companion object {
         private const val IDLE_FRAME_INTERVAL_NS = 500_000_000L
         private const val ANIM_FRAME_INTERVAL_NS = 200_000_000L
+        private const val LAYERED_FRAME_INTERVAL_NS = 50_000_000L // 20 FPS
         private const val MIN_FRAME_DELAY_NS = 16_000_000L
         private const val LOOP_COUNT_BEFORE_IDLE = 2
         private const val MIN_PET_SIZE_PX = 32
@@ -122,7 +123,11 @@ class AnimationController(
                 // 系统省电模式下整体再减半（播放 2.5FPS / 待机 1FPS）
                 val idle = _state.value == PetAnimationState.IDLE &&
                     (isCodexPet() || l is PetEngine.PetLoader.Png)
-                var ns = if (idle) IDLE_FRAME_INTERVAL_NS else ANIM_FRAME_INTERVAL_NS
+                var ns = when {
+                    l is PetEngine.PetLoader.Layered -> LAYERED_FRAME_INTERVAL_NS
+                    idle -> IDLE_FRAME_INTERVAL_NS
+                    else -> ANIM_FRAME_INTERVAL_NS
+                }
                 if (powerSaveMode) ns *= 2
                 delay(((ns - (System.nanoTime() - lt)).coerceAtLeast(MIN_FRAME_DELAY_NS)) / 1_000_000)
                 lt = System.nanoTime()
@@ -155,6 +160,8 @@ class AnimationController(
     }
 
     fun isCodexPet() = loader is PetEngine.PetLoader.CodexPet
+    fun isLayeredPet() = loader is PetEngine.PetLoader.Layered
+    fun tapLayeredPet() { (loader as? PetEngine.PetLoader.Layered)?.player?.tap() }
 
     private fun applyScale() {
         _w.value = (baseW * s).toInt().coerceAtLeast(MIN_PET_SIZE_PX)

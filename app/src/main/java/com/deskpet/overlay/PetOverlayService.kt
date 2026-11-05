@@ -128,6 +128,7 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         if (anim.isCodexPet()) {
             anim.switchState(PetAnimationState.WAVING)
         } else {
+            if (anim.isLayeredPet()) anim.tapLayeredPet()
             bounce()
         }
         auto?.onUserTouch()
@@ -439,7 +440,7 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         }
         observeScale(id)
         auto?.stop()
-        auto = AutonomousBehavior(anim, sc)
+        auto = if (anim.isLayeredPet()) null else AutonomousBehavior(anim, sc)
         // 亮屏且非省电才启动自主行为；灭屏/省电场景由广播负责恢复
         if (screenOn && !anim.powerSaveMode) auto?.start()
         OverlayState.setRunning(id)

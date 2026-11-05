@@ -869,6 +869,7 @@ private fun PetPreview(pet: PetInfo) {
                             BitmapFactory.Options().apply { inSampleSize = sample })
                     }
                 }
+                PetType.LAYERED -> loadLayeredThumb(pet)
                 PetType.GIF -> null
             }
         }

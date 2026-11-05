@@ -273,6 +273,7 @@ class FileManager(private val context: Context) {
         when (petInfo.type) {
             PetType.CODEX_PET -> petInfo.petJsonPath?.let { File(it).parentFile?.deleteRecursively() }
             PetType.GIF, PetType.PNG -> File(petInfo.spritesheetPath).delete()
+            PetType.LAYERED -> petInfo.petJsonPath?.let { File(it).parentFile?.deleteRecursively() }
         }
     }
 
@@ -373,7 +374,9 @@ class FileManager(private val context: Context) {
                             }
                             // 找不到精灵图就整条跳过：兜底用备份里的旧路径入库，
                             // 会造出"列表里有、点了没反应"的死宠
-                            val sheetFile = if (pet.type == PetType.PNG) {
+                            val sheetFile = if (pet.type == PetType.LAYERED) {
+                                File(destDir, "body.png").takeIf { it.isFile }
+                            } else if (pet.type == PetType.PNG) {
                                 File(destDir, File(pet.spritesheetPath).name)
                                     .takeIf { it.isFile && it.extension.equals("png", true) }
                             } else findSpritesheet(destDir)
@@ -449,7 +452,8 @@ class FileManager(private val context: Context) {
     // ===== Helpers =====
 
     private fun addPetFilesToZip(zip: ZipOutputStream, pet: PetInfo, prefix: String) {
-        val dir = if (pet.type == PetType.CODEX_PET) File(pet.spritesheetPath).parentFile else null
+        val dir = if (pet.type == PetType.CODEX_PET || pet.type == PetType.LAYERED)
+            File(pet.spritesheetPath).parentFile else null
         if (dir != null && dir.exists()) {
             dir.walkTopDown().forEach { file ->
                 if (file == dir) return@forEach
