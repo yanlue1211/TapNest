@@ -885,7 +885,7 @@ private fun PetGridCard(
 @Composable
 private fun PetPreview(pet: PetInfo) {
     var thumb by remember { mutableStateOf<Bitmap?>(null) }
-    LaunchedEffect(pet.spritesheetPath) {
+    LaunchedEffect(pet.spritesheetPath, pet.revision) {
         thumb = withContext(Dispatchers.IO) {
             when (pet.type) {
                 PetType.CODEX_PET -> loadOrCreateThumb(pet)

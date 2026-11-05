@@ -147,9 +147,11 @@ class TapNestLayeredStore(private val context: Context) {
             archived = true
             if (!stage.renameTo(originalDir)) throw IllegalStateException("新图层保存失败")
             archive.deleteRecursively()
-            if (saveAsTemplate) saveTemplate(name, savedRig)
+            if (saveAsTemplate) runCatching { saveTemplate(name, savedRig) }
+                .onFailure { android.util.Log.w("TapNestEditor", "Save template failed", it) }
             return old.copy(
                 displayName = name.trim().take(60).ifBlank { old.displayName },
+                revision = System.currentTimeMillis(),
                 petJsonPath = File(originalDir, "rig.json").absolutePath,
                 spritesheetPath = File(originalDir, "body.png").absolutePath
             )

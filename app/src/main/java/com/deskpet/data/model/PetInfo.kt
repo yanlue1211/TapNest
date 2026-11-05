@@ -16,6 +16,8 @@ data class PetInfo(
     val scale: Float = 1.0f,
     val sourceId: String = "", // 去重标识
     /** Per-character, on-device preset speech. Missing keys in old backups use defaults. */
+    /** Changed on editor save so previews refresh even if the image path stays the same. */
+    val revision: Long = 0L,
     val tapBubbleEnabled: Boolean = true,
     val tapDialogues: List<String> = listOf("嘿嘿，戳到我啦！", "我在这里～", "再陪我玩一会儿？")
     // 注：曾经的 isActive 字段已删除——它是死字段（UI 判定选中用 activePetId 实时比较，
