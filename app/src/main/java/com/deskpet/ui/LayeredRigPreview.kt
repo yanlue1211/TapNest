@@ -303,6 +303,9 @@ internal fun LayeredRigPreview(
         val expressionIndex = when {
             petting && rig.pettingExpression in 0..3 -> rig.pettingExpression
             mode == RigPreviewMode.TEST && touchElapsed in 0..1799L -> expression
+            petting -> 0
+            mode == RigPreviewMode.TEST && rig.blinkExpression in 0..3 &&
+                TapNestBlink.isBlinking(clock - previewStartedAt) -> rig.blinkExpression
             else -> 0
         }
         val facePrefix = if (rig.headMode == TapNestHeadMode.FULL_HEAD) "head_" else "face_"
