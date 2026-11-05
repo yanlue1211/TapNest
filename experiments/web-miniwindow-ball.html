@@ -59,7 +59,7 @@ ball.addEventListener('pointerup',finish);ball.addEventListener('pointercancel',
 $('#send').onclick=()=>{const t=$('#txt').value.trim();if(t)bubble('收到：'+t);$('#txt').value='';entry.style.display='none';$('#txt').blur()};
 $('#txt').addEventListener('keydown',e=>{if(e.key==='Enter')$('#send').click()});
 $('#close').onclick=()=>{entry.style.display='none';$('#txt').blur()};
-$('#toggle').onclick=()=>{infoVisible=!infoVisible;$('#info').style.width=infoVisible?'':'122px';$('#info').style.right=infoVisible?'12px':'auto';$('#info').style.left='12px';Array.from($('#info').children).forEach(el=>{if(el.tagName==='P'||el.className==='row'||el.id==='log')el.style.display=infoVisible?'':'none'});$('#info').querySelector('h1').textContent=infoVisible?'🐾 系统小窗测试 · 第二版':'🐾 小圆球';if(!infoVisible)$('#info').onclick=()=>{$('#info').onclick=null;$('#toggle').click()};else $('#info').onclick=null};
+$('#toggle').onclick=(e)=>{e.stopPropagation();infoVisible=!infoVisible;$('#info').style.width=infoVisible?'':'122px';$('#info').style.right=infoVisible?'12px':'auto';$('#info').style.left='12px';Array.from($('#info').children).forEach(el=>{if(el.tagName==='P'||el.className==='row'||el.id==='log')el.style.display=infoVisible?'':'none'});$('#info').querySelector('h1').textContent=infoVisible?'🐾 系统小窗测试 · 第二版':'🐾 小圆球';if(!infoVisible)$('#info').onclick=()=>{$('#info').onclick=null;$('#toggle').click()};else $('#info').onclick=null};
 $('#border').onclick=()=>{$('#bounds').style.display=$('#bounds').style.display==='block'?'none':'block'};
 $('#bg').onclick=()=>{bg=!bg;$('#stage').style.background=bg?'white':'transparent';$('#bg').textContent=bg?'切换透明背景':'切换白色背景'};
 $('#reset').onclick=center;
