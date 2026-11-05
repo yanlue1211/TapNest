@@ -326,7 +326,7 @@ fun LayeredPetEditor(
                 HorizontalDivider()
                 Text("🌿 多点柔性绑骨与日常动作", style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold)
-                Text("这里的设置仅作用于「${layer.id}」这张图片。单点围绕锚点摆动；2～8 个点可柔性弯曲。短竖尾建议只用 3 点，按尾根→中段→尾尖放在图片内部，别让最上面的点超出尾尖。",
+                Text("尾巴、翅膀、耳朵都可以独立绑定。2～8 个点从根到尖，选中点位后可分别设置左右、上下或旋转方向。",
                     style = MaterialTheme.typography.bodySmall)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("闲置时自动晃动", modifier = Modifier.weight(1f))
@@ -398,16 +398,6 @@ fun LayeredPetEditor(
                     if (layer.swingMode == TapNestSwingMode.SPRING) {
                         Text("尾根带头左右摇，上半段像弹簧一样延迟跟随，转向时会回弹。",
                             style = MaterialTheme.typography.bodySmall)
-                        OutlinedButton(
-                            onClick = {
-                                update(layer.copy(
-                                    idleSwing = true, swingMode = TapNestSwingMode.SPRING,
-                                    idleAmplitude = 65f, idleSpeed = 0.50f,
-                                    springSoftness = 0.78f, springDamping = 0.38f,
-                                    shapePreservation = 0.78f
-                                ))
-                            }
-                        ) { Text("🐶 一键试试「短尾大幅软弹」") }
                     }
                     BindingSlider("左右摆动幅度（度）", layer.idleAmplitude, 0f,
                         if (layer.swingMode == TapNestSwingMode.SPRING) 85f else 40f
