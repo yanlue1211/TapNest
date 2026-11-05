@@ -4,6 +4,7 @@ import kotlin.math.PI
 import kotlin.math.atan2
 import kotlin.math.cos
 import kotlin.math.sin
+import kotlin.math.sqrt
 
 /**
  * Lightweight 2D skinning of a single PNG. Users place 2..8 points along a limb,
@@ -21,6 +22,26 @@ object TapNestFlexibleMesh {
     private operator fun Point.plus(o: Point) = Point(x + o.x, y + o.y)
     private operator fun Point.minus(o: Point) = Point(x - o.x, y - o.y)
     private operator fun Point.times(k: Float) = Point(x * k, y * k)
+
+    /**
+     * Per-bone 2D motion steering. AUTO remains the original rotation.
+     * HORIZONTAL and VERTICAL apply controlled tip displacement, so the
+     * opposite axis stays put and thin wings can flap up/down.
+     */
+    internal fun moveSegment(x: Float, y: Float, angle: Float,
+        direction: TapNestBoneSwingDirection): Pair<Float, Float> {
+        val offset = sqrt(x * x + y * y) * sin(angle)
+        val output = when (direction) {
+            TapNestBoneSwingDirection.AUTO -> rotate(Point(x, y), angle)
+            TapNestBoneSwingDirection.ROTATION_REVERSE -> rotate(Point(x, y), -angle)
+            TapNestBoneSwingDirection.HORIZONTAL -> Point(x + offset, y)
+            TapNestBoneSwingDirection.HORIZONTAL_REVERSE -> Point(x - offset, y)
+            TapNestBoneSwingDirection.VERTICAL -> Point(x, y + offset)
+            TapNestBoneSwingDirection.VERTICAL_REVERSE -> Point(x, y - offset)
+            TapNestBoneSwingDirection.FIXED -> Point(x, y)
+        }
+        return output.x to output.y
+    }
 
     /** Interpolate wrap-safe rotations at both sides of a joint to avoid a seam. */
     private fun mixAngle(from: Float, to: Float, fraction: Float): Float {
@@ -67,7 +88,11 @@ object TapNestFlexibleMesh {
         for (i in 1 until base.size) {
             accumulated += Math.toRadians(angles[i - 1].toDouble()).toFloat()
             val source = base[i] - base[i - 1]
-            transformed.add(transformed.last() + rotate(source, accumulated))
+            val explicit = layer.bones[i].swingDirection
+            val direction = if (i == 1 && explicit == TapNestBoneSwingDirection.AUTO)
+                layer.bones.first().swingDirection else explicit
+            val (dx, dy) = moveSegment(source.x, source.y, accumulated, direction)
+            transformed.add(transformed.last() + Point(dx, dy))
         }
         // At a thick outline, an abrupt switch between two adjacent segment
         // transforms stretches the pixels either side of the joint. Interpolate
