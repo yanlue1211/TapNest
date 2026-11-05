@@ -120,7 +120,8 @@ class AnimationController(
                 }
                 // Codex Pet 待机时降到 2FPS 省电；GIF 没有状态机，始终按动画帧率播放。
                 // 系统省电模式下整体再减半（播放 2.5FPS / 待机 1FPS）
-                val idle = _state.value == PetAnimationState.IDLE && isCodexPet()
+                val idle = _state.value == PetAnimationState.IDLE &&
+                    (isCodexPet() || l is PetEngine.PetLoader.Png)
                 var ns = if (idle) IDLE_FRAME_INTERVAL_NS else ANIM_FRAME_INTERVAL_NS
                 if (powerSaveMode) ns *= 2
                 delay(((ns - (System.nanoTime() - lt)).coerceAtLeast(MIN_FRAME_DELAY_NS)) / 1_000_000)

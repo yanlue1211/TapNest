@@ -228,10 +228,51 @@ class FileManager(private val context: Context) {
         catch (e: Exception) { destFile.delete(); tmpFile.delete(); throw ImportException.ExtractionFailed(e) }
     }
 
+    /** Self-drawn transparent PNG. Kept in app-private storage; no upload or image generation. */
+    suspend fun importPng(uri: Uri): PetInfo {
+        cleanupStaleTmpFiles()
+        val id = java.util.UUID.randomUUID().toString()
+        val dest = File(petDir, "$"+"{id}.png")
+        val tmp = File(petDir, "$"+"{id}.tmp")
+        val rawName = queryDisplayName(uri) ?: "我的桌宠.png"
+        return try {
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                ZipExtractor.copyWithLimit(input, tmp, MAX_GIF_BYTES)
+            } ?: throw ImportException.FileNotFound("无法打开 PNG")
+            val signature = byteArrayOf(137.toByte(), 80, 78, 71, 13, 10, 26, 10)
+            val magic = ByteArray(8)
+            tmp.inputStream().use {
+                if (it.read(magic) != 8 || !magic.contentEquals(signature))
+                    throw ImportException.InvalidFormat("文件不是 PNG 图片")
+            }
+            val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeFile(tmp.absolutePath, options)
+            val pixels = options.outWidth.toLong() * options.outHeight.toLong()
+            if (options.outWidth <= 0 || options.outHeight <= 0 || pixels > 16_000_000L)
+                throw ImportException.InvalidFormat("PNG 尺寸异常或过大")
+            if (!tmp.renameTo(dest))
+                throw ImportException.ExtractionFailed(RuntimeException("保存 PNG 失败"))
+            val md = java.security.MessageDigest.getInstance("SHA-256")
+            dest.inputStream().use { input ->
+                val buffer = ByteArray(16 * 1024)
+                while (true) {
+                    val count = input.read(buffer)
+                    if (count < 0) break
+                    md.update(buffer, 0, count)
+                }
+            }
+            val hash = md.digest().joinToString("") { "%02x".format(it.toInt() and 0xff) }
+            PetInfo(id = id, type = PetType.PNG,
+                displayName = rawName.substringBeforeLast('.').take(80).ifBlank { "我的桌宠" },
+                spritesheetPath = dest.absolutePath, sourceId = "png:$"+"hash")
+        } catch (e: ImportException) { tmp.delete(); dest.delete(); throw e }
+        catch (e: Exception) { tmp.delete(); dest.delete(); throw ImportException.ExtractionFailed(e) }
+    }
+
     fun deletePet(petInfo: PetInfo) {
         when (petInfo.type) {
             PetType.CODEX_PET -> petInfo.petJsonPath?.let { File(it).parentFile?.deleteRecursively() }
-            PetType.GIF -> File(petInfo.spritesheetPath).delete()
+            PetType.GIF, PetType.PNG -> File(petInfo.spritesheetPath).delete()
         }
     }
 
@@ -265,7 +306,7 @@ class FileManager(private val context: Context) {
     // ===== Backup All =====
 
     suspend fun exportAllToZip(petList: List<PetInfo>): File? {
-        val zipFile = File(context.cacheDir, "DeskPet_backup.zip")
+        val zipFile = File(context.cacheDir, "TapNest_backup.zip")
         return try {
             FileOutputStream(zipFile).use { fos ->
                 BufferedOutputStream(fos).use { bos ->
@@ -332,7 +373,10 @@ class FileManager(private val context: Context) {
                             }
                             // 找不到精灵图就整条跳过：兜底用备份里的旧路径入库，
                             // 会造出"列表里有、点了没反应"的死宠
-                            val sheetFile = findSpritesheet(destDir)
+                            val sheetFile = if (pet.type == PetType.PNG) {
+                                File(destDir, File(pet.spritesheetPath).name)
+                                    .takeIf { it.isFile && it.extension.equals("png", true) }
+                            } else findSpritesheet(destDir)
                             if (sheetFile == null) {
                                 destDir.deleteRecursively()
                                 Log.w(TAG, "restore: pet ${pet.id} missing spritesheet, skipped")

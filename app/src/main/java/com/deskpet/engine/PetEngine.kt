@@ -25,6 +25,8 @@ class PetEngine(
         ) : PetLoader()
 
         data class Gif(val filePath: String) : PetLoader()
+
+        data class Png(val bitmap: Bitmap) : PetLoader()
     }
 
     fun createLoader(petInfo: PetInfo): PetLoader? {
@@ -35,6 +37,21 @@ class PetEngine(
                 } ?: return null
 
                 PetLoader.CodexPet(config, petInfo.spritesheetPath)
+            }
+            PetType.PNG -> {
+                val path = petInfo.spritesheetPath
+                val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                android.graphics.BitmapFactory.decodeFile(path, bounds)
+                if (bounds.outWidth <= 0 || bounds.outHeight <= 0 ||
+                    bounds.outWidth.toLong() * bounds.outHeight.toLong() > 16_000_000L) return null
+                var sample = 1
+                while (bounds.outWidth / sample > 1024 || bounds.outHeight / sample > 1024) sample *= 2
+                val bitmap = android.graphics.BitmapFactory.decodeFile(path,
+                    android.graphics.BitmapFactory.Options().apply {
+                        inSampleSize = sample
+                        inPreferredConfig = Bitmap.Config.ARGB_8888
+                    }) ?: return null
+                PetLoader.Png(bitmap)
             }
             PetType.GIF -> {
                 if (gifRenderer.load(petInfo.spritesheetPath)) {
@@ -60,6 +77,7 @@ class PetEngine(
                     frameIndex
                 )
             }
+            is PetLoader.Png -> loader.bitmap
             is PetLoader.Gif -> {
                 gifRenderer.getFrame()
             }
@@ -70,6 +88,7 @@ class PetEngine(
         return when (loader) {
             is PetLoader.CodexPet -> spritesheetParser.getFrameCount(loader.config, state)
             is PetLoader.Gif -> 1  // GIF 不分帧，每帧独立
+            is PetLoader.Png -> 1
         }
     }
 
@@ -93,6 +112,7 @@ class PetEngine(
                 if (w <= 0 || h <= 0) Pair(DEFAULT_PET_WIDTH, DEFAULT_PET_HEIGHT) else Pair(w, h)
             }
             is PetLoader.Gif -> Pair(gifRenderer.width, gifRenderer.height)
+            is PetLoader.Png -> Pair(loader.bitmap.width, loader.bitmap.height)
         }
     }
 

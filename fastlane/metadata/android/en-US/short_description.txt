@@ -1,1 +1,0 @@
-A lightweight open-source desktop pet floating over your screen.

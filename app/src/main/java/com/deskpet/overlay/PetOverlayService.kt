@@ -213,7 +213,7 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         try {
             val nm = getSystemService(NOTIFICATION_SERVICE) as android.app.NotificationManager
             nm.createNotificationChannel(android.app.NotificationChannel(
-                CHANNEL_ID, "桌面宠物", android.app.NotificationManager.IMPORTANCE_LOW
+                CHANNEL_ID, "点点栖", android.app.NotificationManager.IMPORTANCE_LOW
             ).apply { description = "宠物悬浮窗运行中" })
 
             val contentIntent = android.app.PendingIntent.getActivity(
@@ -231,13 +231,12 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
                 android.app.PendingIntent.FLAG_IMMUTABLE
             )
             val ntf = NotificationCompat.Builder(this, CHANNEL_ID)
-                .setContentTitle("桌面宠物")
+                .setContentTitle("点点栖")
                 .setContentText("正在运行")
                 // 自有白色剪影小图标（状态栏/通知栏单色规范）；旧代码用的
                 // android.R.drawable.ic_menu_gallery 是系统图库图标占位
-                .setSmallIcon(R.drawable.ic_stat_pet)
+                .setSmallIcon(R.drawable.ic_tapnest_stat)
                 // 通知栏展开时显示彩色橘团大图（状态栏小图标按规范只能是单色剪影）
-                .setLargeIcon(android.graphics.BitmapFactory.decodeResource(resources, R.drawable.ic_notif_large))
                 .setContentIntent(contentIntent)
                 .setOngoing(true)
                 // 通知栏直接关闭宠物，不用回到 App 点「关闭」

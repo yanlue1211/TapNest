@@ -11,3 +11,13 @@ local.properties
 /secrets/
 /.sisyphus/
 /.workbuddy/
+
+# TapNest - private and local files
+local.properties
+*.jks
+*.keystore
+secrets.properties
+Sully_Backup*.zip
+TapNest_backup*.zip
+*.apk
+*.aab

@@ -118,6 +118,10 @@ fun ImportScreen(
         uri?.let { runImport(it) { u -> fileManager.importCodexPet(u) } }
     }
 
+    val pngLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        uri?.let { runImport(it) { u -> fileManager.importPng(u) } }
+    }
+
     val gifLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         uri?.let { runImport(it) { u -> fileManager.importGif(u) } }
     }
@@ -158,7 +162,7 @@ fun ImportScreen(
             Text("导入宠物", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.height(8.dp))
             Text(
-                "三种方式把新宠物带回家",
+                "从手机导入你自己画的宠物",
                 style = MaterialTheme.typography.bodyMedium,
                 textAlign = TextAlign.Center,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -166,10 +170,19 @@ fun ImportScreen(
             Spacer(Modifier.height(28.dp))
 
             ImportOption(
+                icon = "🌱",
+                title = "自绘 PNG（无需分层）",
+                subtitle = "从手机导入透明背景 PNG，点击会弹跳",
+                filled = true,
+                enabled = !isImporting
+            ) { pngLauncher.launch(arrayOf("image/png")) }
+            Spacer(Modifier.height(12.dp))
+
+            ImportOption(
                 icon = "🎨",
                 title = "Codex Pet 素材包",
                 subtitle = "标准 .zip（含 pet.json），支持 9 种动画",
-                filled = true,
+                filled = false,
                 enabled = !isImporting
             ) { codexPetLauncher.launch(arrayOf("application/zip", "application/octet-stream", "*/*")) }
             Spacer(Modifier.height(12.dp))
@@ -186,7 +199,7 @@ fun ImportScreen(
             ImportOption(
                 icon = "💾",
                 title = "恢复备份",
-                subtitle = "从 DeskPet_backup.zip 一键还原全部宠物",
+                subtitle = "从 TapNest_backup.zip 一键还原全部宠物",
                 filled = false,
                 enabled = !isImporting
             // octet-stream：不少机型/网盘把 zip 报成未知二进制类型，只给

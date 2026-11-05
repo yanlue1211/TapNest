@@ -17,7 +17,7 @@
         android:label="@string/app_name"
         android:supportsRtl="true"
         android:theme="@style/Theme.DeskPet"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@drawable/ic_tapnest">
 
         <activity
             android:name=".MainActivity"

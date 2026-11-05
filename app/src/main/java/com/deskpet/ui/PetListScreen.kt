@@ -157,7 +157,7 @@ fun PetListScreen(
                         Text("还没有宠物", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.height(4.dp))
                         Text(
-                            "从本地素材包或 GIF 导入\n长按宠物可删除",
+                            "从手机导入自己画的 PNG\n长按宠物可删除",
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center
@@ -805,7 +805,23 @@ private fun PetGridCard(
 private fun PetPreview(pet: PetInfo) {
     var thumb by remember { mutableStateOf<Bitmap?>(null) }
     LaunchedEffect(pet.spritesheetPath) {
-        if (pet.type == PetType.CODEX_PET) thumb = withContext(Dispatchers.IO) { loadOrCreateThumb(pet) }
+        thumb = withContext(Dispatchers.IO) {
+            when (pet.type) {
+                PetType.CODEX_PET -> loadOrCreateThumb(pet)
+                PetType.PNG -> {
+                    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    BitmapFactory.decodeFile(pet.spritesheetPath, bounds)
+                    if (bounds.outWidth <= 0 || bounds.outHeight <= 0) null
+                    else {
+                        var sample = 1
+                        while (bounds.outWidth / sample > 256 || bounds.outHeight / sample > 256) sample *= 2
+                        BitmapFactory.decodeFile(pet.spritesheetPath,
+                            BitmapFactory.Options().apply { inSampleSize = sample })
+                    }
+                }
+                PetType.GIF -> null
+            }
+        }
     }
     if (thumb != null) Image(thumb!!.asImageBitmap(), pet.displayName, Modifier.fillMaxSize(0.75f), contentScale = ContentScale.Fit)
     else Text(if (pet.type == PetType.CODEX_PET) "🎨" else "📷", style = MaterialTheme.typography.headlineMedium)
