@@ -155,8 +155,9 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
                 anim.setAffection(affection)
                 anim.interactCompanion(action)
                 displayTapLine(line)
-                if (artwork != null) sc.launch {
-                    val source = companionStore.actionVisualFile(id, action, artwork)
+                sc.launch {
+                    val source = if (artwork == null) null
+                        else companionStore.actionVisualFile(id, action, artwork)
                     anim.playActionArtwork(source)
                 }
             },
@@ -238,6 +239,14 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
                     anim.setAffection(event.affection)
                     anim.interactCompanion(event.action)
                     displayTapLine(event.line)
+                    sc.launch {
+                        val source = withContext(Dispatchers.IO) {
+                            val profile = companionStore.load(event.petId)
+                            companionStore.actionVisualFile(event.petId,
+                                event.action, profile.actionVisuals[event.action])
+                        }
+                        anim.playActionArtwork(source)
+                    }
                 }
             }
         }
