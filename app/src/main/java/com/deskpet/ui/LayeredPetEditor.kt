@@ -551,7 +551,43 @@ fun LayeredPetEditor(
                     }
                 }
             }
-            Text("4 个头部表情在点击后短暂出现，再恢复默认表情。蝴蝶结、翅膀会短暂换帧。尾巴按旋转锚点摆动。",
+            if (rig.layers.any { it.id.startsWith("head_") || it.id.startsWith("face_") }) {
+                Text("👀 静置眨眼 / 被戳表情", style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold)
+                Text("从现有的 4 张头部表情（或独立脸图）里指定。眨眼仅在静置时偶尔短暂出现；被戳表情优先，不会被眨眼盖掉。",
+                    style = MaterialTheme.typography.bodySmall)
+                var blinkMenu by remember { mutableStateOf(false) }
+                Box {
+                    OutlinedButton(onClick = { blinkMenu = true }) {
+                        Text("静置眨眼：${if (rig.blinkExpression < 0) "关闭眨眼" else "第 ${rig.blinkExpression + 1} 帧"} ▾")
+                    }
+                    DropdownMenu(expanded = blinkMenu, onDismissRequest = { blinkMenu = false }) {
+                        for (i in -1..3) {
+                            DropdownMenuItem(
+                                text = { Text(if (i == -1) "关闭眨眼" else "第 ${i + 1} 帧") },
+                                onClick = { rig = rig.copy(blinkExpression = i); blinkMenu = false }
+                            )
+                        }
+                    }
+                }
+                var tapMenu by remember { mutableStateOf(false) }
+                Box {
+                    OutlinedButton(onClick = { tapMenu = true }) {
+                        Text("被戳时表情：${if (rig.tapExpression < 0) "原版循环换脸" else "第 ${rig.tapExpression + 1} 帧"} ▾")
+                    }
+                    DropdownMenu(expanded = tapMenu, onDismissRequest = { tapMenu = false }) {
+                        for (i in -1..3) {
+                            DropdownMenuItem(
+                                text = { Text(if (i == -1) "原版循环换脸" else "第 ${i + 1} 帧") },
+                                onClick = { rig = rig.copy(tapExpression = i); tapMenu = false }
+                            )
+                        }
+                    }
+                }
+                Text("请确认指定的表情帧已导入闭眼或戳戳对应图片；未导入时仍会回退到默认脸。",
+                    style = MaterialTheme.typography.bodySmall)
+            }
+            Text("表情与互动可以分别指定；眨眼只在没有戳动、摸头等动作时触发。",
                 style = MaterialTheme.typography.bodySmall)
             if (rig.templateId != TapNestTemplates.MANUAL) {
                 var pettingMenu by remember { mutableStateOf(false) }
