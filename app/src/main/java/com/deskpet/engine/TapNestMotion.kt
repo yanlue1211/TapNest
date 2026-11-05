@@ -25,7 +25,10 @@ data class TapNestRig(
 
 /** Normalized control points from root to tip, all inside the imported PNG. */
 @Serializable
-data class TapNestBonePoint(val x: Float, val y: Float)
+enum class TapNestBoneSwingDirection { AUTO, HORIZONTAL, VERTICAL, HORIZONTAL_REVERSE, VERTICAL_REVERSE, ROTATION_REVERSE, FIXED }
+
+@Serializable
+data class TapNestBonePoint(val x: Float, val y: Float, val swingDirection: TapNestBoneSwingDirection = TapNestBoneSwingDirection.AUTO)
 
 /** Existing rigs continue using the original phase-delay motion by default. */
 @Serializable
