@@ -394,6 +394,16 @@ class FileManager(private val context: Context) {
                                 spritesheetPath = sheetFile.absolutePath
                             )
                             petRepository.addPetDirect(fixedPet)
+                            // Companion notes, custom icons and affection are part of a full backup.
+                            // Restore only paths under this validated pet ID, never overwrite an
+                            // existing profile, and never touch the original memory/pet logic.
+                            val stagedCompanion = File(destDir, "companion")
+                            if (stagedCompanion.isDirectory &&
+                                pet.id.matches(Regex("[a-zA-Z0-9_-]{1,100}"))) {
+                                val profileDest = File(context.filesDir, "companion_profiles/${pet.id}")
+                                if (!profileDest.exists()) stagedCompanion.copyRecursively(profileDest, true)
+                                stagedCompanion.deleteRecursively()
+                            }
                         } catch (e: Exception) {
                             // 只清本条已落盘的目录；坏 id 不安全，绝不能拼进 File() 删除
                             destDir?.deleteRecursively()
@@ -481,6 +491,20 @@ class FileManager(private val context: Context) {
             if (gif.exists()) {
                 zip.putNextEntry(ZipEntry(prefix + gif.name))
                 gif.inputStream().use { it.copyTo(zip) }
+                zip.closeEntry()
+            }
+        }
+        // Per-character offline interaction state is deliberately separate from PetInfo
+        // and therefore must be explicitly included in backup ZIPs.
+        if (pet.id.matches(Regex("[a-zA-Z0-9_-]{1,100}"))) {
+            val companionDir = File(context.filesDir, "companion_profiles/${pet.id}")
+            companionDir.listFiles()?.filter { file ->
+                file.isFile && !file.name.endsWith(".tmp") &&
+                    (file.name == "profile.json" ||
+                        file.name.matches(Regex("icon_[a-zA-Z0-9_-]{1,100}\\.png")))
+            }?.forEach { file ->
+                zip.putNextEntry(ZipEntry(prefix + "companion/" + file.name))
+                file.inputStream().use { it.copyTo(zip) }
                 zip.closeEntry()
             }
         }
