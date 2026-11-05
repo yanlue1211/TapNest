@@ -366,13 +366,23 @@ internal fun LayeredRigPreview(
             val jointAngles = if (spring) {
                 springChains.getOrPut(layer.id) { TapNestSpringChain() }.step(layer, elapsed)
             } else null
-            val mesh = if (mode == RigPreviewMode.TEST) TapNestFlexibleMesh.vertices(
-                layer, art.width, art.height, elapsed, resolution, jointAngles) else null
-            if (mesh != null) {
-                native.drawBitmapMesh(art.bitmap, resolution,
-                    resolution, mesh, 0, null, 0, paint)
-            } else native.drawBitmap(art.bitmap, null,
-                RectF(0f, 0f, art.width.toFloat(), art.height.toFloat()), paint)
+            if (spring && layer.shapePreservation >= 0.999f &&
+                jointAngles != null && jointAngles.isNotEmpty()) {
+                val root = layer.bones.first()
+                native.save()
+                native.rotate(jointAngles[0], root.x.coerceIn(0f, 1f) * art.width,
+                    root.y.coerceIn(0f, 1f) * art.height)
+                native.drawBitmap(art.bitmap, null,
+                    RectF(0f, 0f, art.width.toFloat(), art.height.toFloat()), paint)
+                native.restore()
+            } else {
+                val mesh = if (mode == RigPreviewMode.TEST) TapNestFlexibleMesh.vertices(
+                    layer, art.width, art.height, elapsed, resolution, jointAngles) else null
+                if (mesh != null) {
+                    native.drawBitmapMesh(art.bitmap, resolution, resolution, mesh, 0, null, 0, paint)
+                } else native.drawBitmap(art.bitmap, null,
+                    RectF(0f, 0f, art.width.toFloat(), art.height.toFloat()), paint)
+            }
             if (mode != RigPreviewMode.TEST && selected == layer.id) {
                 val accent = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                     color = android.graphics.Color.rgb(46, 158, 97)

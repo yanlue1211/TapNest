@@ -166,15 +166,27 @@ class LayeredPetPlayer private constructor(
             val jointAngles = if (spring) {
                 springChains.getOrPut(layer.id) { TapNestSpringChain() }.step(layer, now - launchedAtMs)
             } else null
-            val flexible = TapNestFlexibleMesh.vertices(
-                layer, source.first, source.second, now - launchedAtMs, mesh, jointAngles
-            )
-            if (flexible != null) {
-                canvas.drawBitmapMesh(picture, mesh,
-                    mesh, flexible, 0, null, 0, paint)
-            } else {
+            if (spring && layer.shapePreservation >= 0.999f &&
+                jointAngles != null && jointAngles.isNotEmpty()) {
+                // True rigid mode: draw the intact bitmap instead of running it
+                // through mesh cells, preserving heavy artwork outlines exactly.
+                val root = layer.bones.first()
+                canvas.save()
+                canvas.rotate(jointAngles[0], root.x.coerceIn(0f, 1f) * source.first,
+                    root.y.coerceIn(0f, 1f) * source.second)
                 canvas.drawBitmap(picture, null,
                     RectF(0f, 0f, source.first.toFloat(), source.second.toFloat()), paint)
+                canvas.restore()
+            } else {
+                val flexible = TapNestFlexibleMesh.vertices(
+                    layer, source.first, source.second, now - launchedAtMs, mesh, jointAngles
+                )
+                if (flexible != null) {
+                    canvas.drawBitmapMesh(picture, mesh, mesh, flexible, 0, null, 0, paint)
+                } else {
+                    canvas.drawBitmap(picture, null,
+                        RectF(0f, 0f, source.first.toFloat(), source.second.toFloat()), paint)
+                }
             }
             canvas.restore()
         }
