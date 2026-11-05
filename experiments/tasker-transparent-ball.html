@@ -1,0 +1,62 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="UTF-8"/><meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no, viewport-fit=cover"><title>透明桌宠小球 · Tasker V2 测试</title>
+<style>
+*{box-sizing:border-box}html,body{padding:0;margin:0}
+body{font-family:system-ui,-apple-system,"Noto Sans SC",sans-serif}
+body.ball{background:transparent!important;width:100vw;height:100dvh;overflow:hidden;touch-action:none}
+body.guide{background:linear-gradient(150deg,#f5fffb,#edf4ff);color:#2a4c46;padding:24px 18px;min-height:100dvh}
+main{max-width:540px;margin:0 auto}
+.card{background:#fff;border-radius:20px;box-shadow:0 9px 32px #4b7b6820;padding:20px;margin:14px 0;line-height:1.75}
+h1{font-size:23px;color:#228f75;margin:0 0 6px}h2{font-size:17px;margin:0 0 8px;color:#287c6a}p{margin:9px 0}small{color:#647974}ol{padding-left:20px}
+button,a.btn{display:inline-block;background:#4ac7a4;color:white;border:none;border-radius:12px;padding:13px 16px;text-decoration:none;font-size:15px;font-weight:700;margin:4px 4px 4px 0}
+#status{color:#207865;font-size:13px;min-height:24px}
+#ball-area{position:fixed;inset:0;display:grid;place-items:center;background:transparent!important}
+#ball{height:min(93vw,93vh,98px);width:min(93vw,93vh,98px);border-radius:50%;background:radial-gradient(circle at 28% 22%,#ddffef 0%,#a7edda 30%,#5bd1b2 69%,#2ea889 100%);border:3px solid #ffffffcc;box-shadow:0 5px 15px #15ac8290;display:grid;place-items:center;color:#1b735e;font-size:19px;font-weight:750;position:relative;user-select:none;touch-action:none;-webkit-tap-highlight-color:transparent}
+#ball:active{transform:scale(.94)}
+#ball span{pointer-events:none}
+#message{position:absolute;font-size:11px;left:50%;bottom:-18px;transform:translateX(-50%);white-space:nowrap;padding:3px 7px;border-radius:9px;background:#e6fff4e8;color:#207a60;opacity:0;transition:opacity .12s;pointer-events:none}
+#message.show{opacity:1}
+</style></head>
+<body>
+<main id="guide" style="display:none">
+<div class="card"><h1>🐾 透明小球 · 第三次测试</h1><p>不需要把糯米机打包成 APK！这次用现成的 <b>Tasker 6.7 Scenes V2</b> 建一个独立原生悬浮窗口，里面放我们自己托管的网页小球。</p><p>目标：手机桌面上看到<b>只有一个小球，没有浏览器矩形白框</b>。</p>
+<a class="btn" href="?view=ball">先预览小球</a><button id="copy">复制 Tasker 场景 JSON</button><div id="status"></div></div>
+<div class="card"><h2>宝宝巴士 · 测试步骤</h2>
+<ol><li>安装 <b>Tasker 6.7.8 或更新版本</b>，允许「显示在其他应用上层」。</li>
+<li>先点击上面的「复制 Tasker 场景 JSON」。</li>
+<li>打开 Tasker，进入 <b>Tasks/任务</b> → 新增任务 → 加一条动作 <b>Scene → Show Scene V2</b>。</li>
+<li>在 <b>Name/JSON</b> 输入框中粘贴刚复制的内容，<b>Display Mode</b> 选 <b>Overlay</b>。</li>
+<li>窗口 <b>Width 140</b>、<b>Height 140</b> (dp)，<b>X 65%</b>、<b>Y 60%</b>，<b>Blocking 开启</b>。</li>
+<li>运行这条 Tasker 任务，然后按主页键。观察是否只剩小球，再戳一下小球。</li></ol>
+<small>Tasker V2 部分版本的动作字段、布局渲染可能不同；这是待真机验证的配置。复制失败时可手动复制下方文本。</small>
+<details><summary>展开场景 JSON（备用手动复制）</summary><textarea id="scene" readonly style="width:100%;height:210px;font-size:11px"></textarea></details></div>
+<div class="card"><h2>测试之后看什么？</h2><p>✅ 如果只有圆球，说明「独立透明网页悬浮窗」这条路有戏。<br>❌ 如果还是矩形白框，说明宿主对 WebView 或根场景的不透明背景还需要调整。<br>✳️ 即使成功，这一步只验证显示和点击；窗口拖动、长按输入和糯米机记忆联动仍需后续适配。</p><small>该实验不涉及糯米机 API、角色数据和权限提升。JS Bridge 默认关闭。</small></div>
+</main>
+<div id="ball-area" style="display:none"><div id="ball"><span id="face">戳我</span><div id="message"></div></div></div>
+<script>
+(function(){
+const CONFIG={"name":"糯米机透明小球测试","defaultDisplayMode":"Overlay","root":{"type":"Box","id":"root","modifiers":[{"type":"FillSize"}],"children":[{"type":"WebView","id":"petWeb","content":"https://raw.githack.com/yanlue1211/TapNest/main/experiments/tasker-transparent-ball.html?view=ball","javaScriptEnabled":true,"jsBridgeEnabled":false,"backgroundColor":"#00000000","supportZoom":false,"useWideViewPort":true,"modifiers":[{"type":"FillSize"}]}]}};
+const isBall=new URLSearchParams(location.search).get('view')==='ball';
+document.body.className=isBall?'ball':'guide';
+document.getElementById('guide').style.display=isBall?'none':'';
+document.getElementById('ball-area').style.display=isBall?'grid':'none';
+if(!isBall){
+  document.getElementById('scene').value=JSON.stringify(CONFIG);
+  document.getElementById('copy').onclick=async()=>{
+    const s=JSON.stringify(CONFIG);let ok=false;
+    try{await navigator.clipboard.writeText(s);ok=true}catch(e){}
+    if(!ok){const el=document.getElementById('scene');el.focus();el.select();try{ok=document.execCommand('copy')}catch(e){}}
+    document.getElementById('status').textContent=ok?'已复制！现在去 Tasker 粘贴。':'自动复制失败，展开下方文本框手动复制即可。';
+  };
+  return;
+}
+let down=false,moved=false,startX=0,startY=0,timer=null,long=false,stop=0,showTimer;
+const el=document.getElementById('ball'),face=document.getElementById('face'),msg=document.getElementById('message');
+function show(t){msg.textContent=t;msg.className='show';clearTimeout(showTimer);showTimer=setTimeout(()=>msg.className='',1400)}
+el.addEventListener('pointerdown',e=>{down=true;moved=false;long=false;startX=e.clientX;startY=e.clientY;timer=setTimeout(()=>{if(down&&!moved){long=true;face.textContent='♡';show('长按成功')}},650)});
+el.addEventListener('pointermove',e=>{if(down&&Math.hypot(e.clientX-startX,e.clientY-startY)>10){moved=true;clearTimeout(timer)}});
+el.addEventListener('pointerup',()=>{clearTimeout(timer);down=false;if(!long&&!moved){stop++;face.textContent=stop%2?'嘿！':'戳我';show('点到啦！')}});
+el.addEventListener('pointercancel',()=>{clearTimeout(timer);down=false});
+document.addEventListener('contextmenu',e=>e.preventDefault());
+})();
+</script></body></html>
