@@ -11,7 +11,7 @@ TapNest is an Android floating desktop-pet app derived from
 - New single-image PNG mode supports on-screen floating, dragging, resizing and
   a tap-to-bounce interaction with no image generation.
 - Existing GIF and Codex Pet import and overlay mechanisms are retained.
-- New local rig and keyframe interpolation models with unit tests.
+- New local rig and keyframe interpolation models with unit tests. Animation preset clips for blink, nod, bounce, tail wag, ear twitch and mouth motion are now defined as local keyframes (not yet wired into a multi-layer player).
 - Per-pet **offline preset speech bubbles**: click the 💬 button on a pet card to edit lines (one per row), toggle speech on/off, and save. Tapping the floating pet cycles through the stored lines for around 3 seconds. No AI.
 - No network permission, AI model, API configuration or online upload.
 
