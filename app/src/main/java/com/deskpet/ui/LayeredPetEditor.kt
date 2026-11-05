@@ -461,6 +461,37 @@ fun LayeredPetEditor(
                     }
                     val boneIndex = selectedBone.coerceIn(0, layer.bones.lastIndex)
                     val bone = layer.bones[boneIndex]
+                    var dirMenu by remember(activeLayer, boneIndex) { mutableStateOf(false) }
+                    fun directionLabel(d: TapNestBoneSwingDirection): String = when(d) {
+                        TapNestBoneSwingDirection.AUTO -> "自动旋转"
+                        TapNestBoneSwingDirection.HORIZONTAL -> "左右 →"
+                        TapNestBoneSwingDirection.HORIZONTAL_REVERSE -> "左右 ←（反向）"
+                        TapNestBoneSwingDirection.VERTICAL -> "上下 ↓（翅膀）"
+                        TapNestBoneSwingDirection.VERTICAL_REVERSE -> "上下 ↑（反向）"
+                        TapNestBoneSwingDirection.ROTATION_REVERSE -> "逆向旋转"
+                        TapNestBoneSwingDirection.FIXED -> "固定"
+                    }
+                    Box {
+                        OutlinedButton(onClick = { dirMenu = true }) {
+                            Text("第 ${boneIndex + 1} 点运动方向：${directionLabel(bone.swingDirection)} ▾")
+                        }
+                        DropdownMenu(expanded = dirMenu, onDismissRequest = { dirMenu = false }) {
+                            TapNestBoneSwingDirection.entries.forEach { option ->
+                                DropdownMenuItem(text = { Text(directionLabel(option)) }, onClick = {
+                                    update(layer.copy(bones = layer.bones.mapIndexed { i, original ->
+                                        if (i == boneIndex) original.copy(swingDirection = option) else original
+                                    }))
+                                    dirMenu = false
+                                })
+                            }
+                        }
+                    }
+                    Text(
+                        if (boneIndex == 0)
+                            "P1 为根部锚点。它的方向可作为下一点选「自动」时的默认值。"
+                        else "本点控制前一个点到本点的骨骼段。横向/纵向位移在大幅度时可能拉伸贴图，可配合保形调整。",
+                        style = MaterialTheme.typography.bodySmall
+                    )
                     BindingSlider("点位 ${boneIndex + 1} · 横向 X", bone.x, 0f, 1f) {
                         update(layer.copy(bones = layer.bones.mapIndexed { i, old ->
                             if (i == boneIndex) old.copy(x = it) else old
