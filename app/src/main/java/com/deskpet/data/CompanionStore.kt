@@ -86,12 +86,17 @@ class CompanionStore(private val context: Context) {
     private fun folder(id: String) = File(root, safe(id)).also { it.mkdirs() }
     private fun profileFile(id: String) = File(folder(id), "profile.json")
 
-    @Synchronized fun load(id: String): CompanionProfile = runCatching {
+    @Synchronized fun load(id: String): CompanionProfile {
         val file = profileFile(id)
-        if (file.isFile && file.length() in 1..524_288)
-            json.decodeFromString<CompanionProfile>(file.readText())
-        else CompanionProfile()
-    }.getOrDefault(CompanionProfile())
+        if (file.isFile && file.length() in 1..524_288) {
+            val saved = runCatching { json.decodeFromString<CompanionProfile>(file.readText()) }.getOrNull()
+            if (saved != null) return saved
+        }
+        // Start the inactivity clock at first use, not at first feeding.
+        val initial = CompanionProfile(updatedAtMillis = System.currentTimeMillis())
+        save(id, initial)
+        return initial
+    }
 
     @Synchronized fun save(id: String, profile: CompanionProfile) {
         val dest = profileFile(id)

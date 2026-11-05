@@ -222,6 +222,7 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
             OverlayState.interactions.collect { event ->
                 if (event.petId == petId) {
                     anim.setAffection(event.affection)
+                    anim.interactCompanion(event.action)
                     displayTapLine(event.line)
                 }
             }
@@ -467,6 +468,9 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
                     for (note in due) {
                         displayTapLine("⏰ " + note.message, 7500L)
                     }
+                    val refreshed = companionStore.load(id)
+                    anim.setAffection(com.deskpet.data.CompanionAffection.at(
+                        refreshed, System.currentTimeMillis()))
                 }
                 delay(10_000L)
             }

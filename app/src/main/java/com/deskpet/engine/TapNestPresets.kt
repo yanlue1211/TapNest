@@ -71,6 +71,27 @@ object TapNestPresets {
         ))
     ))
 
+    /** Reactions are lightweight and apply to the body, so bound children move together. */
+    fun companionAction(action: com.deskpet.data.CompanionAction, body: String): TapNestClip {
+        val middle = when (action) {
+            com.deskpet.data.CompanionAction.FEED ->
+                TapNestPose(y = -5f, scaleX = 1.04f, scaleY = 0.97f)
+            com.deskpet.data.CompanionAction.BATH ->
+                TapNestPose(angle = -4f, y = 2f)
+            com.deskpet.data.CompanionAction.PLAY ->
+                TapNestPose(y = -13f, scaleX = 0.97f, scaleY = 1.04f)
+        }
+        return TapNestClip("companion_action", 950L, tracks = listOf(
+            TapNestTrack(body, listOf(
+                frame(0, TapNestPose()),
+                frame(260, middle),
+                frame(490, TapNestPose(angle = if (action == com.deskpet.data.CompanionAction.BATH) 4f else 0f)),
+                frame(720, middle.copy(y = middle.y * 0.35f, angle = -middle.angle * 0.4f)),
+                frame(950, TapNestPose())
+            ))
+        ))
+    }
+
     /** A small alternating rock during a head-stroking gesture. */
     fun petHead(head: String) = TapNestClip("pet_head", 1450, tracks = listOf(
         TapNestTrack(head, listOf(

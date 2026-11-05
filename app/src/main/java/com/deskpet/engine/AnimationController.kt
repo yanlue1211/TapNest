@@ -163,6 +163,9 @@ class AnimationController(
     fun isLayeredPet() = loader is PetEngine.PetLoader.Layered
     fun tapLayeredPet() { (loader as? PetEngine.PetLoader.Layered)?.player?.tap() }
     fun petLayeredHead() { (loader as? PetEngine.PetLoader.Layered)?.player?.petHead() }
+    fun interactCompanion(action: com.deskpet.data.CompanionAction) {
+        (loader as? PetEngine.PetLoader.Layered)?.player?.interact(action)
+    }
     fun setAffection(value: Int) {
         (loader as? PetEngine.PetLoader.Layered)?.player?.setAffection(value)
     }

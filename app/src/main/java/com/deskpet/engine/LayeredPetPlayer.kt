@@ -27,6 +27,12 @@ class LayeredPetPlayer private constructor(
     @Volatile private var tappedAtMs = -10000L
     @Volatile private var pettingAtMs = -10000L
     @Volatile private var expression = 0
+    @Volatile private var actionAtMs = -10000L
+    @Volatile private var lastAction: com.deskpet.data.CompanionAction? = null
+    fun interact(action: com.deskpet.data.CompanionAction) {
+        lastAction = action
+        actionAtMs = SystemClock.uptimeMillis()
+    }
     @Volatile private var affection = 70
     fun setAffection(value: Int) { affection = value.coerceIn(0, 100) }
 
@@ -65,10 +71,15 @@ class LayeredPetPlayer private constructor(
         val now = SystemClock.uptimeMillis()
         val elapsed = (now - tappedAtMs).coerceAtLeast(0)
         val petElapsed = (now - pettingAtMs).coerceAtLeast(0)
+        val actionElapsed = (now - actionAtMs).coerceAtLeast(0)
+        val reacting = actionElapsed < 950
         val touched = elapsed < 520
         val petting = petElapsed < 1450
         val activeExpression = when {
             petting && rig.pettingExpression in 0..3 -> rig.pettingExpression
+            reacting -> rig.expressionEmotions.entries.firstOrNull {
+                it.value == TapNestEmotion.HAPPY && it.key in 0..3
+            }?.key ?: naturalExpression()
             elapsed < 1800 -> expression.coerceIn(0, 3)
             else -> naturalExpression()
         }
@@ -90,7 +101,11 @@ class LayeredPetPlayer private constructor(
         fun poseFor(node: TapNestLayer): TapNestPose {
             val id = node.id
             var p = TapNestPose()
-            if (id == "tail") {
+            if (id == "body" && reacting) {
+                lastAction?.let {
+                    p = TapNestMotion.sample(TapNestPresets.companionAction(it, id), id, actionElapsed)
+                }
+            } else if (id == "tail") {
                 p = TapNestMotion.sample(TapNestPresets.wag(id), id, now - launchedAtMs)
             } else if (id.startsWith("head_") || id == "head_blank") {
                 if (petting) p = TapNestMotion.sample(TapNestPresets.petHead(id), id, petElapsed)

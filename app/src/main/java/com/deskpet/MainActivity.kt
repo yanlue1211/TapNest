@@ -254,7 +254,10 @@ class MainActivity : ComponentActivity() {
                             val pet = repo.getPet(id)
                             if (OverlayState.petId.value == id) stopOverlay()
                             repo.deletePet(id)
-                            pet?.let { withContext(Dispatchers.IO) { FileManager(this@MainActivity).deletePet(it) } }
+                            withContext(Dispatchers.IO) {
+                                pet?.let { FileManager(this@MainActivity).deletePet(it) }
+                                com.deskpet.data.CompanionStore(this@MainActivity).delete(id)
+                            }
                         } catch (e: Exception) {
                             // 删除失败不闪退：列表不变、文件残留可下次再删
                             Log.e("MainActivity", "deletePet failed", e)

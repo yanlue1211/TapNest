@@ -67,10 +67,15 @@ fun CompanionScreen(pet: PetInfo, onBack: () -> Unit) {
     var noteWhen by remember { mutableStateOf(fmt.format(Date(System.currentTimeMillis() + 3_600_000L))) }
     val currentAffection = remember(profile) { CompanionAffection.at(profile, System.currentTimeMillis()) }
 
-    BackHandler { onBack() }
+    fun finish() {
+        // Protect the latest edit when the user backs out before the debounce delay.
+        runCatching { store.save(pet.id, profile) }
+        onBack()
+    }
+    BackHandler { finish() }
     Scaffold(topBar = {
         TopAppBar(title = { Text("💚 ${pet.displayName} · 伙伴小屋") },
-            navigationIcon = { TextButton(onClick = onBack) { Text("返回") } })
+            navigationIcon = { TextButton(onClick = { finish() }) { Text("返回") } })
     }) { pad ->
         Column(
             Modifier.fillMaxSize().padding(pad).verticalScroll(rememberScrollState())
