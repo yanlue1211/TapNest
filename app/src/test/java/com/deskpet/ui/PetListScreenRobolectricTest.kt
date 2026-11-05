@@ -68,33 +68,33 @@ class PetListScreenRobolectricTest {
     @Test
     fun rendersTitleText() {
         setPetListContent()
-        composeTestRule.onNodeWithText("宠物栏").assertIsDisplayed()
+        composeTestRule.onNodeWithText("桌面伙伴").assertIsDisplayed()
     }
 
     @Test
     fun rendersImportButton() {
         setPetListContent()
-        composeTestRule.onNodeWithText("导入宠物").assertIsDisplayed()
+        composeTestRule.onNodeWithText("导入角色").assertIsDisplayed()
     }
 
     @Test
     fun showsEmptyStateWhenNoPets() {
         setPetListContent()
-        composeTestRule.onNodeWithText("还没有宠物").assertIsDisplayed()
+        composeTestRule.onNodeWithText("还没有小伙伴").assertIsDisplayed()
     }
 
     @Test
     fun rendersStartButtonWhenActivePetExistsAndOverlayNotRunning() {
         setPetListContent(petList = listOf(samplePet()), activePetId = "pet-1", isOverlayRunning = false)
         composeTestRule.onNodeWithContentDescription("展开控制").performClick()
-        composeTestRule.onNodeWithText("开启宠物").assertIsDisplayed()
+        composeTestRule.onNodeWithText("开启桌面伙伴").assertIsDisplayed()
     }
 
     @Test
     fun rendersStopButtonWhenOverlayRunning() {
         setPetListContent(petList = listOf(samplePet()), activePetId = "pet-1", isOverlayRunning = true)
         composeTestRule.onNodeWithContentDescription("展开控制").performClick()
-        composeTestRule.onNodeWithText("关闭宠物").assertIsDisplayed()
+        composeTestRule.onNodeWithText("关闭悬浮角色").assertIsDisplayed()
     }
 
     @Test

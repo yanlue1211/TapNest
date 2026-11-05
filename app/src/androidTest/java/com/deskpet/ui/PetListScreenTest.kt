@@ -16,7 +16,7 @@ import org.junit.Test
  * 列表页 UI 回归测试。
  *
  * 注意：本文件的断言文本必须与 PetListScreen 的真实文案逐字一致。历史上这里
- * 断言过 "导入"/"开启"/"关闭"，而 UI 早已改成 "导入宠物"/"开启宠物"/"关闭宠物"，
+ * 断言过 "导入"/"开启"/"关闭"，而 UI 早已改成 "导入角色"/"开启桌面伙伴"/"关闭悬浮角色"，
  * 又因为 CI 从不编译 androidTest，编译错误（漏传 isLoading）与文案漂移一起潜伏了
  * 很久。现在 CI 增加 assembleDebugAndroidTest，两者都会被当场拦下。
  */
@@ -62,20 +62,20 @@ class PetListScreenTest {
     @Test
     fun rendersTitleText() {
         setPetListContent()
-        composeTestRule.onNodeWithText("宠物栏").assertIsDisplayed()
+        composeTestRule.onNodeWithText("桌面伙伴").assertIsDisplayed()
     }
 
     @Test
     fun rendersImportButton() {
         setPetListContent()
-        // 空状态里的主按钮是「导入宠物」（不是「导入」，后者只在展开后的收纳坞里）
-        composeTestRule.onNodeWithText("导入宠物").assertIsDisplayed()
+        // 空状态里的主按钮是「导入角色」（不是「导入」，后者只在展开后的收纳坞里）
+        composeTestRule.onNodeWithText("导入角色").assertIsDisplayed()
     }
 
     @Test
     fun showsEmptyStateWhenNoPets() {
         setPetListContent()
-        composeTestRule.onNodeWithText("还没有宠物").assertIsDisplayed()
+        composeTestRule.onNodeWithText("还没有小伙伴").assertIsDisplayed()
     }
 
     @Test
@@ -83,13 +83,13 @@ class PetListScreenTest {
         setPetListContent(petList = listOf(samplePet()), activePetId = "pet-1", isOverlayRunning = false)
         // 开启/关闭按钮位于收纳坞展开面板内，先展开圆钮
         composeTestRule.onNodeWithContentDescription("展开控制").performClick()
-        composeTestRule.onNodeWithText("开启宠物").assertIsDisplayed()
+        composeTestRule.onNodeWithText("开启桌面伙伴").assertIsDisplayed()
     }
 
     @Test
     fun rendersStopButtonWhenOverlayRunning() {
         setPetListContent(petList = listOf(samplePet()), activePetId = "pet-1", isOverlayRunning = true)
         composeTestRule.onNodeWithContentDescription("展开控制").performClick()
-        composeTestRule.onNodeWithText("关闭宠物").assertIsDisplayed()
+        composeTestRule.onNodeWithText("关闭悬浮角色").assertIsDisplayed()
     }
 }
