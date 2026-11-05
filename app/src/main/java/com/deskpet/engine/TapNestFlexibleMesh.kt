@@ -122,7 +122,9 @@ object TapNestFlexibleMesh {
             val newProjection = newA + newV * nearestProgress
             // Same angle on either side of a joint, including at the tail tip.
             val uSmooth = nearestProgress * nearestProgress * (3f - 2f * nearestProgress)
-            val angleDelta = mixAngle(jointRotations[i], jointRotations[i + 1], uSmooth)
+            val angleDelta = if (layer.swingMode == TapNestSwingMode.SPRING)
+                mixAngle(jointRotations[i], jointRotations[i + 1], uSmooth)
+            else segmentRotations[i] // Keep classic DELAY appearance unchanged.
             val soft = newProjection + rotate(vertex - originalProjection, angleDelta)
             val rigid = root + rotate(vertex - root, rootRotation)
             val result = soft * (1f - preserve) + rigid * preserve
