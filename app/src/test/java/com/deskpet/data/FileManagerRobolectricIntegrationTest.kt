@@ -108,6 +108,30 @@ class FileManagerRobolectricIntegrationTest {
         assertEquals("失败不应留下孤儿目录", before, petsDirFileCount())
     }
 
+    @Test
+    fun `importPng 为不同角色创建独立文件，SHA 去重标识由内容决定`() = runBlocking {
+        fun png(color: Int): ByteArray {
+            val bmp = Bitmap.createBitmap(24, 24, Bitmap.Config.ARGB_8888)
+            bmp.eraseColor(color)
+            val bytes = ByteArrayOutputStream()
+            bmp.compress(Bitmap.CompressFormat.PNG, 100, bytes)
+            bmp.recycle()
+            return bytes.toByteArray()
+        }
+        val one = tmp.newFile("first.png").apply { writeBytes(png(android.graphics.Color.GREEN)) }
+        val two = tmp.newFile("second.png").apply { writeBytes(png(android.graphics.Color.BLUE)) }
+
+        val petOne = fm.importPng(uriOf(one))
+        val petTwo = fm.importPng(uriOf(two))
+        assertTrue(petOne.spritesheetPath != petTwo.spritesheetPath)
+        assertTrue(File(petOne.spritesheetPath).exists())
+        assertTrue(File(petTwo.spritesheetPath).exists())
+        assertTrue(petOne.sourceId.startsWith("png:"))
+        assertTrue(petOne.sourceId != petTwo.sourceId)
+        fm.deletePet(petOne)
+        assertTrue(File(petTwo.spritesheetPath).exists())
+    }
+
     // ===== 2. 恢复备份：缺精灵图必须跳过 =====
 
     @Test

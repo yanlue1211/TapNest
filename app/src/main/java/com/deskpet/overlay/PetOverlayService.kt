@@ -89,7 +89,13 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
             when (i?.action) {
                 // 灭屏把动画循环和自主行为一起停，否则 auto 会在灭屏期间切状态，
                 // 亮屏后宠物会播放一段"没来由"的动作
-                Intent.ACTION_SCREEN_OFF -> { screenOn = false; anim.stop(); auto?.stop() }
+                Intent.ACTION_SCREEN_OFF -> {
+                    screenOn = false
+                    anim.stop()
+                    auto?.stop()
+                    speechJob?.cancel()
+                    speechBubble?.dismiss()
+                }
                 Intent.ACTION_SCREEN_ON -> {
                     screenOn = true
                     anim.start()
@@ -453,6 +459,7 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
                 if (abs(info.scale - savedScale) > 0.001f) {
                     savedScale = info.scale
                     anim.setScale(info.scale)
+                    updatePosition() // bubble and pet stay anchored after toolbar scaling
                 }
             }
         }

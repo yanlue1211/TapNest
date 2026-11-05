@@ -232,8 +232,8 @@ class FileManager(private val context: Context) {
     suspend fun importPng(uri: Uri): PetInfo {
         cleanupStaleTmpFiles()
         val id = java.util.UUID.randomUUID().toString()
-        val dest = File(petDir, "$"+"{id}.png")
-        val tmp = File(petDir, "$"+"{id}.tmp")
+        val dest = File(petDir, id + ".png")
+        val tmp = File(petDir, id + ".tmp")
         val rawName = queryDisplayName(uri) ?: "我的桌宠.png"
         return try {
             context.contentResolver.openInputStream(uri)?.use { input ->
@@ -264,7 +264,7 @@ class FileManager(private val context: Context) {
             val hash = md.digest().joinToString("") { "%02x".format(it.toInt() and 0xff) }
             PetInfo(id = id, type = PetType.PNG,
                 displayName = rawName.substringBeforeLast('.').take(80).ifBlank { "我的桌宠" },
-                spritesheetPath = dest.absolutePath, sourceId = "png:$"+"hash")
+                spritesheetPath = dest.absolutePath, sourceId = "png:" + hash)
         } catch (e: ImportException) { tmp.delete(); dest.delete(); throw e }
         catch (e: Exception) { tmp.delete(); dest.delete(); throw ImportException.ExtractionFailed(e) }
     }
