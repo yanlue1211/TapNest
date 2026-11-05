@@ -5,6 +5,8 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.RectF
+import kotlin.math.PI
+import kotlin.math.sin
 import android.os.SystemClock
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -105,7 +107,7 @@ class LayeredPetPlayer private constructor(
                 lastAction?.let {
                     p = TapNestMotion.sample(TapNestPresets.companionAction(it, id), id, actionElapsed)
                 }
-            } else if (id == "tail") {
+            } else if (id == "tail" && !node.idleSwing) {
                 p = TapNestMotion.sample(TapNestPresets.wag(id), id, now - launchedAtMs)
             } else if (id.startsWith("head_") || id == "head_blank") {
                 if (petting) p = TapNestMotion.sample(TapNestPresets.petHead(id), id, petElapsed)
@@ -113,6 +115,13 @@ class LayeredPetPlayer private constructor(
             }
             rig.clips.firstOrNull { c -> c.tracks.any { it.layerId == id } }
                 ?.let { p = TapNestMotion.sample(it, id, if (it.loop) now - launchedAtMs else elapsed) }
+            // A single-point or rigid limb rocks around its chosen pivot.
+            // A multi-point limb is skinned by the mesh instead.
+            if (node.idleSwing && node.bones.size < 2) {
+                val wave = sin(((now - launchedAtMs) / 1000.0 *
+                    node.idleSpeed.coerceIn(0.1f, 3f) * 2 * PI)).toFloat()
+                p = p.copy(angle = p.angle + wave * node.idleAmplitude.coerceIn(0f, 40f))
+            }
             return p
         }
         for (layer in rig.layers.sortedBy { it.zIndex }) {
@@ -150,8 +159,15 @@ class LayeredPetPlayer private constructor(
             }
             paint.alpha = (poseFor(layer).alpha.coerceIn(0f, 1f) * 255).toInt()
             val source = sourceSizes[id] ?: Pair(picture.width, picture.height)
-            canvas.drawBitmap(picture, null,
-                RectF(0f, 0f, source.first.toFloat(), source.second.toFloat()), paint)
+            val flexible = TapNestFlexibleMesh.vertices(layer, source.first, source.second,
+                now - launchedAtMs)
+            if (flexible != null) {
+                canvas.drawBitmapMesh(picture, TapNestFlexibleMesh.GRID,
+                    TapNestFlexibleMesh.GRID, flexible, 0, null, 0, paint)
+            } else {
+                canvas.drawBitmap(picture, null,
+                    RectF(0f, 0f, source.first.toFloat(), source.second.toFloat()), paint)
+            }
             canvas.restore()
         }
         return frame

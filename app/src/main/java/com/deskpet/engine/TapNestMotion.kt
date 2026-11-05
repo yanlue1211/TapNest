@@ -21,6 +21,10 @@ data class TapNestRig(
     val clips: List<TapNestClip> = emptyList()
 )
 
+/** Normalized control points from root to tip, all inside the imported PNG. */
+@Serializable
+data class TapNestBonePoint(val x: Float, val y: Float)
+
 @Serializable
 data class TapNestLayer(
     val id: String,
@@ -31,7 +35,11 @@ data class TapNestLayer(
     val pivotY: Float = 0.5f,
     val x: Float = 0f,
     val y: Float = 0f,
-    val restScale: Float = 1f
+    val restScale: Float = 1f,
+    val bones: List<TapNestBonePoint> = emptyList(),
+    val idleSwing: Boolean = false,
+    val idleAmplitude: Float = 10f,
+    val idleSpeed: Float = 0.7f
 )
 
 @Serializable
