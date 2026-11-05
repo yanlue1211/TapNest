@@ -386,7 +386,11 @@ class FileManager(private val context: Context) {
                                 return@forEach
                             }
                             val fixedPet = pet.copy(
-                                petJsonPath = findPetJson(destDir)?.absolutePath,
+                                petJsonPath = when (pet.type) {
+                                    PetType.LAYERED -> File(destDir, "rig.json")
+                                        .takeIf { it.isFile }?.absolutePath
+                                    else -> findPetJson(destDir)?.absolutePath
+                                },
                                 spritesheetPath = sheetFile.absolutePath
                             )
                             petRepository.addPetDirect(fixedPet)
