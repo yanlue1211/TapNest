@@ -16,7 +16,8 @@ class LayeredPetPlayer private constructor(
     val rig: TapNestRig,
     val width: Int,
     val height: Int,
-    private val pictures: Map<String, Bitmap>
+    private val pictures: Map<String, Bitmap>,
+    private val sourceSizes: Map<String, Pair<Int, Int>>
 ) {
     // A published Bitmap must never be cleared while the UI is still drawing it.
     // Rotate through 3 preallocated surfaces to eliminate intermittent clear-frame flashes.
@@ -107,9 +108,9 @@ class LayeredPetPlayer private constructor(
             canvas.scale(sx, sy)
             for (part in chain.asReversed()) {
                 val pose = poseFor(part)
-                val art = pictures[part.id]
-                val pivotX = part.pivotX.coerceIn(0f, 1f) * (art?.width ?: rig.canvasWidth)
-                val pivotY = part.pivotY.coerceIn(0f, 1f) * (art?.height ?: rig.canvasHeight)
+                val original = sourceSizes[part.id]
+                val pivotX = part.pivotX.coerceIn(0f, 1f) * (original?.first ?: rig.canvasWidth)
+                val pivotY = part.pivotY.coerceIn(0f, 1f) * (original?.second ?: rig.canvasHeight)
                 val scale = part.restScale.coerceIn(0.1f, 4f)
                 canvas.translate(part.x + pose.x + pivotX * scale, part.y + pose.y + pivotY * scale)
                 canvas.rotate(pose.angle)
@@ -117,7 +118,9 @@ class LayeredPetPlayer private constructor(
                 canvas.translate(-pivotX, -pivotY)
             }
             paint.alpha = (poseFor(layer).alpha.coerceIn(0f, 1f) * 255).toInt()
-            canvas.drawBitmap(picture, 0f, 0f, paint)
+            val source = sourceSizes[id] ?: Pair(picture.width, picture.height)
+            canvas.drawBitmap(picture, null,
+                RectF(0f, 0f, source.first.toFloat(), source.second.toFloat()), paint)
             canvas.restore()
         }
         return frame
@@ -130,6 +133,7 @@ class LayeredPetPlayer private constructor(
             if (rig.canvasWidth !in 1..4096 || rig.canvasHeight !in 1..4096 || rig.layers.size > 48) return null
             val dir = configFile.parentFile ?: return null
             val entries = mutableMapOf<String, Bitmap>()
+            val sourceSizes = mutableMapOf<String, Pair<Int, Int>>()
             var budget = 0L
             for (layer in rig.layers) {
                 val name = layer.image
@@ -151,11 +155,12 @@ class LayeredPetPlayer private constructor(
                 budget += bitmap.width.toLong() * bitmap.height
                 if (budget > 9_000_000L) return null
                 entries[layer.id] = bitmap
+                sourceSizes[layer.id] = bounds.outWidth to bounds.outHeight
             }
             if (!entries.containsKey("body")) return null
             val dim = min(320f / max(rig.canvasWidth, rig.canvasHeight), 1f)
             LayeredPetPlayer(rig, max(32, (rig.canvasWidth * dim).toInt()),
-                max(32, (rig.canvasHeight * dim).toInt()), entries)
+                max(32, (rig.canvasHeight * dim).toInt()), entries, sourceSizes)
         }.getOrNull()
     }
 }
