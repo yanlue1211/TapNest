@@ -55,7 +55,7 @@ class LayeredPetPlayer private constructor(
     private val launchedAtMs = SystemClock.uptimeMillis()
 
     fun tap() {
-        expression = (expression % 3) + 1 // expression 0 is always neutral
+        expression = if (rig.tapExpression in 0..3) rig.tapExpression else (expression % 3) + 1
         tappedAtMs = SystemClock.uptimeMillis()
         pettingAtMs = -10000L
     }
@@ -84,6 +84,9 @@ class LayeredPetPlayer private constructor(
                 it.value == TapNestEmotion.HAPPY && it.key in 0..3
             }?.key ?: naturalExpression()
             elapsed < 1800 -> expression.coerceIn(0, 3)
+            petting -> naturalExpression()
+            rig.blinkExpression in 0..3 &&
+                TapNestBlink.isBlinking(now - launchedAtMs) -> rig.blinkExpression
             else -> naturalExpression()
         }
         val shown = when (rig.headMode) {
