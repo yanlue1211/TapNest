@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<meta name="color-scheme" content="light">
+<title>糯米机桌宠 · 远程网页原型 V0.2</title>
+<style>
+:root{font-family:system-ui,"Noto Sans SC",sans-serif;color:#29786e}
+*{box-sizing:border-box}
+html,body{width:100%;height:100%;padding:0;margin:0;overflow:hidden;background:transparent!important;-webkit-tap-highlight-color:transparent}
+#stage{position:relative;width:100%;height:100%;overflow:hidden;isolation:isolate;touch-action:none}
+#pet{position:absolute;width:min(78vw,78vh,176px);height:min(78vw,78vh,176px);left:50%;top:54%;transform:translate(-50%,-50%);touch-action:none;user-select:none;-webkit-user-select:none;cursor:grab}
+#pet:active{cursor:grabbing}
+#pet svg{width:100%;height:100%;overflow:visible;filter:drop-shadow(0 5px 5px #2b6d5b44)}
+#tail{transform-origin:154px 135px;animation:tail 2.2s ease-in-out infinite}
+#ears{transform-origin:98px 81px;animation:ears 3.1s ease-in-out infinite}
+#head{transform-origin:103px 128px;animation:head 3.4s ease-in-out infinite}
+#eyes{transform-origin:100px 95px;animation:blink 5.1s infinite}
+#pet.is-tapped #head{animation:tap .45s ease-out}
+#pet.is-tapped #tail{animation:tail .23s ease-in-out 3}
+#pet.is-petting #head{animation:petting .8s ease-in-out}
+#pet.is-tapped #mouth-smile,#pet.is-petting #mouth-smile{opacity:1}
+#pet.is-tapped #mouth-normal,#pet.is-petting #mouth-normal{opacity:0}
+#mouth-smile{opacity:0}
+#say{position:absolute;z-index:2;top:2px;left:50%;transform:translateX(-50%) translateY(3px);padding:7px 10px;max-width:95%;background:#fffffff0;border:1px solid #d4f5e7;box-shadow:0 3px 11px #146c5138;border-radius:12px;font-size:12px;font-weight:650;text-align:center;white-space:nowrap;text-overflow:ellipsis;overflow:hidden;opacity:0;transition:opacity .15s,transform .15s;pointer-events:none}
+#say.show{opacity:1;transform:translateX(-50%)}
+#chat{position:absolute;inset:0;display:none;background:#ffffffeb;border:1px solid #c9ebde;border-radius:16px;z-index:8;box-shadow:0 5px 24px #155d4c50;padding:12px;touch-action:auto}
+#chat.open{display:flex;flex-direction:column;justify-content:center;gap:6px}
+#chat label{font-size:13px;font-weight:bold;text-align:center}
+#chat input{width:100%;border:1px solid #b0dccc;border-radius:9px;min-height:38px;font-size:14px;padding:5px 10px;color:#285e52;outline-color:#72c9ac;background:#fff}
+.row{display:flex;gap:6px;justify-content:center}
+button{flex:1;border:0;border-radius:9px;background:#73d7b3;color:#145749;font-size:12px;font-weight:bold;min-height:32px}
+button.secondary{background:#e4f4ed}
+#hint{font-size:10px;color:#628f7e;text-align:center}
+@keyframes tail{0%,100%{transform:rotate(-12deg)}50%{transform:rotate(17deg)}}
+@keyframes ears{0%,100%{transform:rotate(-2deg)}50%{transform:rotate(2deg)}}
+@keyframes head{0%,100%{transform:rotate(-1deg) translateY(0)}50%{transform:rotate(1deg) translateY(2px)}}
+@keyframes blink{0%,29%,31%,65%,67%,100%{transform:scaleY(1)}30%,66%{transform:scaleY(.06)}}
+@keyframes tap{0%,100%{transform:rotate(0)}30%{transform:rotate(-11deg)}70%{transform:rotate(8deg)}}
+@keyframes petting{0%,100%{transform:translateY(0)}50%{transform:translateY(7px)}}
+@media(prefers-reduced-motion:reduce){#ears,#head,#eyes,#tail{animation:none}}
+</style>
+</head>
+<body>
+<div id="stage">
+  <div id="say" aria-live="polite"></div>
+  <div id="pet" role="button" aria-label="桌宠，点击互动，长按输入" tabindex="0">
+    <svg viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <defs><linearGradient id="fur" x1="0" y1="0" x2=".3" y2="1"><stop stop-color="#fffdf3"/><stop offset="1" stop-color="#e0efe6"/></linearGradient></defs>
+      <g id="tail"><path d="M150 153 Q181 163 172 125 Q165 111 159 127" stroke="#e7c89b" stroke-width="17" stroke-linecap="round" fill="none"/></g>
+      <ellipse cx="104" cy="178" rx="56" ry="9" fill="#3d745c" opacity=".16"/>
+      <ellipse cx="102" cy="144" rx="46" ry="45" fill="url(#fur)" stroke="#bddacb" stroke-width="3"/>
+      <ellipse cx="85" cy="174" rx="18" ry="12" fill="#f1e7cf"/>
+      <ellipse cx="122" cy="174" rx="18" ry="12" fill="#f1e7cf"/>
+      <g id="ears"><path d="M64 91 Q30 84 39 40 Q41 25 51 43 L84 70Z" fill="#f2dab7" stroke="#cba784" stroke-width="3"/><path d="M135 82 Q169 71 163 38 Q160 22 151 45 L119 66Z" fill="#f2dab7" stroke="#cba784" stroke-width="3"/></g>
+      <g id="head">
+        <path d="M104 46 C67 42 43 65 45 101 C46 135 70 150 103 150 C137 150 160 130 159 100 C158 68 137 47 104 46Z" fill="url(#fur)" stroke="#c6daca" stroke-width="3"/>
+        <ellipse cx="103" cy="114" rx="24" ry="20" fill="#fff8ea"/>
+        <g id="eyes"><ellipse cx="80" cy="95" rx="4.5" ry="6.3" fill="#454039"/><ellipse cx="126" cy="95" rx="4.5" ry="6.3" fill="#454039"/></g>
+        <ellipse cx="60" cy="111" rx="10" ry="5" fill="#ffbec2" opacity=".65"/><ellipse cx="146" cy="111" rx="10" ry="5" fill="#ffbec2" opacity=".65"/>
+        <path d="M98 111 Q103 105 108 111 Q107 117 103 117 Q99 117 98 111Z" fill="#6a544c"/>
+        <path id="mouth-normal" d="M103 117 Q98 124 92 120 M103 117 Q109 125 115 120" stroke="#7b6760" fill="none" stroke-width="2.5" stroke-linecap="round"/>
+        <path id="mouth-smile" d="M89 120 Q102 139 117 120" stroke="#8a605d" fill="none" stroke-width="3.3" stroke-linecap="round"/>
+      </g>
+    </svg>
+  </div>
+  <form id="chat" autocomplete="off">
+    <label for="message">🐶 想和我说什么？</label>
+    <input id="message" type="text" maxlength="160" placeholder="长按桌宠后打字…">
+    <div class="row"><button type="submit">发送</button><button class="secondary" id="close" type="button">取消</button></div>
+    <div id="hint">当前仅预设回复，AI/记忆尚未接通</div>
+  </form>
+</div>
+<script>
+(()=>{
+  "use strict";
+  const pet=document.querySelector("#pet"),say=document.querySelector("#say"),chat=document.querySelector("#chat"),input=document.querySelector("#message");
+  const choices=["嘿嘿，被你发现啦！","我在呢～","戳到我的鼻子啦！","今天也要陪着你！"];
+  let taps=0, pressed=false, moved=false, firedLong=false, timer=0, px=0,py=0, voiceTimer=0, animTimer=0;
+  const touchTime=performance.now();
+  function bubble(text){
+    say.textContent=text;say.classList.add("show");
+    clearTimeout(voiceTimer);voiceTimer=setTimeout(()=>say.classList.remove("show"),2600);
+  }
+  function react(kind){
+    pet.classList.remove("is-tapped","is-petting");
+    void pet.offsetWidth;
+    pet.classList.add(kind==="pet"?"is-petting":"is-tapped");
+    clearTimeout(animTimer);animTimer=setTimeout(()=>pet.classList.remove("is-tapped","is-petting"),1000);
+    if(kind==="tap"){bubble(choices[(taps++)%choices.length]);}
+    else if(kind==="pet"){bubble("摸摸头～舒服！");}
+  }
+  function openChat(){
+    chat.classList.add("open");bubble("你想和我说什么？");
+    try{input.focus()}catch(_){}
+  }
+  function closeChat(){chat.classList.remove("open");input.blur();}
+  pet.addEventListener("pointerdown",e=>{
+    if(chat.classList.contains("open")||pressed)return;
+    pressed=true;moved=false;firedLong=false;px=e.clientX;py=e.clientY;
+    try{pet.setPointerCapture(e.pointerId)}catch(_){}
+    clearTimeout(timer);timer=setTimeout(()=>{if(pressed&&!moved){firedLong=true;openChat()}},720);
+  });
+  pet.addEventListener("pointermove",e=>{
+    if(!pressed)return;
+    if(Math.hypot(e.clientX-px,e.clientY-py)>11){moved=true;clearTimeout(timer);}
+  });
+  pet.addEventListener("pointerup",()=>{clearTimeout(timer);if(pressed&&!moved&&!firedLong)react("tap");pressed=false;});
+  pet.addEventListener("pointercancel",()=>{clearTimeout(timer);pressed=false;});
+  pet.addEventListener("dblclick",()=>{react("pet")});
+  pet.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();react("tap")}});
+  chat.addEventListener("submit",e=>{
+    e.preventDefault();
+    const msg=input.value.trim();if(!msg)return;
+    // 这里只是本机预设反馈，不调用任何模型，也不保存聊天内容。
+    closeChat();input.value="";
+    bubble(["听见啦！","嗯嗯，我陪你。","收到！以后接上 Char 我就能认真回你啦。"][taps++%3]);
+  });
+  document.querySelector("#close").addEventListener("click",closeChat);
+  document.addEventListener("contextmenu",e=>e.preventDefault());
+  // Convenient manual functions for future native integration; no JS -> native bridge.
+  window.PetPreview=Object.freeze({tap:()=>react("tap"),pet:()=>react("pet"),openChat,closeChat,version:"0.2"});
+  // Do not leave an active animation loop when hidden; CSS is throttled by WebView.
+  document.addEventListener("visibilitychange",()=>{if(document.hidden){pressed=false;clearTimeout(timer)}});
+})();
+</script>
+</body>
+</html>
