@@ -43,7 +43,9 @@ data class CompanionProfile(
     val updatedAtMillis: Long = 0L,
     val temperament: CompanionTemperament = CompanionTemperament.NORMAL,
     val items: List<CompanionItem> = defaultItems(),
-    val reminders: List<CompanionReminder> = emptyList()
+    val reminders: List<CompanionReminder> = emptyList(),
+    /** Optional action-specific character PNG/GIF displayed for 60 seconds. */
+    val actionVisuals: Map<CompanionAction, String> = emptyMap()
 )
 
 fun defaultItems(): List<CompanionItem> = listOf(
@@ -170,6 +172,57 @@ class CompanionStore(private val context: Context) {
             if (!temp.renameTo(file)) error("保存图标失败")
             return file.name
         } finally { temp.delete() }
+    }
+
+    /** Save a temporary character-expression image (PNG or GIF), never upload it. */
+    @Synchronized fun importActionVisual(id: String, action: CompanionAction, uri: Uri): String {
+        val tmp = File(folder(id), "action_upload.tmp")
+        try {
+            context.contentResolver.openInputStream(uri)?.use { input ->
+                tmp.outputStream().use { out ->
+                    val buffer = ByteArray(8192)
+                    var total = 0L
+                    while (true) {
+                        val n = input.read(buffer)
+                        if (n < 0) break
+                        total += n
+                        require(total <= 8L * 1024 * 1024) { "动画素材不能超过 8MB" }
+                        out.write(buffer, 0, n)
+                    }
+                }
+            } ?: error("无法打开素材")
+            val header = ByteArray(8)
+            tmp.inputStream().use { require(it.read(header) >= 6) { "图片文件不完整" } }
+            val png = byteArrayOf(137.toByte(), 80, 78, 71, 13, 10, 26, 10)
+            val isPng = header.contentEquals(png)
+            val isGif = String(header.copyOfRange(0, 6), Charsets.US_ASCII) in
+                listOf("GIF87a", "GIF89a")
+            require(isPng || isGif) { "仅支持 PNG / GIF 动画" }
+            val suffix = if (isPng) "png" else "gif"
+            if (isPng) {
+                val info = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                BitmapFactory.decodeFile(tmp.absolutePath, info)
+                require(info.outWidth in 1..4096 && info.outHeight in 1..4096) { "图片尺寸超出限制" }
+            } else {
+                @Suppress("DEPRECATION")
+                val movie = tmp.inputStream().use { android.graphics.Movie.decodeStream(it) }
+                require(movie != null && movie.width() in 1..2048 &&
+                    movie.height() in 1..2048) { "GIF 动画无法解码或尺寸过大" }
+            }
+            val target = File(folder(id), "action_" + action.name.lowercase() + "." + suffix)
+            if (!tmp.renameTo(target)) error("保存动画失败")
+            // Only this action can use this asset; old format is not referenced.
+            val updated = load(id).copy(actionVisuals = load(id).actionVisuals + (action to target.name))
+            save(id, updated)
+            return target.name
+        } finally { tmp.delete() }
+    }
+
+    fun actionVisualFile(id: String, action: CompanionAction, fileName: String?): File? {
+        val name = fileName ?: return null
+        val expected = "action_" + action.name.lowercase() + "."
+        if (!name.startsWith(expected) || (!name.endsWith(".png") && !name.endsWith(".gif"))) return null
+        return File(folder(id), name).takeIf { it.isFile }
     }
 
     fun iconFile(id: String, fileName: String): File? {
