@@ -25,6 +25,10 @@ data class TapNestRig(
 @Serializable
 data class TapNestBonePoint(val x: Float, val y: Float)
 
+/** Existing rigs continue using the original phase-delay motion by default. */
+@Serializable
+enum class TapNestSwingMode { DELAY, SPRING }
+
 @Serializable
 data class TapNestLayer(
     val id: String,
@@ -41,7 +45,12 @@ data class TapNestLayer(
     val idleAmplitude: Float = 10f,
     val idleSpeed: Float = 0.7f,
     /** Time (seconds) that each successive flexible segment trails its parent. */
-    val idleLagSeconds: Float = 0.18f
+    val idleLagSeconds: Float = 0.18f,
+    val swingMode: TapNestSwingMode = TapNestSwingMode.DELAY,
+    /** Higher means a softer spring, not a larger static deflection. */
+    val springSoftness: Float = 0.72f,
+    /** Damping ratio: low values add overshoot; high values settle quickly. */
+    val springDamping: Float = 0.40f
 )
 
 @Serializable
