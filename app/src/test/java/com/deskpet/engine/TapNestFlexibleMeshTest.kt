@@ -26,6 +26,29 @@ class TapNestFlexibleMeshTest {
         assertTrue(kotlin.math.abs(vertices[tipIndex]) > 5f)
     }
 
+    @Test fun shortTailStartsAtRootAndTipCatchesUpLater() {
+        val tail = TapNestLayer("tail", "tail.png", idleSwing = true,
+            idleAmplitude = 12f, idleSpeed = 1f, idleLagSeconds = 0.18f,
+            bones = listOf(TapNestBonePoint(0.5f, 0.8f),
+                TapNestBonePoint(0.5f, 0.6f),
+                TapNestBonePoint(0.5f, 0.4f)))
+        val early = TapNestFlexibleMesh.segmentAngles(tail, 250L)
+        val later = TapNestFlexibleMesh.segmentAngles(tail, 430L)
+        // Base segment reaches its turning maximum first.
+        assertTrue(early[0] > later[0])
+        // Tip segment reaches its turning maximum after the lower section.
+        assertTrue(later[1] > early[1])
+        assertTrue(early[0] > 0f)
+    }
+
+    @Test fun noDelayMakesBothSegmentsPeakTogether() {
+        val tail = TapNestLayer("tail", "tail.png", idleSwing = true,
+            idleAmplitude = 12f, idleSpeed = 1f, idleLagSeconds = 0f,
+            bones = listOf(root, TapNestBonePoint(0.5f, 0.5f), tip))
+        val peak = TapNestFlexibleMesh.segmentAngles(tail, 250L)
+        assertEquals(12f, peak.sum(), 0.01f)
+    }
+
     @Test fun straightNoAmplitudeDoesNotDistortImage() {
         val layer = TapNestLayer("cape", "cape.png", idleSwing = true,
             idleAmplitude = 0f, bones = listOf(root, tip))

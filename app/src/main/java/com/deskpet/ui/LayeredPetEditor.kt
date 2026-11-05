@@ -326,7 +326,7 @@ fun LayeredPetEditor(
                 HorizontalDivider()
                 Text("🌿 多点柔性绑骨与日常动作", style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold)
-                Text("这里的设置仅作用于「${layer.id}」这张图片。单点会围绕锚点摆动；添加 2～8 个点则可让整张 PNG 像柔软尾巴一样弯曲。",
+                Text("这里的设置仅作用于「${layer.id}」这张图片。单点围绕锚点摆动；2～8 个点可柔性弯曲。短竖尾建议只用 3 点，按尾根→中段→尾尖放在图片内部，别让最上面的点超出尾尖。",
                     style = MaterialTheme.typography.bodySmall)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("闲置时自动晃动", modifier = Modifier.weight(1f))
@@ -339,6 +339,13 @@ fun LayeredPetEditor(
                     BindingSlider("晃动速度（次／秒）", layer.idleSpeed, 0.1f, 3f) {
                         update(layer.copy(idleSpeed = it))
                     }
+                    if (layer.bones.size >= 3) {
+                        BindingSlider("上段跟随延迟（秒）", layer.idleLagSeconds, 0f, 0.45f) {
+                            update(layer.copy(idleLagSeconds = it))
+                        }
+                        Text("靠近尾根的下段先摆动，上段稍晚跟上；短尾巴建议 3 个点、延迟 0.12～0.20 秒。",
+                            style = MaterialTheme.typography.bodySmall)
+                    }
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("控制点 ${layer.bones.size}/8", modifier = Modifier.weight(1f))
@@ -346,8 +353,7 @@ fun LayeredPetEditor(
                         if (layer.bones.size < 8) {
                             val end = layer.bones.lastOrNull()
                             val point = if (end == null) TapNestBonePoint(layer.pivotX, layer.pivotY)
-                                else TapNestBonePoint((end.x + 0.09f).coerceIn(0f, 1f),
-                                    (end.y - 0.08f).coerceIn(0f, 1f))
+                                else TapNestBonePoint(end.x, (end.y - 0.06f).coerceIn(0f, 1f))
                             update(layer.copy(bones = layer.bones + point))
                             selectedBone = layer.bones.size
                             previewMode = RigPreviewMode.BONES

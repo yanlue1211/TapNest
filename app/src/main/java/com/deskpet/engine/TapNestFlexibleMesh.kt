@@ -3,8 +3,7 @@ package com.deskpet.engine
 import kotlin.math.PI
 import kotlin.math.atan2
 import kotlin.math.cos
-import kotlin.math.min
-import kotlin.math.sin
+ import kotlin.math.sin
 
 /**
  * Lightweight 2D skinning of a single PNG. Users place 2..8 points along a limb,
@@ -21,6 +20,31 @@ object TapNestFlexibleMesh {
     private operator fun Point.minus(o: Point) = Point(x - o.x, y - o.y)
     private operator fun Point.times(k: Float) = Point(x * k, y * k)
 
+    /**
+     * Root-driven propagation: the first segment is the driver, then successively
+     * distal segments respond with a DELAY (phase minus), not phase advance.
+     * This is an inexpensive periodic approximation of follow-through, not a full
+     * spring / mass simulation. Keeps existing artwork and saved rig compatible.
+     */
+    fun segmentAngles(layer: TapNestLayer, elapsedMs: Long): FloatArray {
+        val count = (layer.bones.size - 1).coerceAtLeast(0)
+        if (count == 0) return floatArrayOf()
+        val amplitude = layer.idleAmplitude.coerceIn(0f, 40f)
+        val speed = layer.idleSpeed.coerceIn(0.1f, 3f)
+        val lagSeconds = layer.idleLagSeconds.coerceIn(0f, 0.45f)
+        val time = elapsedMs.coerceAtLeast(0) / 1000.0
+        val omega = 2.0 * PI * speed
+        // In a short upright tail, the lower section supplies most of the turn;
+        // the soft upper section bends and catches up a little later.
+        val rootWeight = if (count == 1) 1f else 0.62f
+        val distalWeight = if (count == 1) 0f else (1f - rootWeight) / (count - 1)
+        return FloatArray(count) { index ->
+            val weight = if (index == 0) rootWeight else distalWeight
+            val delayedTime = time - index * lagSeconds
+            (amplitude * weight * sin(omega * delayedTime)).toFloat()
+        }
+    }
+
     fun vertices(layer: TapNestLayer, width: Int, height: Int, elapsedMs: Long,
                  mesh: Int = GRID): FloatArray? {
         if (!layer.idleSwing || layer.bones.size !in 2..8 ||
@@ -29,15 +53,10 @@ object TapNestFlexibleMesh {
                                           it.y.coerceIn(0f, 1f) * height) }
         val transformed = ArrayList<Point>(base.size)
         transformed.add(base.first())
-        val t = (elapsedMs.coerceAtLeast(0) / 1000.0 * layer.idleSpeed.coerceIn(0.1f, 3f) *
-                2.0 * PI).toFloat()
+        val angles = segmentAngles(layer, elapsedMs)
         var accumulated = 0f
-        val phaseShift = 0.7f
         for (i in 1 until base.size) {
-            accumulated += Math.toRadians(
-                (layer.idleAmplitude.coerceIn(0f, 40f) * sin(t + i * phaseShift) /
-                 (base.size - 1)).toDouble()
-            ).toFloat()
+            accumulated += Math.toRadians(angles[i - 1].toDouble()).toFloat()
             val source = base[i] - base[i - 1]
             transformed.add(transformed.last() + rotate(source, accumulated))
         }
