@@ -501,7 +501,8 @@ class FileManager(private val context: Context) {
             companionDir.listFiles()?.filter { file ->
                 file.isFile && !file.name.endsWith(".tmp") &&
                     (file.name == "profile.json" ||
-                        file.name.matches(Regex("icon_[a-zA-Z0-9_-]{1,100}\\.png")))
+                        file.name.matches(Regex("icon_[a-zA-Z0-9_-]{1,100}\\.png")) ||
+                        file.name.matches(Regex("action_(feed|bath|play)\\.(png|gif)")))
             }?.forEach { file ->
                 zip.putNextEntry(ZipEntry(prefix + "companion/" + file.name))
                 file.inputStream().use { it.copyTo(zip) }
