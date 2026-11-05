@@ -29,6 +29,10 @@ data class TapNestBonePoint(val x: Float, val y: Float)
 @Serializable
 enum class TapNestSwingMode { DELAY, SPRING }
 
+/** OUTWARD_ONLY swings from the rest pose toward the outside of the body. */
+@Serializable
+enum class TapNestSwingRange { CENTERED, OUTWARD_ONLY }
+
 @Serializable
 data class TapNestLayer(
     val id: String,
@@ -52,7 +56,9 @@ data class TapNestLayer(
     /** Damping ratio: low values add overshoot; high values settle quickly. */
     val springDamping: Float = 0.40f,
     /** 0: freely bend the skin, 1: preserve the original stroke as a rigid shape. */
-    val shapePreservation: Float = 0f
+    val shapePreservation: Float = 0f,
+    /** Centered for classic oscillation; one-sided for diagonal tail silhouettes. */
+    val swingRange: TapNestSwingRange = TapNestSwingRange.CENTERED
 )
 
 @Serializable

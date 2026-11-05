@@ -65,6 +65,45 @@ class TapNestSpringChainTest {
         assertEquals(0.38f, parsed.springDamping, 0.001f)
     }
 
+    @Test fun oneSidedUpRightTailNeverSwingsInward() {
+        val original = tail().copy(
+            swingRange = TapNestSwingRange.OUTWARD_ONLY,
+            bones = listOf(TapNestBonePoint(0.6f, 0.9f),
+                TapNestBonePoint(0.7f, 0.7f),
+                TapNestBonePoint(0.8f, 0.5f))
+        )
+        val chain = TapNestSpringChain()
+        var outwardMotionSeen = false
+        for (time in 0..2500 step 20) {
+            val angles = chain.step(original, time.toLong())
+            var absolute = 0f
+            for (a in angles) {
+                absolute += a
+                assertTrue("right tail stayed outward at $time: $absolute", absolute >= -0.001f)
+            }
+            if (absolute > 5f) outwardMotionSeen = true
+        }
+        assertTrue("single-side tail still moves", outwardMotionSeen)
+    }
+
+    @Test fun oneSidedUpLeftTailMirrorsOutwardDirection() {
+        val original = tail().copy(
+            swingRange = TapNestSwingRange.OUTWARD_ONLY,
+            bones = listOf(TapNestBonePoint(0.4f, 0.9f),
+                TapNestBonePoint(0.3f, 0.7f),
+                TapNestBonePoint(0.2f, 0.5f))
+        )
+        val chain = TapNestSpringChain()
+        for (time in 0..2500 step 20) {
+            val angles = chain.step(original, time.toLong())
+            var absolute = 0f
+            for (a in angles) {
+                absolute += a
+                assertTrue("left tail stayed outward at $time: $absolute", absolute <= 0.001f)
+            }
+        }
+    }
+
     @Test fun disablingAmplitudeRemainsStillAndResumingAfterPauseIsStable() {
         val layer = tail().copy(idleAmplitude = 0f)
         val chain = TapNestSpringChain()

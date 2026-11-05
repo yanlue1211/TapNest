@@ -38,7 +38,23 @@ class TapNestSpringChain {
         val naturalFrequency = 3.3 - 2.6 * softness
         val springOmega = 2.0 * PI * naturalFrequency
         val driveOmega = 2.0 * PI * speed
-        fun driver(timeMs: Double) = (amplitude * sin(driveOmega * timeMs / 1000.0)).toFloat()
+        // For the one-sided presets, choose the direction AWAY from the body
+        // based on the user's root-to-tip line, not the image's fixed orientation.
+        // Android screen coordinates are x-right, y-down.
+        val first = layer.bones.first()
+        val last = layer.bones.last()
+        val dx = last.x - first.x
+        val dy = last.y - first.y
+        val outwardSign = if ((if (dx >= 0f) 1 else -1) *
+            (if (dy <= 0f) 1 else -1) >= 0) 1f else -1f
+        val oneSided = layer.swingRange == TapNestSwingRange.OUTWARD_ONLY
+        fun driver(timeMs: Double): Float {
+            val phase = driveOmega * timeMs / 1000.0
+            return if (oneSided) {
+                // 0..amplitude outward from the authored rest position.
+                (outwardSign * amplitude * 0.5 * (1.0 - kotlin.math.cos(phase))).toFloat()
+            } else (amplitude * sin(phase)).toFloat()
+        }
 
         val resetNeeded = lastLayer != layer || count != orientations.size ||
             previousTimeMs < 0L || now < previousTimeMs ||
@@ -66,8 +82,16 @@ class TapNestSpringChain {
                     val velocity = angularVelocities[i].toDouble()
                     val acceleration = springOmega * springOmega * (target - angle) -
                         2.0 * damping * springOmega * velocity
-                    val newVelocity = (velocity + acceleration * dt).coerceIn(-550.0, 550.0)
-                    val newAngle = (angle + newVelocity * dt).coerceIn(-100.0, 100.0)
+                    var newVelocity = (velocity + acceleration * dt).coerceIn(-550.0, 550.0)
+                    var newAngle = (angle + newVelocity * dt).coerceIn(-100.0, 100.0)
+                    if (oneSided) {
+                        // Keep all segments on their outward side of rest,
+                        // including under low damping / spring overshoot.
+                        if (newAngle * outwardSign < 0.0) {
+                            newAngle = 0.0
+                            if (newVelocity * outwardSign < 0.0) newVelocity = 0.0
+                        }
+                    }
                     orientations[i] = newAngle.toFloat()
                     angularVelocities[i] = newVelocity.toFloat()
                 }

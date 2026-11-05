@@ -332,6 +332,55 @@ fun LayeredPetEditor(
                     Text("闲置时自动晃动", modifier = Modifier.weight(1f))
                     Switch(checked = layer.idleSwing, onCheckedChange = { update(layer.copy(idleSwing = it)) })
                 }
+                Text("🐾 弹簧尾巴预设", fontWeight = FontWeight.SemiBold)
+                var chosenTailPreset by remember(activeLayer) {
+                    mutableStateOf(TapNestTailPresets.ALL.first())
+                }
+                var tailPresetMenu by remember(activeLayer) { mutableStateOf(false) }
+                Box {
+                    OutlinedButton(onClick = { tailPresetMenu = true }) {
+                        Text("${chosenTailPreset.title}  ▾")
+                    }
+                    DropdownMenu(expanded = tailPresetMenu,
+                        onDismissRequest = { tailPresetMenu = false }) {
+                        TapNestTailPresets.ALL.forEach { choice ->
+                            DropdownMenuItem(text = { Text(choice.title) }, onClick = {
+                                chosenTailPreset = choice
+                                tailPresetMenu = false
+                            })
+                        }
+                    }
+                }
+                Text(chosenTailPreset.description, style = MaterialTheme.typography.bodySmall)
+                Text("建议骨骼：${chosenTailPreset.bonePercentages.joinToString(" → ") { "${it}%" }}（尾根到尾尖，沿图形中线）",
+                    style = MaterialTheme.typography.bodySmall)
+                Row(modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(onClick = {
+                        update(TapNestTailPresets.applySettings(layer, chosenTailPreset))
+                    }, modifier = Modifier.weight(1f)) { Text("应用弹簧参数") }
+                    OutlinedButton(onClick = {
+                        if (layer.bones.size >= 2) {
+                            val newBones = TapNestTailPresets.repositionBones(
+                                layer.bones, chosenTailPreset
+                            )
+                            update(layer.copy(bones = newBones))
+                            selectedBone = 0
+                            previewMode = RigPreviewMode.BONES
+                        }
+                    }, modifier = Modifier.weight(1f),
+                        enabled = layer.bones.size >= 2) { Text("按首尾重排点位") }
+                }
+                Text(
+                    if (layer.bones.size < 2)
+                        "先放两个点：P1 在尾根、P2 在尾尖内侧（约 85%～90%），然后才能自动补齐中间点。"
+                    else "应用参数不会改动你已绑好的点；「按首尾重排点位」会沿现有骨骼轨迹重新取点，保留首尾坐标。",
+                    style = MaterialTheme.typography.bodySmall
+                )
+                if (chosenTailPreset.swingRange == TapNestSwingRange.OUTWARD_ONLY) {
+                    Text("单侧模式：沿身体一侧斜放，从根到尖排点；程序根据方向自动选择向外摇（不跨过原始姿势向内甩）。",
+                        style = MaterialTheme.typography.bodySmall)
+                }
                 if (layer.idleSwing) {
                     Text("🎐 晃动方式", fontWeight = FontWeight.SemiBold)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -372,6 +421,16 @@ fun LayeredPetEditor(
                         }
                         BindingSlider("回弹阻尼（越低越弹）", layer.springDamping, 0.1f, 1.3f) {
                             update(layer.copy(springDamping = it))
+                        }
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("单侧向外摇晃", modifier = Modifier.weight(1f))
+                            Switch(
+                                checked = layer.swingRange == TapNestSwingRange.OUTWARD_ONLY,
+                                onCheckedChange = {
+                                    update(layer.copy(swingRange = if (it)
+                                        TapNestSwingRange.OUTWARD_ONLY else TapNestSwingRange.CENTERED))
+                                }
+                            )
                         }
                         BindingSlider("🖍️ 粗线条保形（越高越不扭曲）", layer.shapePreservation, 0f, 1f) {
                             update(layer.copy(shapePreservation = it))
