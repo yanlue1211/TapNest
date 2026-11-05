@@ -51,6 +51,8 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
     private var auto: AutonomousBehavior? = null
     private var speechBubble: TapSpeechBubble? = null
     private var speechJob: Job? = null
+    private lateinit var companionStore: com.deskpet.data.CompanionStore
+    private var reminderJob: Job? = null
     private var currentPet: PetInfo? = null
     private var touchLineIndex = 0
     private var petId: String? = null
@@ -142,13 +144,24 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         }
     }
 
-    private fun displayTapLine(line: String) {
+    private fun onDoubleTap() {
+        val id = petId ?: return
+        OverlayState.openCompanion(id)
+        val launch = Intent(this, com.deskpet.MainActivity::class.java).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                Intent.FLAG_ACTIVITY_SINGLE_TOP)
+        }
+        runCatching { startActivity(launch) }
+            .onFailure { Log.w(TAG, "Could not open companion settings", it) }
+    }
+
+    private fun displayTapLine(line: String, durationMs: Long = 3200L) {
         speechJob?.cancel()
         val bubble = speechBubble ?: TapSpeechBubble(this, wm).also { speechBubble = it }
         bubble.show(line)
         bubble.follow(wx, wy + bounceOffset, anim.petWidth.value, anim.petHeight.value, safeBounds())
         speechJob = sc.launch {
-            delay(3200L)
+            delay(durationMs)
             bubble.dismiss()
         }
     }
@@ -204,12 +217,22 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         super.onCreate()
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
         repo = (application as com.deskpet.DeskPetApp).petRepository
+        companionStore = com.deskpet.data.CompanionStore(this)
+        sc.launch {
+            OverlayState.interactions.collect { event ->
+                if (event.petId == petId) {
+                    anim.setAffection(event.affection)
+                    displayTapLine(event.line)
+                }
+            }
+        }
         parser = SpritesheetParser()
         engine = PetEngine(parser, GifRenderer())
         anim = AnimationController(engine, sc)
         gesture = GestureHandler(
             onDrag = ::onDrag,
             onTap = ::onTap,
+            onDoubleTap = ::onDoubleTap,
             isCodexPet = anim::isCodexPet,
             onScale = ::onScale,
             onDragEnd = ::persistPositionSoon,
@@ -347,6 +370,7 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         if (::anim.isInitialized) anim.stop()
         auto?.stop()
         speechJob?.cancel()
+        reminderJob?.cancel()
         speechBubble?.dismiss()
         speechBubble = null
         currentPet = null
@@ -416,6 +440,7 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
             }
         }
         speechJob?.cancel()
+        reminderJob?.cancel()
         speechBubble?.dismiss()
         currentPet = info
         touchLineIndex = 0
@@ -432,6 +457,20 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         }
         anim.setScale(info.scale)
         savedScale = info.scale
+        val savedProfile = withContext(Dispatchers.IO) { companionStore.load(id) }
+        anim.setAffection(com.deskpet.data.CompanionAffection.at(savedProfile, System.currentTimeMillis()))
+        reminderJob?.cancel()
+        reminderJob = sc.launch {
+            while (isActive && petId == id) {
+                if (screenOn) {
+                    val due = withContext(Dispatchers.IO) { companionStore.due(id) }
+                    for (note in due) {
+                        displayTapLine("⏰ " + note.message, 7500L)
+                    }
+                }
+                delay(10_000L)
+            }
+        }
         // 灭屏期间被系统拉起时不启动动画，等 SCREEN_ON 广播再开（registerReceiverSafely 已同步 screenOn）
         if (screenOn) anim.start()
         // 取消是协作式的：从最后一个挂起点返回到 add() 之间没有检查点，
@@ -459,6 +498,8 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
             repo.getAllPets().collect { pets ->
                 val info = pets.find { it.id == id } ?: return@collect
                 currentPet = info
+                anim.setAffection(com.deskpet.data.CompanionAffection.at(
+                    companionStore.load(id), System.currentTimeMillis()))
                 if (!info.tapBubbleEnabled || info.tapDialogues.isEmpty()) {
                     speechJob?.cancel()
                     speechBubble?.dismiss()

@@ -18,6 +18,26 @@ object OverlayState {
     private val _running = MutableStateFlow(false)
     val running: StateFlow<Boolean> = _running.asStateFlow()
 
+    /** The companion screen request survives Activity recreation within this process. */
+    private val _settingsPetId = MutableStateFlow<String?>(null)
+    val settingsPetId: StateFlow<String?> = _settingsPetId.asStateFlow()
+    fun openCompanion(id: String) { _settingsPetId.value = id }
+    fun closeCompanion() { _settingsPetId.value = null }
+
+    data class CompanionActionEvent(
+        val petId: String,
+        val action: com.deskpet.data.CompanionAction,
+        val line: String,
+        val affection: Int
+    )
+    private val _interactions = kotlinx.coroutines.flow.MutableSharedFlow<CompanionActionEvent>(
+        extraBufferCapacity = 16)
+    val interactions = _interactions
+    fun postInteraction(petId: String, action: com.deskpet.data.CompanionAction,
+                        line: String, affection: Int) {
+        _interactions.tryEmit(CompanionActionEvent(petId, action, line, affection))
+    }
+
     fun setRunning(id: String?) {
         _petId.value = id
         _running.value = id != null

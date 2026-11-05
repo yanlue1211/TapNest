@@ -80,6 +80,7 @@ class MainActivity : ComponentActivity() {
         var pendingStart by remember { mutableStateOf(false) }
         var showHelp by remember { mutableStateOf(false) }
         val petList by repo.getAllPets().collectAsStateWithLifecycle(emptyList())
+        val companionSettingsId by OverlayState.settingsPetId.collectAsStateWithLifecycle()
         // 列表首帧未到时保持"加载中"，避免"还没有宠物"空状态在启动瞬间闪现
         val petListReady by remember { repo.getAllPets().map { true } }.collectAsStateWithLifecycle(false)
         val rawActiveId by repo.getActivePetId().collectAsStateWithLifecycle(null)
@@ -181,7 +182,12 @@ class MainActivity : ComponentActivity() {
             }
         }
 
-        if (showLayeredEditor) {
+        if (companionSettingsId != null && petList.any { it.id == companionSettingsId }) {
+            com.deskpet.ui.CompanionScreen(
+                pet = petList.first { it.id == companionSettingsId },
+                onBack = { OverlayState.closeCompanion() }
+            )
+        } else if (showLayeredEditor) {
             com.deskpet.ui.LayeredPetEditor(
                 petRepository = repo,
                 editingPet = petList.firstOrNull { it.id == editingPetId },

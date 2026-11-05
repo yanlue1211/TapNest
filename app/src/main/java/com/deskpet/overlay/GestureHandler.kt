@@ -15,6 +15,7 @@ import kotlin.math.abs
 class GestureHandler(
     private val onDrag: (dx: Float, dy: Float, direction: DragDirection) -> Unit,
     private val onTap: () -> Unit,
+    private val onDoubleTap: () -> Unit = {},
     private val isCodexPet: () -> Boolean,
     private val onScale: (zoom: Float, focusX: Float, focusY: Float) -> Unit = { _, _, _ -> },
     private val onDragEnd: () -> Unit = {},
@@ -108,7 +109,7 @@ class GestureHandler(
                 }
             }
             .pointerInput("tap") {
-                detectTapGestures { onTap() }
+                detectTapGestures(onTap = { onTap() }, onDoubleTap = { onDoubleTap() })
             }
 
     fun mapDirectionToState(direction: DragDirection): PetAnimationState = when (direction) {
