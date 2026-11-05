@@ -131,3 +131,26 @@ object TapNestMotion {
         )
     }
 }
+
+/**
+ * Deterministic, softly irregular spontaneous blinks, for both editor preview
+ * and live overlay. No separate timer or thread, and no random state to save.
+ */
+object TapNestBlink {
+    private const val WINDOW_MS = 5200L
+    private fun startInWindow(index: Long): Long {
+        val scramble = (index * 1103515245L + 12345L) xor
+            ((index + 17L) * 2654435761L)
+        return index * WINDOW_MS + 800L + (scramble and 0x7fffffffL) % 2200L
+    }
+
+    fun isBlinking(elapsedMs: Long): Boolean {
+        if (elapsedMs < 0L) return false
+        val window = elapsedMs / WINDOW_MS
+        val start = startInWindow(window)
+        val first = elapsedMs >= start && elapsedMs < start + 150L
+        val double = window % 5L == 3L &&
+            elapsedMs >= start + 215L && elapsedMs < start + 330L
+        return first || double
+    }
+}
