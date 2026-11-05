@@ -5,7 +5,9 @@ import android.graphics.PixelFormat
 import android.graphics.Rect
 import android.view.Gravity
 import android.view.WindowManager
+import android.graphics.BitmapFactory
 import androidx.compose.foundation.*
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -145,9 +147,29 @@ private fun PanelContent(
                 Text("悬浮伙伴运行期间按时提醒；离线保存。", style = MaterialTheme.typography.bodySmall)
                 OutlinedTextField(noteText, { noteText = it.take(120) },
                     label = { Text("提醒内容") }, modifier = Modifier.fillMaxWidth())
-                OutlinedTextField(noteDate, { noteDate = it.take(24) },
-                    label = { Text("时间 yyyy-MM-dd HH:mm") },
-                    modifier = Modifier.fillMaxWidth(), singleLine = true)
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    OutlinedTextField(noteDate, { noteDate = it.take(24) },
+                        label = { Text("提醒时间") }, modifier = Modifier.weight(1f), singleLine = true)
+                }
+                OutlinedButton(onClick = {
+                    val cal = java.util.Calendar.getInstance().apply {
+                        runCatching { format.parse(noteDate) }.getOrNull()?.let { time = it }
+                    }
+                    android.app.DatePickerDialog(context, { _, year, month, day ->
+                        val chosen = java.util.Calendar.getInstance().apply {
+                            set(java.util.Calendar.YEAR, year)
+                            set(java.util.Calendar.MONTH, month)
+                            set(java.util.Calendar.DAY_OF_MONTH, day)
+                        }
+                        android.app.TimePickerDialog(context, { _, hour, minute ->
+                            chosen.set(java.util.Calendar.HOUR_OF_DAY, hour)
+                            chosen.set(java.util.Calendar.MINUTE, minute)
+                            chosen.set(java.util.Calendar.SECOND, 0)
+                            noteDate = format.format(chosen.time)
+                        }, cal.get(java.util.Calendar.HOUR_OF_DAY), cal.get(java.util.Calendar.MINUTE), true).show()
+                    }, cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH),
+                        cal.get(java.util.Calendar.DAY_OF_MONTH)).show()
+                }, modifier = Modifier.fillMaxWidth()) { Text("📆 选择日期与时间") }
                 Button(onClick = {
                     val time = runCatching { format.parse(noteDate)?.time }.getOrNull()
                     if (time == null || time <= System.currentTimeMillis()) error = "请输入未来的有效时间"
@@ -206,7 +228,15 @@ private fun PanelContent(
                     ) {
                         Row(Modifier.fillMaxWidth().padding(12.dp),
                             verticalAlignment = Alignment.CenterVertically) {
-                            Text(item.emoji.ifBlank { "🎁" }, style = MaterialTheme.typography.headlineSmall)
+                            val customIcon = remember(item.icon) {
+                                store.iconFile(petId, item.icon)?.let { file ->
+                                    val options = BitmapFactory.Options().apply { inSampleSize = 2 }
+                                    runCatching { BitmapFactory.decodeFile(file.absolutePath, options) }.getOrNull()
+                                }
+                            }
+                            if (customIcon != null) Image(customIcon.asImageBitmap(),
+                                contentDescription = item.name, modifier = Modifier.size(34.dp))
+                            else Text(item.emoji.ifBlank { "🎁" }, style = MaterialTheme.typography.headlineSmall)
                             Spacer(Modifier.width(10.dp))
                             Text(item.name, color = foreground, modifier = Modifier.weight(1f))
                             Text("互动 ›", color = Color(0xFF53836A))
