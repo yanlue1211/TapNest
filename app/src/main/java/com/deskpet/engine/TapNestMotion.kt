@@ -10,6 +10,8 @@ data class TapNestRig(
     val canvasHeight: Int,
     val templateId: String = "manual",
     val headMode: TapNestHeadMode = TapNestHeadMode.FULL_HEAD,
+    /** -1 keeps current expression while stroking; 0..3 selects a dedicated face. */
+    val pettingExpression: Int = -1,
     val layers: List<TapNestLayer> = emptyList(),
     val clips: List<TapNestClip> = emptyList()
 )

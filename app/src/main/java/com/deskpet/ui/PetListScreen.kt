@@ -72,7 +72,7 @@ import kotlinx.coroutines.withContext
  * 视觉（M3 规范）：滑块放进卡片容器、两端配加减号微调图标、轨道用 M3 Expressive
  * 风格的粗圆角轨道 + 自定义圆形拇指、100% 处放刻度点，百分比用胶囊标签展示。
  */
-private const val MIN_SCALE_UI = 0.5f
+private const val MIN_SCALE_UI = 0.2f
 private const val MAX_SCALE_UI = 5f
 private const val SCALE_STEP = 0.1f
 

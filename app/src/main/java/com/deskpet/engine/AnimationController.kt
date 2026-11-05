@@ -29,7 +29,7 @@ class AnimationController(
         private const val MIN_PET_SIZE_PX = 32
 
         /** 与 UI 缩放滑块范围一致（50%~500%），见 PetListScreen */
-        private const val MIN_SCALE = 0.5f
+        private const val MIN_SCALE = 0.2f
         private const val MAX_SCALE = 5f
     }
 
@@ -162,6 +162,7 @@ class AnimationController(
     fun isCodexPet() = loader is PetEngine.PetLoader.CodexPet
     fun isLayeredPet() = loader is PetEngine.PetLoader.Layered
     fun tapLayeredPet() { (loader as? PetEngine.PetLoader.Layered)?.player?.tap() }
+    fun petLayeredHead() { (loader as? PetEngine.PetLoader.Layered)?.player?.petHead() }
 
     private fun applyScale() {
         _w.value = (baseW * s).toInt().coerceAtLeast(MIN_PET_SIZE_PX)

@@ -18,25 +18,43 @@ class LayeredPetPlayer private constructor(
     val height: Int,
     private val pictures: Map<String, Bitmap>
 ) {
-    private val frame = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-    private val canvas = Canvas(frame)
+    // A published Bitmap must never be cleared while the UI is still drawing it.
+    // Rotate through 3 preallocated surfaces to eliminate intermittent clear-frame flashes.
+    private val frames = Array(3) { Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888) }
+    private var frameIndex = 0
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     @Volatile private var tappedAtMs = -10000L
+    @Volatile private var pettingAtMs = -10000L
     @Volatile private var expression = 0
     private val launchedAtMs = SystemClock.uptimeMillis()
 
     fun tap() {
-        expression = (expression + 1) % 4
+        expression = (expression % 3) + 1 // expression 0 is always neutral
         tappedAtMs = SystemClock.uptimeMillis()
+        pettingAtMs = -10000L
     }
 
-    /** Reusable render target; AnimationController tags it with a fresh sequence. */
+    fun petHead() {
+        pettingAtMs = SystemClock.uptimeMillis()
+        tappedAtMs = -10000L
+    }
+
+    /** Triple-buffered render target. The UI never observes a bitmap being cleared. */
     @Synchronized fun render(): Bitmap {
+        frameIndex = (frameIndex + 1) % frames.size
+        val frame = frames[frameIndex]
+        val canvas = Canvas(frame)
         canvas.drawColor(android.graphics.Color.TRANSPARENT, android.graphics.PorterDuff.Mode.CLEAR)
         val now = SystemClock.uptimeMillis()
         val elapsed = (now - tappedAtMs).coerceAtLeast(0)
+        val petElapsed = (now - pettingAtMs).coerceAtLeast(0)
         val touched = elapsed < 520
-        val activeExpression = expression.coerceAtLeast(0)
+        val petting = petElapsed < 1450
+        val activeExpression = when {
+            petting && rig.pettingExpression in 0..3 -> rig.pettingExpression
+            elapsed < 1800 -> expression.coerceIn(0, 3)
+            else -> 0
+        }
         val shown = when (rig.headMode) {
             TapNestHeadMode.FULL_HEAD -> {
                 val slot = "head_$activeExpression"
@@ -57,8 +75,9 @@ class LayeredPetPlayer private constructor(
             var p = TapNestPose()
             if (id == "tail") {
                 p = TapNestMotion.sample(TapNestPresets.wag(id), id, now - launchedAtMs)
-            } else if ((id.startsWith("head_") || id == "head_blank") && touched) {
-                p = TapNestMotion.sample(TapNestPresets.nod(id), id, elapsed)
+            } else if (id.startsWith("head_") || id == "head_blank") {
+                if (petting) p = TapNestMotion.sample(TapNestPresets.petHead(id), id, petElapsed)
+                else if (touched) p = TapNestMotion.sample(TapNestPresets.nod(id), id, elapsed)
             }
             rig.clips.firstOrNull { c -> c.tracks.any { it.layerId == id } }
                 ?.let { p = TapNestMotion.sample(it, id, if (it.loop) now - launchedAtMs else elapsed) }
@@ -134,7 +153,7 @@ class LayeredPetPlayer private constructor(
                 entries[layer.id] = bitmap
             }
             if (!entries.containsKey("body")) return null
-            val dim = min(800f / max(rig.canvasWidth, rig.canvasHeight), 1f)
+            val dim = min(320f / max(rig.canvasWidth, rig.canvasHeight), 1f)
             LayeredPetPlayer(rig, max(32, (rig.canvasWidth * dim).toInt()),
                 max(32, (rig.canvasHeight * dim).toInt()), entries)
         }.getOrNull()

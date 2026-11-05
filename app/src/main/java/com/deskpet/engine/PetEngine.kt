@@ -120,7 +120,13 @@ class PetEngine(
                 if (w <= 0 || h <= 0) Pair(DEFAULT_PET_WIDTH, DEFAULT_PET_HEIGHT) else Pair(w, h)
             }
             is PetLoader.Gif -> Pair(gifRenderer.width, gifRenderer.height)
-            is PetLoader.Png -> Pair(loader.bitmap.width, loader.bitmap.height)
+            is PetLoader.Png -> {
+                // Original images can be 1024px+, but floating characters should start compact.
+                val longest = kotlin.math.max(loader.bitmap.width, loader.bitmap.height).coerceAtLeast(1)
+                val factor = kotlin.math.min(340f / longest, 1f)
+                Pair((loader.bitmap.width * factor).toInt().coerceAtLeast(32),
+                    (loader.bitmap.height * factor).toInt().coerceAtLeast(32))
+            }
             is PetLoader.Layered -> Pair(loader.player.width, loader.player.height)
         }
     }

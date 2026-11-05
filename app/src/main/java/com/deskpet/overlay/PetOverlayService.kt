@@ -155,7 +155,7 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
 
     private fun onScale(zoom: Float, focusX: Float, focusY: Float) {
         // 与 AnimationController / UI 滑块保持一致：50%~500%
-        val ns = (savedScale * zoom).coerceIn(0.5f, 5f)
+        val ns = (savedScale * zoom).coerceIn(0.2f, 5f)
         // clamp 截断后实际生效的比例，位置补偿必须用它，否则锚点会漂
         val applied = if (savedScale > 0f) ns / savedScale else 1f
         savedScale = ns
@@ -212,7 +212,13 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
             onTap = ::onTap,
             isCodexPet = anim::isCodexPet,
             onScale = ::onScale,
-            onDragEnd = ::persistPositionSoon
+            onDragEnd = ::persistPositionSoon,
+            onStrokeHead = {
+                anim.petLayeredHead()
+                auto?.onUserTouch()
+            },
+            canStrokeHead = anim::isLayeredPet,
+            petHeightPx = { anim.petHeight.value }
         )
         registerReceiverSafely()
         startForeground()

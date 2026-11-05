@@ -68,4 +68,16 @@ object TapNestPresets {
             frame(480, TapNestPose(scaleY = 0.8f))
         ))
     ))
+
+    /** A small alternating rock during a head-stroking gesture. */
+    fun petHead(head: String) = TapNestClip("pet_head", 1450, tracks = listOf(
+        TapNestTrack(head, listOf(
+            frame(0, TapNestPose()),
+            frame(200, TapNestPose(angle = -8f, y = 2f)),
+            frame(460, TapNestPose(angle = 8f, y = -1f)),
+            frame(730, TapNestPose(angle = -7f, y = 2f)),
+            frame(1020, TapNestPose(angle = 6f)),
+            frame(1450, TapNestPose())
+        ))
+    ))
 }
