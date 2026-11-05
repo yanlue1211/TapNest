@@ -15,6 +15,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.ComposeView
@@ -128,6 +129,7 @@ private fun PanelContent(
     title: String, petId: String, store: CompanionStore,
     onAction: (CompanionAction, String, Int, String?) -> Unit, onClose: () -> Unit
 ) {
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
     var page by remember(petId) { mutableStateOf<CompanionAction?>(null) }
     var notes by remember(petId) { mutableStateOf(false) }
