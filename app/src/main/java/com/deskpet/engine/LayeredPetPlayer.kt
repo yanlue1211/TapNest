@@ -146,7 +146,9 @@ class LayeredPetPlayer private constructor(
                 if (bounds.outWidth <= 0 || bounds.outHeight <= 0 ||
                     bounds.outWidth.toLong() * bounds.outHeight > 16_000_000L) return null
                 var sample = 1
-                while (max(bounds.outWidth, bounds.outHeight) / sample > 1024) sample *= 2
+                // The character is rendered at <=320 px: 640px decoded layers are ample.
+                // Capping decoded pixels also keeps multi-frame templates below memory budget.
+                while (max(bounds.outWidth, bounds.outHeight) / sample > 640) sample *= 2
                 val bitmap = BitmapFactory.decodeFile(file.absolutePath,
                     BitmapFactory.Options().apply {
                         inSampleSize = sample
