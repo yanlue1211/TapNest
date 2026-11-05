@@ -73,7 +73,7 @@ class LayeredPetPlayer private constructor(
         val petElapsed = (now - pettingAtMs).coerceAtLeast(0)
         val actionElapsed = (now - actionAtMs).coerceAtLeast(0)
         val reacting = actionElapsed < 950
-        val touched = elapsed < 520
+        val touched = elapsed < 680
         val petting = petElapsed < 1450
         val activeExpression = when {
             petting && rig.pettingExpression in 0..3 -> rig.pettingExpression

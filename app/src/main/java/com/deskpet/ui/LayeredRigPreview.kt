@@ -222,7 +222,7 @@ internal fun LayeredRigPreview(
         val now = if (mode == RigPreviewMode.TEST) clock else -10000L
         val touchElapsed = now - tappedAt
         val petElapsed = now - pettedAt
-        val touched = mode == RigPreviewMode.TEST && touchElapsed in 0..519L
+        val touched = mode == RigPreviewMode.TEST && touchElapsed in 0..679L
         val petting = mode == RigPreviewMode.TEST && petElapsed in 0..1449L
         val expressionIndex = when {
             petting && rig.pettingExpression in 0..3 -> rig.pettingExpression
