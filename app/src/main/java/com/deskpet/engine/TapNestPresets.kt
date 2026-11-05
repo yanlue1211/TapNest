@@ -67,5 +67,5 @@ object TapNestPresets {
             frame(360, TapNestPose(scaleY = 1.2f)),
             frame(480, TapNestPose(scaleY = 0.8f))
         ))
-    )
+    ))
 }
