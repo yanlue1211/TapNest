@@ -3,20 +3,19 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>TapNest 网页模型引擎 V0.10</title>
+<title>TapNest 网页模型引擎 V0.11</title>
 <style>
 *{box-sizing:border-box}
 html,body{margin:0;padding:0;width:100%;height:100%;background:transparent!important;overflow:hidden;font-family:system-ui,sans-serif}
 #stage{width:100%;height:100%;position:relative;overflow:hidden;touch-action:none}
-#petArea{position:absolute;left:50%;right:auto;width:min(var(--pet-size,100%),100%);transform:translateX(-50%);top:0;bottom:70px;overflow:hidden;pointer-events:none}
+#petArea{position:absolute;left:50%;right:auto;width:min(var(--pet-size,100%),100%);height:var(--pet-size,100%);transform:translateX(-50%);top:0;bottom:auto;overflow:hidden;pointer-events:none}
 #canvas{width:100%;height:100%;display:block;pointer-events:none}
-/* V0.9: no blank margin above pet; the fixed 70px dialogue and chat strip sits BELOW it. */
-#bubble{position:absolute;z-index:4;bottom:3px;left:4px;right:4px;width:auto;max-width:none;max-height:62px;overflow-y:auto;overflow-x:hidden;padding:5px 7px;border:1px solid #c9ebdb;border-radius:12px;box-shadow:0 3px 9px #278c633b;background:#fffffff0;color:#3c7463;font-weight:600;font-size:12px;line-height:1.35;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-all;opacity:0;transition:opacity .14s;pointer-events:none}
+/* V0.11: fixed-size pet at top; chat and speech grow DOWNWARD below the pet. */
+#bubble{position:absolute;z-index:4;top:var(--pet-size,100%);bottom:auto;left:4px;right:4px;width:auto;max-height:210px;overflow-y:auto;overflow-x:hidden;padding:5px 8px;border:1px solid #c9ebdb;border-radius:12px;box-shadow:0 3px 9px #278c633b;background:#fffffff0;color:#3c7463;font-weight:600;font-size:12px;line-height:1.38;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;opacity:0;transition:opacity .14s;pointer-events:auto;touch-action:pan-y;overscroll-behavior:contain}
 #bubble.show{opacity:1}
 #hit{position:absolute;inset:12% 6% 10%;pointer-events:auto;touch-action:none;user-select:none;-webkit-user-select:none}
-/* This card stays inside the existing window and covers ONLY the lower body.
-   It must never extend beyond the transparent system overlay bounds. */
-#chat{display:none;position:absolute;top:auto;bottom:4px;left:4px;right:4px;height:44px;z-index:5;border:1px solid #b4e8d0;border-radius:13px;background:#f9fffce8;padding:5px;justify-content:center;align-items:center;flex-direction:row;gap:4px;touch-action:auto;box-shadow:0 3px 12px #245b4344}
+/* Chat opens on DOUBLE TAP. Window height can grow below the unchanged pet. */
+#chat{display:none;position:absolute;top:calc(var(--pet-size,100%) + 2px);bottom:auto;left:4px;right:4px;height:45px;z-index:5;border:1px solid #b4e8d0;border-radius:13px;background:#f9fffce8;padding:5px;justify-content:center;align-items:center;flex-direction:row;gap:4px;touch-action:auto;box-shadow:0 3px 12px #245b4344}
 #stage.chatting #bubble{opacity:0!important}
 #chat.open{display:flex}
 #chat label{display:none}
@@ -384,61 +383,77 @@ function draw(time){
  if(!document.hidden)raf=requestAnimationFrame(draw);
 }
 function talk(message){
- box.textContent=message;box.classList.add("show");
- // 完整换行后按字数留足阅读时间，长气泡不再两秒闪过。
- // Text is paginated into complete, readable pieces inside the fixed-size
- // 70px dialogue area. The OS will otherwise clip anything outside the overlay.
+ // Bubble width is fixed to the window, but its height grows BELOW the pet.
+ // Native overlay polls the rendered bubble height and adjusts only the window.
  clearTimeout(talk.timer);
- const units=Array.from(String(message));
- const pages=[];
- for(let i=0;i<units.length;i+=24)pages.push(units.slice(i,i+24).join(""));
- if(!pages.length)pages.push("");
- let index=0;
- function nextPage(){
-  box.textContent=pages[index];
-  box.scrollTop=0;
-  box.classList.add("show");
-  const readingMs=Math.min(7500,Math.max(2700,1800+Array.from(pages[index]).length*160));
-  talk.timer=setTimeout(()=>{
-   index++;
-   if(index<pages.length)nextPage();
-   else box.classList.remove("show");
-  },readingMs);
- }
- nextPage();
+ const content=String(message);
+ box.textContent=content;
+ box.scrollTop=0;
+ box.classList.add("show");
+ const readingMs=Math.min(18000,Math.max(3500,2000+Array.from(content).length*175));
+ talk.timer=setTimeout(()=>box.classList.remove("show"),readingMs);
 }
 function tap(){
  tapTime=performance.now();tapCount++;
  activeTapExpression=rig&&Number.isInteger(rig.tapExpression)&&rig.tapExpression>=0&&rig.tapExpression<=3?rig.tapExpression:((tapCount-1)%3)+1;
  talk(["嘿嘿！","我在呢～","被你戳到啦！","好痒～"][tapCount%4]);
 }
-function openChat(){form.classList.add("open");document.getElementById("stage").classList.add("chatting");try{input.focus()}catch(_){}}
-function closeChat(){form.classList.remove("open");document.getElementById("stage").classList.remove("chatting");input.blur()}
-let pressed=false,moved=false,x=0,y=0,pressAt=0;
+function openChat(){
+ clearTimeout(singleTapTimer);
+ clearTimeout(talk.timer);
+ box.classList.remove("show");
+ form.classList.add("open");
+ document.getElementById("stage").classList.add("chatting");
+ // Focus is taken by AutoJs6 AFTER double-tap detection; it will re-focus input.
+ try{input.focus()}catch(_){}
+}
+function closeChat(){
+ form.classList.remove("open");
+ document.getElementById("stage").classList.remove("chatting");
+ input.blur();
+}
+let pressed=false,moved=false,x=0,y=0,pressAt=0,lastTap=0,lastTapX=0,lastTapY=0,singleTapTimer=0;
 hit.addEventListener("pointerdown",e=>{
  if(form.classList.contains("open"))return;
  pressed=true;moved=false;x=e.clientX;y=e.clientY;pressAt=performance.now();
- // Do not open chat mid-hold: a full 5-second stationary hold is the exit gesture.
- // Only decide between tap and chat once the finger has been released.
 });
 hit.addEventListener("pointermove",e=>{if(pressed&&Math.hypot(e.clientX-x,e.clientY-y)>12)moved=true});
-hit.addEventListener("pointerup",()=>{
- const elapsed=performance.now()-pressAt;
- if(pressed&&!moved){
-  if(elapsed<680)tap();
-  else if(elapsed<5000&&!form.classList.contains("open"))openChat();
-  // elapsed >= 5000: AutoJs6 native hold timer closes the overlay instead.
+hit.addEventListener("pointerup",e=>{
+ const now=performance.now(),duration=now-pressAt;
+ if(pressed&&!moved&&duration<550&&!form.classList.contains("open")){
+  // Delayed single-tap reaction prevents the first double-tap from playing an action.
+  const isDouble=lastTap>0&&now-lastTap<=360&&Math.hypot(e.clientX-lastTapX,e.clientY-lastTapY)<40;
+  if(isDouble){
+   clearTimeout(singleTapTimer);singleTapTimer=0;lastTap=0;openChat();
+  }else{
+   lastTap=now;lastTapX=e.clientX;lastTapY=e.clientY;
+   clearTimeout(singleTapTimer);
+   singleTapTimer=setTimeout(()=>{
+    singleTapTimer=0;lastTap=0;
+    if(!form.classList.contains("open"))tap();
+   },365);
+  }
  }
+ // A motionless hold >= 5s is closed by the native AutoJs6 timer.
+ // Short holds do not open chat and are not mistaken for taps.
  pressed=false;
 });
-hit.addEventListener("pointercancel",()=>{pressed=false});
+hit.addEventListener("pointercancel",()=>{pressed=false;clearTimeout(singleTapTimer);lastTap=0});
 form.addEventListener("submit",e=>{
  e.preventDefault();if(!input.value.trim())return;
  input.value="";closeChat();talk("我听到啦！等接上糯米机就能认真回答～");
 });
 document.getElementById("cancel").addEventListener("click",closeChat);
 document.addEventListener("contextmenu",e=>e.preventDefault());
-window.PetPreview=Object.freeze({openChat,closeChat,tap,version:"0.10"});
+window.PetPreview=Object.freeze({openChat,closeChat,tap,
+ getState:()=>{
+  const open=form.classList.contains("open");
+  const visible=box.classList.contains("show")&&!open;
+  const bubbleHeight=visible?Math.ceil(box.getBoundingClientRect().height):0;
+  // Keep requested height bounded. For lengthy messages the bubble scrolls.
+  return [open?1:0,visible?Math.max(10,Math.min(220,bubbleHeight+6)):8].join("|");
+ },
+ version:"0.11"});
 window.addEventListener("resize",resize);
 document.addEventListener("visibilitychange",()=>{if(document.hidden)cancelAnimationFrame(raf);else if(rig)raf=requestAnimationFrame(draw)});
 async function initialize(){
