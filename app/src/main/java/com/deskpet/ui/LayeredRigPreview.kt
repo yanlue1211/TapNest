@@ -224,13 +224,17 @@ internal fun LayeredRigPreview(
                     onTap = { point ->
                         val current = newestRig
                         val pictures = newestAssets
+                        val defaultFrames = current.layers.filter { it.frameOwner == null }
+                            .associate { it.id to it.id }
                         when (mode) {
                             RigPreviewMode.POSITION -> {
                                 // Pick the frontmost *visible* opaque layer, not just its transparent rectangle.
                                 val top = current.layers.sortedByDescending { it.zIndex }.firstOrNull { layer ->
                                     val art = pictures[layer.id] ?: return@firstOrNull false
                                     val head = if (current.headMode == TapNestHeadMode.FULL_HEAD) "head_0" else "face_0"
-                                    if (!visibleLayer(layer.id, current.headMode, head, false, pictures))
+                                    if ((!showOtherParts && layer.id != selected) ||
+                                        !visibleLayer(layer, current.headMode, head, false,
+                                            pictures, defaultFrames))
                                         return@firstOrNull false
                                     val local = previewLocalPoint(point, viewport, current, layer, pictures)
                                     val x = local.x / art.width * art.bitmap.width
