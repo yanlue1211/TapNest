@@ -64,6 +64,7 @@ object TapNestTemplates {
         val isRight = lower.endsWith("_right")
         val isPaired = lower.endsWith("_right") || lower.endsWith("_left")
         val pivotX = when {
+            isTail -> .75f
             isPaired && isRight -> .60f
             isPaired -> .40f
             else -> .5f
@@ -71,7 +72,7 @@ object TapNestTemplates {
         val parent = if (isEar || lower.contains("eye")) "head_0" else if (!isBody) "body" else null
         return TapNestLayer(id = id, image = "", parentId = parent, zIndex = zIndex,
             pivotX = pivotX,
-            pivotY = when { isEar -> .28f; isWing -> .5f; isHead -> .72f; else -> .65f },
+            pivotY = when { isEar -> .28f; isWing -> .5f; isHead || isTail -> .72f; else -> .65f },
             idleSwing = isWing || isTail,
             idleAmplitude = if (isTail) 85f else if (isWing) 14f else 10f,
             idleSpeed = if (isTail) .48f else .7f,
