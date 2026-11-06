@@ -219,19 +219,23 @@ fun LayeredPetEditor(
                         TextButton(onClick = {
                             val original = rig.layers.firstOrNull { it.id == slot.id }
                             if (original != null) {
-                                val oppositeId = when {
+                                val suggestedId = when {
                                     original.id.endsWith("_left") ->
                                         original.id.removeSuffix("_left") + "_right"
                                     original.id.endsWith("_right") ->
                                         original.id.removeSuffix("_right") + "_left"
                                     else -> {
                                         val candidate = original.id + "_mirror"
-                                        if (candidate.length <= 35) candidate
+                                        if (candidate.length <= 32) candidate
                                         else "copy_" + (1..999).first { n ->
                                             rig.layers.none { it.id == "copy_$n" }
                                         }
                                     }
                                 }
+                                val oppositeId = if (suggestedId.length <= 32) suggestedId
+                                    else "copy_" + (1..999).first { n ->
+                                        rig.layers.none { it.id == "copy_$n" }
+                                    }
                                 if (rig.layers.any { it.id == oppositeId }) {
                                     error = "对应的另一侧已经存在，可直接编辑它"
                                 } else {

@@ -386,7 +386,8 @@ internal fun LayeredRigPreview(
                 node = node.parentId?.let(nodes::get)
             }
             native.save()
-            if (layer.mirrorX) {
+            val reflectionOwner = layer.frameOwner?.let(nodes::get) ?: layer
+            if (reflectionOwner.mirrorX) {
                 native.translate(rig.canvasWidth.toFloat(), 0f)
                 native.scale(-1f, 1f)
             }

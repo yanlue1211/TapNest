@@ -173,7 +173,8 @@ class LayeredPetPlayer private constructor(
             canvas.save()
             canvas.scale(sx, sy)
             // Reflect once around the whole character, including bones and alternate frames.
-            if (layer.mirrorX) {
+            val reflectionOwner = layer.frameOwner?.let(nodes::get) ?: layer
+            if (reflectionOwner.mirrorX) {
                 canvas.translate(rig.canvasWidth.toFloat(), 0f)
                 canvas.scale(-1f, 1f)
             }

@@ -18,7 +18,7 @@ object TapNestSymmetry {
         newDisplayName: String
     ): List<TapNestLayer> {
         require(source.frameOwner == null)
-        require(newId != source.id && newId.matches(Regex("[A-Za-z][A-Za-z0-9_]{0,34}")))
+        require(newId != source.id && newId.matches(Regex("[A-Za-z][A-Za-z0-9_]{0,31}")))
         val mirrored = source.copy(
             id = newId, image = "", displayName = newDisplayName,
             mirrorX = !source.mirrorX, mirroredFromId = source.id
