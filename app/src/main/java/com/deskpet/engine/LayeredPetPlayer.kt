@@ -142,8 +142,8 @@ class LayeredPetPlayer private constructor(
             if (node.idleSwing && node.bones.size < 2) {
                 val wave = sin(((now - launchedAtMs) / 1000.0 *
                     node.idleSpeed.coerceIn(0.1f, 3f) * 2 * PI)).toFloat()
-                val mirror = if (id.endsWith("_left") && id.contains("wing")) -1f else 1f
-                p = p.copy(angle = p.angle + wave * node.idleAmplitude.coerceIn(0f, 40f) * mirror)
+                val swingSign = TapNestSymmetry.idleSwingSign(node)
+                p = p.copy(angle = p.angle + wave * node.idleAmplitude.coerceIn(0f, 40f) * swingSign)
             }
             return p
         }
