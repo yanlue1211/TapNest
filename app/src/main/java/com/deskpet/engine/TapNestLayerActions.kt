@@ -6,7 +6,7 @@ package com.deskpet.engine
  * All operations are local and keep old saved rigs on their legacy path.
  */
 object TapNestLayerActions {
-    private const val PULSE_MS = 420L
+    private const val PULSE_MS = 700L
 
     fun periodicElapsed(layer: TapNestLayer, elapsedMs: Long): Long? {
         if (!layer.interactionConfigured || !layer.periodicEnabled || elapsedMs < 0L)
