@@ -99,8 +99,18 @@
         return respond(socket,"200 OK",{ok:true,token:session,version:1},origin,method);
       }
       if(!session||token!==session)return respond(socket,"401 Unauthorized",{error:"pair first"},origin,method);
-      if(method==="GET"&&path==="/events"){
-        // At-least-once delivery: keep messages until SullyOS confirms success.
+      if(method==="GET"&&(path==="/events"||path==="/watch")){
+        // /watch is a bounded long-poll. The pending network request can be
+        // completed by the native AutoJs6 process as soon as a pet text
+        // arrives, instead of waiting for a throttled background JS timer.
+        // Browser process suspension can still delay handling the response.
+        if(path==="/watch"){
+          var until=Date.now()+12000;
+          while(!ended && eventsQueue.length===0 && Date.now()<until){
+            java.lang.Thread.sleep(120);
+          }
+        }
+        // At-least-once delivery: require an explicit ack from SullyOS.
         return respond(socket,"200 OK",{ok:true,events:eventsQueue.slice(0,12)},origin,method);
       }
       if(method==="POST"&&path==="/ack"){
