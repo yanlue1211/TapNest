@@ -3,19 +3,20 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>TapNest 网页模型引擎 V0.11</title>
+<title>TapNest 网页模型引擎 V0.12</title>
 <style>
 *{box-sizing:border-box}
 html,body{margin:0;padding:0;width:100%;height:100%;background:transparent!important;overflow:hidden;font-family:system-ui,sans-serif}
 #stage{width:100%;height:100%;position:relative;overflow:hidden;touch-action:none}
 #petArea{position:absolute;left:50%;right:auto;width:min(var(--pet-size,100%),100%);height:var(--pet-size,100%);transform:translateX(-50%);top:0;bottom:auto;overflow:hidden;pointer-events:none}
 #canvas{width:100%;height:100%;display:block;pointer-events:none}
-/* V0.11: fixed-size pet at top; chat and speech grow DOWNWARD below the pet. */
-#bubble{position:absolute;z-index:4;top:var(--pet-size,100%);bottom:auto;left:4px;right:4px;width:auto;max-height:210px;overflow-y:auto;overflow-x:hidden;padding:5px 8px;border:1px solid #c9ebdb;border-radius:12px;box-shadow:0 3px 9px #278c633b;background:#fffffff0;color:#3c7463;font-weight:600;font-size:12px;line-height:1.38;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;opacity:0;transition:opacity .14s;pointer-events:auto;touch-action:pan-y;overscroll-behavior:contain}
+/* V0.12: bubble starts at the ACTUAL opaque bottom of the PNG model.
+   A permanent empty strip is BELOW the bubble; the bubble grows downward. */
+#bubble{position:absolute;z-index:4;top:var(--bubble-top,var(--pet-size,100%));bottom:auto;left:4px;right:4px;width:auto;max-height:210px;overflow-y:auto;overflow-x:hidden;padding:5px 8px;border:1px solid #c9ebdb;border-radius:12px;box-shadow:0 3px 9px #278c633b;background:#fffffff0;color:#3c7463;font-weight:600;font-size:12px;line-height:1.38;white-space:pre-wrap;overflow-wrap:anywhere;word-break:break-word;opacity:0;transition:opacity .14s;pointer-events:auto;touch-action:pan-y;overscroll-behavior:contain}
 #bubble.show{opacity:1}
 #hit{position:absolute;inset:12% 6% 10%;pointer-events:auto;touch-action:none;user-select:none;-webkit-user-select:none}
 /* Chat opens on DOUBLE TAP. Window height can grow below the unchanged pet. */
-#chat{display:none;position:absolute;top:calc(var(--pet-size,100%) + 2px);bottom:auto;left:4px;right:4px;height:45px;z-index:5;border:1px solid #b4e8d0;border-radius:13px;background:#f9fffce8;padding:5px;justify-content:center;align-items:center;flex-direction:row;gap:4px;touch-action:auto;box-shadow:0 3px 12px #245b4344}
+#chat{display:none;position:absolute;top:var(--bubble-top,var(--pet-size,100%));bottom:auto;left:4px;right:4px;height:45px;z-index:5;border:1px solid #b4e8d0;border-radius:13px;background:#f9fffce8;padding:5px;justify-content:center;align-items:center;flex-direction:row;gap:4px;touch-action:auto;box-shadow:0 3px 12px #245b4344}
 #stage.chatting #bubble{opacity:0!important}
 #chat.open{display:flex}
 #chat label{display:none}
@@ -233,6 +234,7 @@ function validate(p){
  return r;
 }
 let rig=null,assets=new Map(),names=new Map(),started=performance.now(),tapTime=-1e9,tapCount=0,activeTapExpression=0,raf=0,canvas2d=null,gl=null,prog=null;
+let draggingPet=false,pickedUpAt=0,bubbleAnchorPx=0;
 let buffPos,buffUv,ibuffer,uSize,uTex,uAlpha,aPos,aUV,viewport={w:220,h:220};
 const dpr=Math.min(2,window.devicePixelRatio||1);
 function resize(){
@@ -240,6 +242,53 @@ function resize(){
  viewport={w:width,h:height};
  canvas.width=Math.ceil(width*dpr);canvas.height=Math.ceil(height*dpr);
  if(gl)gl.viewport(0,0,canvas.width,canvas.height);
+ // The bubble anchor is measured in logical CSS pixels, not PNG image pixels.
+ if(rig&&assets.size)measureOpaqueBottom();
+}
+function measureOpaqueBottom(){
+ // One-time low-resolution alpha composite of the *rest pose*. This avoids
+ // guessed margins: imported art often has large transparent PNG padding.
+ if(!rig||!assets.size)return;
+ try{
+  const size=160, c=document.createElement("canvas");
+  c.width=c.height=size;
+  const ctx=c.getContext("2d",{willReadFrequently:true});
+  if(!ctx)return;
+  const factor=Math.min(size/rig.canvasWidth,size/rig.canvasHeight);
+  const shiftX=(size-rig.canvasWidth*factor)/2,shiftY=(size-rig.canvasHeight*factor)/2;
+  const map=new Map(rig.layers.map(l=>[l.id,l]));
+  for(const layer of rig.layers.slice().sort((a,b)=>(a.zIndex||0)-(b.zIndex||0))){
+   if(layer.frameOwner||layer.id==="pickup_pose"||(!layer.image))continue;
+   if(/^head_[1-9]/.test(layer.id)||/^face_[1-9]/.test(layer.id))continue;
+   if(layer.id==="wing_1"||layer.id==="bow_1")continue;
+   const img=assets.get(layer.id);if(!img)continue;
+   let chain=[],visited=new Set(),node=layer;
+   while(node&&!visited.has(node.id)&&chain.length<32){chain.unshift(node);visited.add(node.id);node=node.parentId?map.get(node.parentId):null}
+   let matrix=ID;
+   if(layer.mirrorX)matrix=mul(matrix,mul(T(rig.canvasWidth,0),S(-1,1)));
+   for(const part of chain){
+    const orig=assets.get(part.id),w=orig?.logicalWidth||rig.canvasWidth,h=orig?.logicalHeight||rig.canvasHeight;
+    const px=clamp(part.pivotX??.5,0,1)*w,py=clamp(part.pivotY??.5,0,1)*h;
+    const sc=clamp(part.restScale??1,.1,4);
+    matrix=mul(matrix,T((part.x||0)+px*sc,(part.y||0)+py*sc));
+    matrix=mul(matrix,S(sc,sc));matrix=mul(matrix,T(-px,-py));
+   }
+   ctx.save();ctx.translate(shiftX,shiftY);ctx.scale(factor,factor);ctx.transform(...matrix);
+   ctx.drawImage(img.image,0,0,img.logicalWidth,img.logicalHeight);ctx.restore();
+  }
+  const alpha=ctx.getImageData(0,0,size,size).data;
+  let end=-1;
+  outer:for(let y=size-1;y>=0;y--){
+   for(let x=0;x<size;x++){if(alpha[(y*size+x)*4+3]>18){end=y;break outer}}
+  }
+  // Keep a small breathing gap. Clamp only to the model bounds, never
+  // reserve a floating 70px gap above the speech bubble.
+  const fraction=end<0?1:clamp((end+2)/size,.55,1);
+  bubbleAnchorPx=Math.round(viewport.h*fraction);
+ }catch(_){
+  bubbleAnchorPx=viewport.h; // Android WebView without readable offscreen canvas
+ }
+ document.getElementById("stage").style.setProperty("--bubble-top",bubbleAnchorPx+"px");
 }
 function shader(type,src){
  const v=gl.createShader(type);gl.shaderSource(v,src);gl.compileShader(v);
@@ -282,8 +331,8 @@ function grid(N){
  }
  const answer={uv,indices:new Uint16Array(indices)};grids.set(N,answer);return answer;
 }
-function drawWebGL(l,img,matrix,t,alpha){
- const canMesh=l.idleSwing&&Array.isArray(l.bones)&&l.bones.length>=2&&l.bones.length<=8;
+function drawWebGL(l,img,matrix,t,alpha,held=false){
+ const canMesh=!held&&l.idleSwing&&Array.isArray(l.bones)&&l.bones.length>=2&&l.bones.length<=8;
  const N=canMesh?(l.swingMode==="SPRING"?32:16):1,G=grid(N),w=img.logicalWidth,h=img.logicalHeight;
  let verts=canMesh?deformedVertices(l,w,h,t,N,l.swingMode==="SPRING"?springAngles(l,t):null):new Float32Array([0,0,w,0,0,h,w,h]);
  // 1x1 grid order is (0,0),(w,0),(0,h),(w,h)
@@ -332,29 +381,48 @@ function chooseOwners(r,t,age){
 function draw(time){
  if(!rig)return;
  const elapsed=Math.max(0,time-started),age=time-tapTime;
+ const held=draggingPet,heldMs=Math.max(0,time-pickedUpAt);
+ const pickupAngle=held?8*Math.sin(heldMs/1000*2*Math.PI*1.25):0;
+ const cx=rig.canvasWidth*.5;
+ const pickupTransform=mul(mul(T(cx,0),R(pickupAngle)),T(-cx,0));
+ // Original TapNest: with "pickupArtworkEnabled", one special full-frame
+ // image replaces every individual part while moving; no wing/head animations.
+ const special=held&&rig.pickupArtworkEnabled&&assets.get("pickup_pose");
+ if(special){
+  const picture=assets.get("pickup_pose");
+  const part=rig.layers.find(l=>l.id==="pickup_pose");
+  const sc=clamp(part?.restScale??1,.3,3);
+  const matrix=mul(pickupTransform,mul(mul(T(cx,0),S(sc,sc)),T(-cx,0)));
+  gl&&gl.clearColor(0,0,0,0);gl&&gl.clear(gl.COLOR_BUFFER_BIT);
+  if(canvas2d)canvas2d.clearRect(0,0,canvas.width,canvas.height);
+  if(gl)drawWebGL(part||{id:"pickup_pose"},picture,matrix,elapsed,1,true);
+  else draw2D(part||{id:"pickup_pose"},picture,matrix,elapsed,1);
+  if(!document.hidden)raf=requestAnimationFrame(draw);
+  return;
+ }
  gl&&gl.clearColor(0,0,0,0);
  gl&&gl.clear(gl.COLOR_BUFFER_BIT);
  if(canvas2d)canvas2d.clearRect(0,0,canvas.width,canvas.height);
  const faceType=rig.headMode==="BLANK_HEAD_WITH_FACE"?"face_":"head_";
- const expression=age>=0&&age<1800?activeTapExpression:rig.blinkExpression>=0&&blink(elapsed)&&age>1400?rig.blinkExpression:0;
+ const expression=held?0:age>=0&&age<1800?activeTapExpression:rig.blinkExpression>=0&&blink(elapsed)&&age>1400?rig.blinkExpression:0;
  const face=faceType+expression;
  const byId=new Map(rig.layers.map(l=>[l.id,l]));
- const currentFrames=chooseOwners(rig,elapsed,age);
+ const currentFrames=held?new Map(rig.layers.filter(l=>!l.frameOwner).map(l=>[l.id,l.id])):chooseOwners(rig,elapsed,age);
  const poses=new Map();
  function getPose(l){
   if(poses.has(l.id))return poses.get(l.id);
-  const result=getClipPose(rig,l,elapsed,age);
+  const result=held?pose0():getClipPose(rig,l,elapsed,age);
   poses.set(l.id,result);return result;
  }
  for(let layer of rig.layers.slice().sort((a,b)=>(a.zIndex||0)-(b.zIndex||0))){
   if(layer.frameOwner)continue;
   if(layer.id==="pickup_pose")continue;
   if(layer.id==="wing_0"||layer.id==="wing_1"){
-   const wanted=(age>=0&&age<680&&assets.has("wing_1"))?"wing_1":"wing_0";
+   const wanted=(!held&&age>=0&&age<680&&assets.has("wing_1"))?"wing_1":"wing_0";
    if(layer.id!==wanted)continue;
   }
   if(layer.id==="bow_0"||layer.id==="bow_1"){
-   const wanted=(age>=0&&age<680&&assets.has("bow_1"))?"bow_1":"bow_0";
+   const wanted=(!held&&age>=0&&age<680&&assets.has("bow_1"))?"bow_1":"bow_0";
    if(layer.id!==wanted)continue;
   }
   if(layer.id.startsWith("head_")&&layer.id!=="head_blank"){
@@ -367,7 +435,7 @@ function draw(time){
   const chain=[],seen=new Set();
   let node=layer;
   while(node&&!seen.has(node.id)&&chain.length<32){chain.unshift(node);seen.add(node.id);node=node.parentId?byId.get(node.parentId):null}
-  let matrix=ID,alpha=1;
+  let matrix=held?pickupTransform:ID,alpha=1;
   if(layer.mirrorX)matrix=mul(matrix,mul(T(rig.canvasWidth,0),S(-1,1)));
   for(let l of chain){
    let p=getPose(l),q=assets.get(currentFrames.get(l.id))||assets.get(l.id),w=q?.logicalWidth||rig.canvasWidth,h=q?.logicalHeight||rig.canvasHeight;
@@ -377,7 +445,7 @@ function draw(time){
    matrix=mul(matrix,S(scale*(p.scaleX??1),scale*(p.scaleY??1)));
    matrix=mul(matrix,T(-pivotX,-pivotY));alpha*=p.alpha??1;
   }
-  if(gl)drawWebGL(layer,img,matrix,elapsed,alpha);
+  if(gl)drawWebGL(layer,img,matrix,elapsed,alpha,held);
   else draw2D(layer,img,matrix,elapsed,alpha);
  }
  if(!document.hidden)raf=requestAnimationFrame(draw);
@@ -449,11 +517,20 @@ window.PetPreview=Object.freeze({openChat,closeChat,tap,
  getState:()=>{
   const open=form.classList.contains("open");
   const visible=box.classList.contains("show")&&!open;
-  const bubbleHeight=visible?Math.ceil(box.getBoundingClientRect().height):0;
-  // Keep requested height bounded. For lengthy messages the bubble scrolls.
-  return [open?1:0,open?54:(visible?Math.max(10,Math.min(220,bubbleHeight+6)):8)].join("|");
+  const contentHeight=visible?Math.ceil(box.getBoundingClientRect().height):0;
+  // Default leaves blank space BELOW the bubble; longer messages increase
+  // only the window's downward extent, never the bubble's top coordinate.
+  const required=(open?54:(visible?Math.min(220,contentHeight+9):0));
+  const extra=Math.max(76,Math.ceil(bubbleAnchorPx+required-viewport.h+8));
+  return [open?1:0,Math.min(230,extra)].join("|");
  },
- version:"0.11"});
+ setDragging:(isDragging)=>{
+  const next=!!isDragging;
+  if(next===draggingPet)return;
+  draggingPet=next;
+  if(next){pickedUpAt=performance.now();clearTimeout(singleTapTimer);lastTap=0}
+ },
+ version:"0.12"});
 window.addEventListener("resize",resize);
 document.addEventListener("visibilitychange",()=>{if(document.hidden)cancelAnimationFrame(raf);else if(rig)raf=requestAnimationFrame(draw)});
 async function initialize(){
@@ -472,6 +549,7 @@ async function initialize(){
    pic.src=pack.assets[l.image];
   })));
   if(!assets.has("body"))throw Error("模型缺少身体图层 body.png");
+  measureOpaqueBottom();
   try{initializeGL()}catch(e){gl=null;status.textContent="WebGL 不可用，改用普通图层渲染";}
   if(gl)for(let item of assets.values())item.texture=textureFor(item.image);
   if(!gl){canvas2d=canvas.getContext("2d");canvas2d.setTransform(dpr,0,0,dpr,0,0);}
