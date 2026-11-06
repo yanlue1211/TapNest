@@ -102,6 +102,12 @@ class LayeredPetPlayer private constructor(
         val sx = width.toFloat() / rig.canvasWidth.coerceAtLeast(1)
         val sy = height.toFloat() / rig.canvasHeight.coerceAtLeast(1)
         val nodes = rig.layers.associateBy { it.id }
+        val selectedFrameByOwner = rig.layers.filter { it.frameOwner == null }
+            .associate { owner ->
+                owner.id to TapNestLayerActions.currentFrame(
+                    owner, rig.layers, now - launchedAtMs, elapsed, pictures.keys
+                )
+            }
         // Parent transformations are evaluated even when a parent image is hidden or optional.
         // Drawing uses a shared canvas coordinate system so cropped PNGs keep their natural size.
         fun poseFor(node: TapNestLayer): TapNestPose {
@@ -110,6 +116,16 @@ class LayeredPetPlayer private constructor(
             if (id == "body" && reacting) {
                 lastAction?.let {
                     p = TapNestMotion.sample(TapNestPresets.companionAction(it, id), id, actionElapsed)
+                }
+            } else if (node.frameOwner == null && node.interactionConfigured) {
+                val periodic = TapNestLayerActions.periodicElapsed(node, now - launchedAtMs)
+                if (node.tapShake && touched) {
+                    p = TapNestLayerActions.motionPose(node, elapsed)
+                } else if (petting && id.startsWith("head_")) {
+                    p = TapNestMotion.sample(TapNestPresets.petHead(id), id, petElapsed)
+                } else if (periodic != null && !petting && !touched &&
+                    node.periodicAction == TapNestPeriodicAction.SHAKE) {
+                    p = TapNestLayerActions.motionPose(node, periodic)
                 }
             } else if (id == "tail" && !node.idleSwing) {
                 p = TapNestMotion.sample(TapNestPresets.wag(id), id, now - launchedAtMs)
@@ -131,12 +147,15 @@ class LayeredPetPlayer private constructor(
         for (layer in rig.layers.sortedBy { it.zIndex }) {
             val id = layer.id
             val visible = when {
+                layer.frameOwner != null ->
+                    selectedFrameByOwner[layer.frameOwner] == id
+                selectedFrameByOwner[id] != null && selectedFrameByOwner[id] != id -> false
                 id.startsWith("head_") && id != "head_blank" ->
                     rig.headMode == TapNestHeadMode.FULL_HEAD && id == shown
                 id == "head_blank" -> rig.headMode == TapNestHeadMode.BLANK_HEAD_WITH_FACE
                 id.startsWith("face_") -> rig.headMode == TapNestHeadMode.BLANK_HEAD_WITH_FACE && id == shown
-                id.startsWith("wing_") -> id == if (touched && pictures.containsKey("wing_1")) "wing_1" else "wing_0"
-                id.startsWith("bow_") -> id == if (touched && pictures.containsKey("bow_1")) "bow_1" else "bow_0"
+                id == "wing_0" || id == "wing_1" -> id == if (touched && pictures.containsKey("wing_1")) "wing_1" else "wing_0"
+                id == "bow_0" || id == "bow_1" -> id == if (touched && pictures.containsKey("bow_1")) "bow_1" else "bow_0"
                 else -> true
             }
             if (!visible) continue
