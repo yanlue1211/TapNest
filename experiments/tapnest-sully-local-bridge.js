@@ -43,14 +43,15 @@
     out.flush();
   }
   function readLine(input){
-    var bytes=[];
-    while(bytes.length<4096){
-      var n=input.read();
-      if(n<0)break;
-      if(n===10)break;
-      if(n!==13)bytes.push(n);
-    }
-    return String(new java.lang.String(Java.to(bytes,"byte[]"),"UTF-8"));
+    var bytes=new java.io.ByteArrayOutputStream();
+    try{
+      while(bytes.size()<4096){
+        var n=input.read();
+        if(n<0||n===10)break;
+        if(n!==13)bytes.write(n);
+      }
+      return bytes.toString("UTF-8");
+    }finally{bytes.close()}
   }
   function parseBody(input,bytes){
     var buf=java.lang.reflect.Array.newInstance(java.lang.Byte.TYPE,bytes),at=0;
