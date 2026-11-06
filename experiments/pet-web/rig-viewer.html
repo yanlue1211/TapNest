@@ -16,13 +16,13 @@ html,body{margin:0;padding:0;width:100%;height:100%;background:transparent!impor
 #hit{position:absolute;inset:12% 6% 10%;pointer-events:auto;touch-action:none;user-select:none;-webkit-user-select:none}
 /* This card stays inside the existing window and covers ONLY the lower body.
    It must never extend beyond the transparent system overlay bounds. */
-#chat{display:none;position:absolute;top:auto;bottom:4px;left:4px;right:4px;height:78px;z-index:5;border:1px solid #b4e8d0;border-radius:13px;background:#f9fffce8;padding:4px 6px;justify-content:center;flex-direction:column;gap:3px;touch-action:auto;box-shadow:0 3px 12px #245b4344}
+#chat{display:none;position:absolute;top:auto;bottom:4px;left:4px;right:4px;height:46px;z-index:5;border:1px solid #b4e8d0;border-radius:13px;background:#f9fffce8;padding:5px;justify-content:center;align-items:center;flex-direction:row;gap:4px;touch-action:auto;box-shadow:0 3px 12px #245b4344}
 #stage.chatting #bubble{opacity:0!important}
 #chat.open{display:flex}
-#chat label{font-size:11px;color:#35836b;text-align:center;font-weight:bold;line-height:13px}
-#chat input{height:28px;min-height:28px;border:1px solid #b7ddc6;border-radius:9px;padding:6px 8px;min-width:0;font-size:15px;background:white;color:#205442;outline-color:#4cc69b}
-#actions{display:flex;gap:6px}
-#actions button{flex:1;min-height:24px;border:0;border-radius:9px;background:#6bd9b0;color:#145944;font-weight:bold}
+#chat label{display:none}
+#chat input{flex:1;min-width:0;width:0;height:32px;min-height:32px;border:1px solid #b7ddc6;border-radius:9px;padding:4px 5px;font-size:12px;background:white;color:#205442;outline-color:#4cc69b}
+#actions{display:flex;flex:0 0 auto;gap:3px}
+#actions button{flex:0 0 28px;width:28px;min-height:32px;padding:0;border:0;border-radius:9px;background:#6bd9b0;color:#145944;font-size:11px;font-weight:bold}
 #actions button:last-child{background:#e3f0e9}
 #status{position:absolute;bottom:5px;left:5px;right:5px;text-align:center;white-space:normal;font-size:10px;color:#7b7878;pointer-events:none}
 #demo{position:absolute;inset:17%;pointer-events:none;display:grid;place-items:center;font-size:64px;filter:drop-shadow(0 8px 8px #4a987355);animation:idle 3s ease-in-out infinite}
