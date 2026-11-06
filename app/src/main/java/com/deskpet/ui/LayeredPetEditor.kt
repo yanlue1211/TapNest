@@ -46,11 +46,11 @@ fun LayeredPetEditor(
     val scope = rememberCoroutineScope()
     val templates = remember { store.savedTemplates() }
     val originalRig = remember(editingPet?.id) {
-        editingPet?.let(store::loadRig) ?: TapNestTemplates.fairy()
+        editingPet?.let(store::loadRig) ?: TapNestTemplates.manual()
     }
     var rig by remember(editingPet?.id) { mutableStateOf(originalRig) }
     var templateChoice by remember(editingPet?.id) {
-        mutableStateOf(if (editingPet == null) TapNestTemplates.FAIRY else originalRig.templateId)
+        mutableStateOf(if (editingPet == null) TapNestTemplates.MANUAL else originalRig.templateId)
     }
     var name by remember(editingPet?.id) { mutableStateOf(editingPet?.displayName ?: "我的小伙伴") }
     var saveTemplate by remember(editingPet?.id) { mutableStateOf(editingPet == null) }
@@ -101,13 +101,8 @@ fun LayeredPetEditor(
     fun select(key: String) {
         templateChoice = key
         rig = when (key) {
-            TapNestTemplates.FAIRY -> TapNestTemplates.fairy()
-            TapNestTemplates.MANUAL -> TapNestRig(
-                canvasWidth = 512, canvasHeight = 512,
-                templateId = TapNestTemplates.MANUAL,
-                layers = listOf(TapNestLayer("body", "", zIndex = 10))
-            )
-            else -> templates.firstOrNull { it.id == key }?.rig ?: TapNestTemplates.fairy()
+            TapNestTemplates.MANUAL -> TapNestTemplates.manual()
+            else -> templates.firstOrNull { it.id == key }?.rig ?: TapNestTemplates.manual()
         }
         images.clear()
         activeLayer = rig.layers.firstOrNull()?.id ?: "body"
@@ -128,18 +123,17 @@ fun LayeredPetEditor(
             Text("选择创建方式", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Text("可直接套用模板，也可以完全手动制作；只读取你从手机选择的 PNG。",
                 style = MaterialTheme.typography.bodySmall)
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(selected = templateChoice == TapNestTemplates.FAIRY,
-                    onClick = { select(TapNestTemplates.FAIRY) }, label = { Text("🦋 蝴蝶结小精灵") })
-                FilterChip(selected = templateChoice == TapNestTemplates.MANUAL,
-                    onClick = { select(TapNestTemplates.MANUAL) }, label = { Text("🦴 完全手动") })
-            }
+            FilterChip(
+                selected = templateChoice == TapNestTemplates.MANUAL,
+                onClick = { select(TapNestTemplates.MANUAL) },
+                label = { Text("🌱 通用空白模板 · 可删改部位") }
+            )
             for (template in templates) {
                 FilterChip(selected = templateChoice == template.id,
                     onClick = { select(template.id) },
                     label = { Text("我的模板 · ${template.name}") })
             }
-            if (rig.templateId != TapNestTemplates.MANUAL) {
+            if (rig.layers.any { it.id.startsWith("head_") || it.id.startsWith("face_") }) {
                 Text("头部展示方式", style = MaterialTheme.typography.titleSmall)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(
