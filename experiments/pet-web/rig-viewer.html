@@ -451,7 +451,7 @@ window.PetPreview=Object.freeze({openChat,closeChat,tap,
   const visible=box.classList.contains("show")&&!open;
   const bubbleHeight=visible?Math.ceil(box.getBoundingClientRect().height):0;
   // Keep requested height bounded. For lengthy messages the bubble scrolls.
-  return [open?1:0,visible?Math.max(10,Math.min(220,bubbleHeight+6)):8].join("|");
+  return [open?1:0,open?54:(visible?Math.max(10,Math.min(220,bubbleHeight+6)):8)].join("|");
  },
  version:"0.11"});
 window.addEventListener("resize",resize);
