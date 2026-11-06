@@ -185,18 +185,22 @@ class LayeredPetPlayer private constructor(
             }
             paint.alpha = (poseFor(layer).alpha.coerceIn(0f, 1f) * 255).toInt()
             val source = sourceSizes[id] ?: Pair(picture.width, picture.height)
-            val spring = layer.idleSwing && layer.bones.size >= 2 &&
-                layer.swingMode == TapNestSwingMode.SPRING
+            // Alternate frames inherit their default owner's bone skinning
+            // as well as the parent transform; changing a frame must not freeze
+            // the wing/tail while its idle spring continues to run.
+            val skinLayer = layer.frameOwner?.let(nodes::get) ?: layer
+            val spring = skinLayer.idleSwing && skinLayer.bones.size >= 2 &&
+                skinLayer.swingMode == TapNestSwingMode.SPRING
             val mesh = if (spring) TapNestFlexibleMesh.SPRING_GRID else TapNestFlexibleMesh.GRID
             val jointAngles = if (spring) {
-                springChains.getOrPut(layer.id) { TapNestSpringChain() }.step(layer, now - launchedAtMs)
+                springChains.getOrPut(skinLayer.id) { TapNestSpringChain() }.step(skinLayer, now - launchedAtMs)
             } else null
-            if (spring && layer.shapePreservation >= 0.999f &&
-                layer.bones.all { it.swingDirection == TapNestBoneSwingDirection.AUTO } &&
+            if (spring && skinLayer.shapePreservation >= 0.999f &&
+                skinLayer.bones.all { it.swingDirection == TapNestBoneSwingDirection.AUTO } &&
                 jointAngles != null && jointAngles.isNotEmpty()) {
                 // True rigid mode: draw the intact bitmap instead of running it
                 // through mesh cells, preserving heavy artwork outlines exactly.
-                val root = layer.bones.first()
+                val root = skinLayer.bones.first()
                 canvas.save()
                 canvas.rotate(jointAngles[0], root.x.coerceIn(0f, 1f) * source.first,
                     root.y.coerceIn(0f, 1f) * source.second)
@@ -205,7 +209,7 @@ class LayeredPetPlayer private constructor(
                 canvas.restore()
             } else {
                 val flexible = TapNestFlexibleMesh.vertices(
-                    layer, source.first, source.second, now - launchedAtMs, mesh, jointAngles
+                    skinLayer, source.first, source.second, now - launchedAtMs, mesh, jointAngles
                 )
                 if (flexible != null) {
                     canvas.drawBitmapMesh(picture, mesh, mesh, flexible, 0, null, 0, paint)
