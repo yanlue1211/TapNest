@@ -72,6 +72,9 @@ data class TapNestLayer(
     val swingRange: TapNestSwingRange = TapNestSwingRange.CENTERED,
     /** Non-null for a nested alternative image frame; it is not a separate pet limb. */
     val frameOwner: String? = null,
+    val frameIndex: Int = 0,
+    /** False on old imported rigs: preserve legacy reaction animations. */
+    val interactionConfigured: Boolean = false,
     /** Motion settings are edited on the owner/default-frame screen. */
     val tapShake: Boolean = false,
     val tapMotion: TapNestPartMotion = TapNestPartMotion.NOD,
