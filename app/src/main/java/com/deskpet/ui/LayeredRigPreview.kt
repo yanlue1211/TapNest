@@ -342,7 +342,8 @@ internal fun LayeredRigPreview(
                     layer.periodicAction == TapNestPeriodicAction.SHAKE) {
                     pose = TapNestLayerActions.motionPose(layer, periodic)
                 }
-            } else if (id == "tail" && mode == RigPreviewMode.TEST && layer?.idleSwing != true) {
+            } else if (id == "tail" && mode == RigPreviewMode.TEST &&
+                layer?.idleSwing != true && layer?.interactionConfigured != true) {
                 pose = TapNestMotion.sample(TapNestPresets.wag(id), id, phase)
             } else if (id.startsWith("head_") || id == "head_blank") {
                 if (petting) pose = TapNestMotion.sample(TapNestPresets.petHead(id), id, petElapsed)
@@ -355,7 +356,8 @@ internal fun LayeredRigPreview(
             if (mode == RigPreviewMode.TEST && layer?.idleSwing == true && layer.bones.size < 2) {
                 val angle = sin((phase / 1000.0 * layer.idleSpeed.coerceIn(0.1f, 3f) *
                     2 * PI)).toFloat() * layer.idleAmplitude.coerceIn(0f, 40f)
-                pose = pose.copy(angle = pose.angle + angle)
+                val mirror = if (id.endsWith("_left") && id.contains("wing")) -1f else 1f
+                pose = pose.copy(angle = pose.angle + angle * mirror)
             }
             return pose
         }
