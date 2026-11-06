@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>TapNest 网页模型引擎 V0.13 · SullyOS 本地桥接</title>
+<title>TapNest 网页模型引擎 V0.15 · 桌宠消息排队显示</title>
 <style>
 *{box-sizing:border-box}
 html,body{margin:0;padding:0;width:100%;height:100%;background:transparent!important;overflow:hidden;font-family:system-ui,sans-serif}
@@ -450,24 +450,66 @@ function draw(time){
  }
  if(!document.hidden)raf=requestAnimationFrame(draw);
 }
-function talk(message){
- // Bubble width is fixed to the window, but its height grows BELOW the pet.
- // Native overlay polls the rendered bubble height and adjusts only the window.
+function talk(message, holdMs){
+ // Bubble remains pinned to the model's visible bottom, grows only DOWN.
  clearTimeout(talk.timer);
  const content=String(message);
  box.textContent=content;
  box.scrollTop=0;
  box.classList.add("show");
- const readingMs=Math.min(18000,Math.max(3500,2000+Array.from(content).length*175));
- talk.timer=setTimeout(()=>box.classList.remove("show"),readingMs);
+ const ms=Number.isFinite(holdMs)?holdMs:Math.min(9000,Math.max(3300,1700+Array.from(content).length*160));
+ talk.timer=setTimeout(()=>box.classList.remove("show"),ms);
+}
+// The original bridge delivered every Char bubble immediately, replacing the
+// previous one before it could be read. Buffer and pace ONLY real Char messages.
+const charSpeechQueue=[];
+let activeCharSpeech="",charSpeechTimer=0,charSpeechGapTimer=0;
+function nextCharSpeech(){
+ if(activeCharSpeech||form.classList.contains("open")||charSpeechQueue.length===0)return;
+ const content=charSpeechQueue.shift();
+ activeCharSpeech=content;
+ const length=Array.from(content).length;
+ const readMs=Math.min(14000,Math.max(5000,2600+length*165));
+ talk(content,readMs);
+ clearTimeout(charSpeechTimer);
+ charSpeechTimer=setTimeout(()=>{
+  charSpeechTimer=0;
+  activeCharSpeech="";
+  box.classList.remove("show");
+  clearTimeout(charSpeechGapTimer);
+  charSpeechGapTimer=setTimeout(()=>{charSpeechGapTimer=0;nextCharSpeech()},550);
+ },readMs);
+}
+function queueCharSpeech(text){
+ const content=String(text||"").trim();
+ if(!content)return;
+ // Prevent unbounded memory growth if a character writes lots of small bubbles.
+ if(charSpeechQueue.length>=80){
+  charSpeechQueue[charSpeechQueue.length-1]+="\n"+content;
+ }else{
+  charSpeechQueue.push(content.slice(0,1000));
+ }
+ nextCharSpeech();
+}
+function pauseCharSpeechForInput(){
+ if(activeCharSpeech){
+  clearTimeout(charSpeechTimer);
+  charSpeechTimer=0;
+  charSpeechQueue.unshift(activeCharSpeech);
+  activeCharSpeech="";
+ }
+ clearTimeout(charSpeechGapTimer);
+ charSpeechGapTimer=0;
 }
 function tap(){
  tapTime=performance.now();tapCount++;
  activeTapExpression=rig&&Number.isInteger(rig.tapExpression)&&rig.tapExpression>=0&&rig.tapExpression<=3?rig.tapExpression:((tapCount-1)%3)+1;
- talk(["嘿嘿！","我在呢～","被你戳到啦！","好痒～"][tapCount%4]);
+ // A tap still plays the original animation; never cover a real Char reply.
+ if(!activeCharSpeech&&!charSpeechQueue.length)talk(["嘿嘿！","我在呢～","被你戳到啦！","好痒～"][tapCount%4]);
 }
 function openChat(){
  clearTimeout(singleTapTimer);
+ pauseCharSpeechForInput();
  clearTimeout(talk.timer);
  box.classList.remove("show");
  form.classList.add("open");
@@ -479,6 +521,7 @@ function closeChat(){
  form.classList.remove("open");
  document.getElementById("stage").classList.remove("chatting");
  input.blur();
+ if(charSpeechQueue.length){clearTimeout(charSpeechGapTimer);charSpeechGapTimer=setTimeout(()=>{charSpeechGapTimer=0;nextCharSpeech()},350)}
 }
 let pressed=false,moved=false,x=0,y=0,pressAt=0,lastTap=0,lastTapX=0,lastTapY=0,singleTapTimer=0,suppressTapUntil=0;
 hit.addEventListener("pointerdown",e=>{
@@ -535,7 +578,7 @@ window.PetPreview=Object.freeze({openChat,closeChat,tap,
   return [open?1:0,Math.min(230,extra)].join("|");
  },
  popOutgoing:()=>outgoingTexts.shift()||"",
- speak:(text)=>{ if(typeof text==="string"&&text.trim())talk(text.slice(0,1000)); },
+ speak:(text)=>{ if(typeof text==="string"&&text.trim())queueCharSpeech(text.slice(0,1000)); },
  setDragging:(isDragging)=>{
   const next=!!isDragging;
   if(next===draggingPet)return;
@@ -543,7 +586,7 @@ window.PetPreview=Object.freeze({openChat,closeChat,tap,
   if(next){pickedUpAt=performance.now();clearTimeout(singleTapTimer);lastTap=0;}
   else suppressTapUntil=performance.now()+220;
  },
- version:"0.13"});
+ version:"0.15"});
 window.addEventListener("resize",resize);
 document.addEventListener("visibilitychange",()=>{if(document.hidden)cancelAnimationFrame(raf);else if(rig)raf=requestAnimationFrame(draw)});
 async function initialize(){
