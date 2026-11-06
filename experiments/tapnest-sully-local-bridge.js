@@ -100,8 +100,13 @@
       }
       if(!session||token!==session)return respond(socket,"401 Unauthorized",{error:"pair first"},origin,method);
       if(method==="GET"&&path==="/events"){
-        var batch=eventsQueue.splice(0,12);
-        return respond(socket,"200 OK",{ok:true,events:batch},origin,method);
+        // At-least-once delivery: keep messages until SullyOS confirms success.
+        return respond(socket,"200 OK",{ok:true,events:eventsQueue.slice(0,12)},origin,method);
+      }
+      if(method==="POST"&&path==="/ack"){
+        var ids=Array.isArray(obj.ids)?obj.ids.filter(x=>typeof x==="string").slice(0,12):[];
+        eventsQueue=eventsQueue.filter(x=>ids.indexOf(x.id)<0);
+        return respond(socket,"200 OK",{ok:true},origin,method);
       }
       if(method==="POST"&&path==="/speech"){
         var spoken=String(obj.text||"").trim().slice(0,1000);
