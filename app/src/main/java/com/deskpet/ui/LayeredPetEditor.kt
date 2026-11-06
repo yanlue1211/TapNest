@@ -60,6 +60,12 @@ fun LayeredPetEditor(
     val editorRequester = remember { BringIntoViewRequester() }
     var previewMode by remember(editingPet?.id) { mutableStateOf(RigPreviewMode.POSITION) }
     var newLayerName by remember { mutableStateOf("") }
+    var symmetricNewLayer by remember { mutableStateOf(false) }
+    var showSettings by remember(editingPet?.id) { mutableStateOf(false) }
+    var showOtherParts by remember { mutableStateOf(true) }
+    var showBonesHelp by remember { mutableStateOf(false) }
+    val pageScroll = rememberScrollState()
+    LaunchedEffect(showSettings, activeLayer) { pageScroll.scrollTo(0) }
     var error by remember { mutableStateOf<String?>(null) }
     val images = remember(editingPet?.id) {
         mutableStateMapOf<String, Uri>().apply {
@@ -107,19 +113,24 @@ fun LayeredPetEditor(
         images.clear()
         activeLayer = rig.layers.firstOrNull()?.id ?: "body"
         previewMode = RigPreviewMode.POSITION
+        showSettings = false
         error = null
     }
 
-    BackHandler(!busy) { onBack() }
+    BackHandler(!busy) { if (showSettings) showSettings = false else onBack() }
     Scaffold(topBar = {
-        TopAppBar(title = { Text(if (editingPet == null) "🦋 制作桌面伙伴" else "🦴 重新编辑 · ${editingPet.displayName}") },
-            navigationIcon = { TextButton(onClick = onBack, enabled = !busy) { Text("返回") } })
+        TopAppBar(title = { Text(if (showSettings) "⚙️ 当前部位 · 动作帧" else
+                if (editingPet == null) "🌱 制作桌面伙伴" else "🦴 重新编辑 · ${editingPet.displayName}") },
+            navigationIcon = { TextButton(onClick = {
+                if (showSettings) showSettings = false else onBack()
+            }, enabled = !busy) { Text(if (showSettings) "返回素材" else "返回") } })
     }) { padding ->
         Column(
             Modifier.fillMaxSize().padding(padding)
-                .verticalScroll(rememberScrollState()).padding(16.dp),
+                .verticalScroll(pageScroll).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            if (!showSettings) {
             Text("选择创建方式", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Text("可直接套用模板，也可以完全手动制作；只读取你从手机选择的 PNG。",
                 style = MaterialTheme.typography.bodySmall)
@@ -203,6 +214,9 @@ fun LayeredPetEditor(
                     }) { Text("＋添加") }
                 }
             }
+            } // Basic default-frame upload page
+            if (showSettings) {
+            TextButton(onClick = { showSettings = false }) { Text("← 返回默认帧素材列表") }
             HorizontalDivider()
             Text("🦴 当前部位绑骨编辑", modifier = Modifier.bringIntoViewRequester(editorRequester),
                 style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
@@ -507,8 +521,11 @@ fun LayeredPetEditor(
                 }
 
             }
-            if (rig.templateId != TapNestTemplates.MANUAL ||
-                rig.layers.any { it.id.startsWith("head_") || it.id.startsWith("face_") }) {
+            } // End per-part settings page
+            if (showSettings && (activeLayer.startsWith("head_") ||
+                activeLayer.startsWith("face_") || activeLayer == "head_blank") &&
+                (rig.templateId != TapNestTemplates.MANUAL ||
+                rig.layers.any { it.id.startsWith("head_") || it.id.startsWith("face_") })) {
                 Text("🎭 表情与情感绑定", style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold)
                 Text("好感度下降会自动使用「不开心」或「生气」表情；点击互动仍可临时换表情。",
@@ -545,8 +562,9 @@ fun LayeredPetEditor(
                     }
                 }
             }
-            if (rig.layers.any { it.id.startsWith("head_") || it.id.startsWith("face_") }) {
-                Text("👀 静置眨眼 / 被戳表情", style = MaterialTheme.typography.titleMedium,
+            if (showSettings && rig.templateId != TapNestTemplates.MANUAL &&
+                (activeLayer.startsWith("head_") || activeLayer.startsWith("face_"))) {
+                Text("👀 旧版头部眨眼 / 被戳表情", style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold)
                 Text("从现有的 4 张头部表情（或独立脸图）里指定。眨眼仅在静置时偶尔短暂出现；被戳表情优先，不会被眨眼盖掉。",
                     style = MaterialTheme.typography.bodySmall)
@@ -581,9 +599,10 @@ fun LayeredPetEditor(
                 Text("请确认指定的表情帧已导入闭眼或戳戳对应图片；未导入时仍会回退到默认脸。",
                     style = MaterialTheme.typography.bodySmall)
             }
-            Text("表情与互动可以分别指定；眨眼只在没有戳动、摸头等动作时触发。",
+            if (showSettings) Text("所有部件的静置、点触和定时动作在各自默认帧内分别设置。",
                 style = MaterialTheme.typography.bodySmall)
-            if (rig.templateId != TapNestTemplates.MANUAL) {
+            if (showSettings && (activeLayer.startsWith("head") || activeLayer.startsWith("face")) &&
+                rig.templateId != TapNestTemplates.MANUAL) {
                 var pettingMenu by remember { mutableStateOf(false) }
                 Box {
                     OutlinedButton(onClick = { pettingMenu = true }) {
@@ -602,6 +621,7 @@ fun LayeredPetEditor(
                     }
                 }
             }
+            if (!showSettings) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("把本次绑骨布局存为以后可复用的模板", Modifier.weight(1f))
                 Switch(checked = saveTemplate, onCheckedChange = { saveTemplate = it })
@@ -633,6 +653,7 @@ fun LayeredPetEditor(
                 Text(if (busy) "正在保存…" else if (editingPet != null) "保存当前角色的修改"
                     else "创建桌宠并保存模板")
             }
+            } // Base page save button
             Spacer(Modifier.height(18.dp))
         }
     }
