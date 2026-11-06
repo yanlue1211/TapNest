@@ -1,0 +1,396 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<title>TapNest 网页模型引擎 V0.5</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;width:100%;height:100%;background:transparent!important;overflow:hidden;font-family:system-ui,sans-serif}
+#stage{width:100%;height:100%;position:relative;overflow:hidden;touch-action:none}
+#canvas{width:100%;height:100%;display:block;pointer-events:none}
+#bubble{position:absolute;top:2px;left:50%;max-width:96%;transform:translateX(-50%);padding:5px 10px;border:1px solid #c9ebdb;border-radius:12px;box-shadow:0 4px 13px #278c633b;background:#fffffff0;color:#3c7463;font-weight:600;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:0;transition:opacity .14s;pointer-events:none}
+#bubble.show{opacity:1}
+#hit{position:absolute;inset:17% 8% 13%;touch-action:none;user-select:none;-webkit-user-select:none}
+#chat{display:none;position:absolute;inset:0;z-index:5;border:1px solid #b4e8d0;border-radius:15px;background:#f9fffcf2;padding:10px;justify-content:center;flex-direction:column;gap:8px}
+#chat.open{display:flex}
+#chat label{font-size:13px;color:#35836b;text-align:center;font-weight:bold}
+#chat input{height:39px;border:1px solid #b7ddc6;border-radius:9px;padding:6px 8px;min-width:0;font-size:15px;background:white;color:#205442;outline-color:#4cc69b}
+#actions{display:flex;gap:6px}
+#actions button{flex:1;min-height:31px;border:0;border-radius:9px;background:#6bd9b0;color:#145944;font-weight:bold}
+#actions button:last-child{background:#e3f0e9}
+#status{position:absolute;bottom:5px;left:5px;right:5px;text-align:center;white-space:normal;font-size:10px;color:#7b7878;pointer-events:none}
+#demo{position:absolute;inset:17%;pointer-events:none;display:grid;place-items:center;font-size:64px;filter:drop-shadow(0 8px 8px #4a987355);animation:idle 3s ease-in-out infinite}
+@keyframes idle{50%{transform:translateY(4px) rotate(2deg)}}
+@media(prefers-reduced-motion:reduce){#demo{animation:none}}
+</style>
+</head>
+<body>
+<div id="stage">
+<canvas id="canvas"></canvas>
+<div id="demo">🐶</div>
+<div id="hit" aria-label="桌宠，点击互动，长按聊天"></div>
+<div id="bubble" aria-live="polite"></div>
+<form id="chat"><label>🐾 想对我说什么？</label><input id="message" maxlength="200" placeholder="和小狗说句话……"><div id="actions"><button type="submit">发送</button><button type="button" id="cancel">取消</button></div></form>
+<div id="status"></div>
+</div>
+<script>
+(()=>{
+"use strict";
+// Model payload is supplied by the AutoJs6 script via an inline JSON variable
+// inserted before </head>. Nothing is fetched or uploaded by this page.
+const pack=window.TAPNEST_PACK||null;
+const canvas=document.getElementById("canvas"),box=document.getElementById("bubble"),form=document.getElementById("chat");
+const hit=document.getElementById("hit"),input=document.getElementById("message"),status=document.getElementById("status");
+const demo=document.getElementById("demo");
+const clamp=(v,a,b)=>Math.min(b,Math.max(a,Number(v)||0));
+const rad=x=>x*Math.PI/180;
+const lerp=(a,b,t)=>a+(b-a)*t;
+const lerpAngle=(a,b,t)=>a+Math.atan2(Math.sin(b-a),Math.cos(b-a))*t;
+const ID=[1,0,0,1,0,0];
+function mul(A,B){return [
+ A[0]*B[0]+A[2]*B[1],A[1]*B[0]+A[3]*B[1],
+ A[0]*B[2]+A[2]*B[3],A[1]*B[2]+A[3]*B[3],
+ A[0]*B[4]+A[2]*B[5]+A[4],A[1]*B[4]+A[3]*B[5]+A[5]
+]}
+function T(x,y){return [1,0,0,1,x,y]}
+function S(x,y){return [x,0,0,y,0,0]}
+function R(deg){let a=rad(deg);return [Math.cos(a),Math.sin(a),-Math.sin(a),Math.cos(a),0,0]}
+function point(M,x,y){return [M[0]*x+M[2]*y+M[4],M[1]*x+M[3]*y+M[5]]}
+const pose0=()=>({x:0,y:0,angle:0,scaleX:1,scaleY:1,alpha:1});
+function sample(clip,id,age){
+ const track=(clip.tracks||[]).find(t=>t.layerId===id);if(!track||!track.frames?.length)return pose0();
+ const frames=track.frames.slice().sort((a,b)=>a.atMs-b.atMs),dur=Math.max(0,clip.durationMs||0);
+ const t=clip.loop&&dur>0?((age%dur)+dur)%dur:clamp(age,0,dur);
+ if(t<=frames[0].atMs)return {...pose0(),...frames[0].pose};
+ if(t>=frames[frames.length-1].atMs)return {...pose0(),...frames[frames.length-1].pose};
+ const i=frames.findIndex((f,j)=>j<frames.length-1&&f.atMs<=t&&frames[j+1].atMs>t);
+ const a=frames[i],b=frames[i+1],span=b.atMs-a.atMs;
+ let u=span>0?clamp((t-a.atMs)/span,0,1):0;
+ if(a.easeToNext==="HOLD")u=0;
+ else if(a.easeToNext!=="LINEAR")u=u*u*(3-2*u);
+ const ap={...pose0(),...a.pose},bp={...pose0(),...b.pose},out={};
+ for(let k of ["x","y","angle","scaleX","scaleY","alpha"])out[k]=lerp(ap[k],bp[k],u);
+ return out;
+}
+function blink(t){
+ const n=Math.floor(t/5200);
+ const scramble=(((Math.imul(n,1103515245)+12345)|0)^Math.imul(n+17,2654435761))>>>0;
+ const start=n*5200+800+(scramble&0x7fffffff)%2200;
+ return (t>=start&&t<start+150)||(n%5===3&&t>=start+215&&t<start+330);
+}
+function segmentAngles(l,t){
+ const b=l.bones||[],n=b.length-1,amp=clamp(l.idleAmplitude??10,0,40),speed=clamp(l.idleSpeed??.7,.1,3);
+ const lag=clamp(l.idleLagSeconds??.18,0,.45);
+ return Array.from({length:n},(_,i)=>{
+ const weight=n===1?1:i===0?.62:.38/(n-1);
+ return amp*weight*Math.sin(2*Math.PI*speed*(Math.max(0,t)/1000-i*lag));
+ });
+}
+const springs=new Map();
+function springAngles(l,elapsed){
+ const n=l.bones.length-1,now=Math.max(0,elapsed),speed=clamp(l.idleSpeed??.7,.1,3);
+ const amp=clamp(l.idleAmplitude??10,0,85),soft=clamp(l.springSoftness??.72,0,1),damp=clamp(l.springDamping??.4,.1,1.3);
+ const omega=2*Math.PI*(3.3-2.6*soft),driveOmega=2*Math.PI*speed;
+ const first=l.bones[0],last=l.bones[l.bones.length-1],dx=last.x-first.x,dy=last.y-first.y;
+ const sign=((dx>=0?1:-1)*(dy<=0?1:-1))>=0?1:-1;
+ const one=l.swingRange==="OUTWARD_ONLY";
+ const driver=t=>one?sign*amp*.5*(1-Math.cos(driveOmega*t/1000)):amp*Math.sin(driveOmega*t/1000);
+ let state=springs.get(l.id);
+ if(!state||state.count!==n||now<state.t||now-state.t>600){
+  state={count:n,t:now,a:Array(n).fill(driver(now)),v:Array(n).fill(0)};
+  springs.set(l.id,state);
+ }else if(now>state.t){
+  const steps=Math.max(1,Math.min(80,Math.ceil((now-state.t)/8)));
+  const dt=(now-state.t)/steps/1000,old=state.t;
+  for(let s=1;s<=steps;s++){
+   state.a[0]=driver(old+(now-old)*s/steps);
+   for(let i=1;i<n;i++){
+    const acc=omega*omega*(state.a[i-1]-state.a[i])-2*damp*omega*state.v[i];
+    let v=clamp(state.v[i]+acc*dt,-550,550),a=clamp(state.a[i]+v*dt,-100,100);
+    if(one&&a*sign<0){a=0;if(v*sign<0)v=0}
+    state.a[i]=a;state.v[i]=v;
+   }
+  }
+  state.t=now;
+ }
+ return state.a.map((v,i)=>i?v-state.a[i-1]:v);
+}
+function rot(x,y,a){return [x*Math.cos(a)-y*Math.sin(a),x*Math.sin(a)+y*Math.cos(a)]}
+function deformedVertices(layer,w,h,t,N,angles){
+ const bones=layer.bones||[],n=bones.length;if(n<2)return null;
+ const base=bones.map(b=>[clamp(b.x,0,1)*w,clamp(b.y,0,1)*h]);
+ const transformed=[base[0].slice()],a=angles||segmentAngles(layer,t);
+ let sum=0;
+ for(let i=1;i<n;i++){
+  sum+=rad(a[i-1]);
+  const diff=[base[i][0]-base[i-1][0],base[i][1]-base[i-1][1]],d=bones[i].swingDirection||"AUTO";
+  const dir=i===1&&d==="AUTO"?(bones[0].swingDirection||"AUTO"):d;
+  const offset=Math.hypot(...diff)*Math.sin(sum);
+  let q=rot(...diff,dir==="ROTATION_REVERSE"?-sum:sum);
+  if(dir==="FIXED")q=diff;
+  else if(dir==="HORIZONTAL")q=[diff[0]+offset,diff[1]];
+  else if(dir==="HORIZONTAL_REVERSE")q=[diff[0]-offset,diff[1]];
+  else if(dir==="VERTICAL")q=[diff[0],diff[1]+offset];
+  else if(dir==="VERTICAL_REVERSE")q=[diff[0],diff[1]-offset];
+  transformed.push([transformed[i-1][0]+q[0],transformed[i-1][1]+q[1]]);
+ }
+ const anglesRot=base.slice(0,-1).map((b,i)=>Math.atan2(transformed[i+1][1]-transformed[i][1],transformed[i+1][0]-transformed[i][0])-Math.atan2(base[i+1][1]-b[1],base[i+1][0]-b[0]));
+ const joint=base.map((_,i)=>i===0?anglesRot[0]:i===n-1?anglesRot[n-2]:lerpAngle(anglesRot[i-1],anglesRot[i],.5));
+ const preserve=layer.swingMode==="SPRING"?clamp(layer.shapePreservation||0,0,1):0;
+ const linear=bones.some(b=>/^(HORIZONTAL|VERTICAL)/.test(b.swingDirection||""));
+ const out=new Float32Array((N+1)*(N+1)*2);
+ let off=0;
+ for(let row=0;row<=N;row++)for(let col=0;col<=N;col++){
+  const vx=col*w/N,vy=row*h/N;let best=Infinity,idx=0,progress=0;
+  for(let j=0;j<n-1;j++){
+   const B=base[j],C=base[j+1],dx=C[0]-B[0],dy=C[1]-B[1],len=dx*dx+dy*dy;
+   const u=len<.0001?0:clamp(((vx-B[0])*dx+(vy-B[1])*dy)/len,0,1);
+   const dd=(vx-B[0]-u*dx)**2+(vy-B[1]-u*dy)**2;
+   if(dd<best){best=dd;idx=j;progress=u;}
+  }
+  const b=base[idx],c=base[idx+1],p=transformed[idx],q=transformed[idx+1];
+  const ox=lerp(b[0],c[0],progress),oy=lerp(b[1],c[1],progress);
+  const nx=lerp(p[0],q[0],progress),ny=lerp(p[1],q[1],progress);
+  const smooth=progress*progress*(3-2*progress);
+  const angle=layer.swingMode==="SPRING"?lerpAngle(joint[idx],joint[idx+1],smooth):anglesRot[idx];
+  const s=rot(vx-ox,vy-oy,angle),soft=[nx+s[0],ny+s[1]];
+  const rigid=linear?soft:(()=>{let r=rot(vx-base[0][0],vy-base[0][1],joint[0]);return [base[0][0]+r[0],base[0][1]+r[1]]})();
+  out[off++]=lerp(soft[0],rigid[0],preserve);
+  out[off++]=lerp(soft[1],rigid[1],preserve);
+ }
+ return out;
+}
+const getClipPose=(r,l,t,tapAge)=>{
+ const clip=(r.clips||[]).find(c=>(c.tracks||[]).some(tr=>tr.layerId===l.id));
+ if(clip)return sample(clip,l.id,clip.loop?t:tapAge);
+ let pose=pose0();
+ if(l.interactionConfigured){
+  const pulse=periodicElapsed(l,t), shake=(l.tapShake&&tapAge<650)||(l.periodicAction==="SHAKE"&&pulse!==null);
+  if(shake)pose.angle=(l.tapMotion==="FLAP"?20:10)*Math.sin((pulse??tapAge)/110);
+ }else if(l.id.startsWith("head_")&&tapAge<680){
+  pose.angle=8*Math.sin(Math.PI*clamp(tapAge/680,0,1));
+ }else if(l.id==="tail"&&!l.idleSwing){
+  pose.angle=12*Math.sin(t/270);
+ }
+ if(l.idleSwing&&(!l.bones||l.bones.length<2)){
+  pose.angle+=(l.idleAmplitude||10)*Math.sin(t/1000*2*Math.PI*clamp(l.idleSpeed??.7,.1,3));
+ }
+ return pose;
+};
+function periodicElapsed(l,t){
+ if(!l.interactionConfigured||!l.periodicEnabled)return null;
+ const interval=Math.max(701,clamp(l.periodicIntervalSeconds||7,1,120)*1000);
+ if(t<interval)return null;
+ const local=t%interval;
+ return local<700?local:null;
+}
+function isImageName(name){return typeof name==="string"&&/^[A-Za-z0-9_-]+\.png$/i.test(name)}
+function validate(p){
+ const r=p.rig;
+ if(!r||!Number.isInteger(r.canvasWidth)||!Number.isInteger(r.canvasHeight)||r.canvasWidth<1||r.canvasHeight<1||r.canvasWidth>4096||r.canvasHeight>4096)throw Error("模型画布尺寸无效");
+ if(!Array.isArray(r.layers)||r.layers.length<1||r.layers.length>48)throw Error("模型图层数量无效");
+ for(let l of r.layers)if(!l||typeof l.id!=="string"||l.id.length>100||!isImageName(l.image)&&l.image!=="")throw Error("图层 ID 或 PNG 文件名不合法");
+ if(!p.assets||typeof p.assets!=="object")throw Error("缺少图层资源");
+ return r;
+}
+let rig=null,assets=new Map(),names=new Map(),started=performance.now(),tapTime=-1e9,tapCount=0, raf=0,canvas2d=null,gl=null,prog=null;
+let buffPos,buffUv,ibuffer,uSize,uTex,uAlpha,aPos,aUV,viewport={w:220,h:220};
+const dpr=Math.min(2,window.devicePixelRatio||1);
+function resize(){
+ const width=Math.max(1,window.innerWidth),height=Math.max(1,window.innerHeight);
+ viewport={w:width,h:height};
+ canvas.width=Math.ceil(width*dpr);canvas.height=Math.ceil(height*dpr);
+ if(gl)gl.viewport(0,0,canvas.width,canvas.height);
+}
+function shader(type,src){
+ const v=gl.createShader(type);gl.shaderSource(v,src);gl.compileShader(v);
+ if(!gl.getShaderParameter(v,gl.COMPILE_STATUS))throw Error("着色器编译失败："+gl.getShaderInfoLog(v));
+ return v;
+}
+function initializeGL(){
+ gl=canvas.getContext("webgl",{alpha:true,antialias:true,preserveDrawingBuffer:false});
+ if(!gl)return false;
+ const vertex=shader(gl.VERTEX_SHADER,"attribute vec2 p;attribute vec2 uv;uniform vec2 sz;varying vec2 tex;void main(){gl_Position=vec4(2.0*p.x/sz.x-1.0,1.0-2.0*p.y/sz.y,0.0,1.0);tex=uv;}");
+ const fragment=shader(gl.FRAGMENT_SHADER,"precision mediump float;varying vec2 tex;uniform sampler2D image;uniform float alpha;void main(){vec4 c=texture2D(image,tex);gl_FragColor=vec4(c.rgb,c.a*alpha);}");
+ prog=gl.createProgram();gl.attachShader(prog,vertex);gl.attachShader(prog,fragment);gl.linkProgram(prog);
+ if(!gl.getProgramParameter(prog,gl.LINK_STATUS))throw Error("WebGL 链接失败");
+ gl.useProgram(prog);
+ aPos=gl.getAttribLocation(prog,"p");aUV=gl.getAttribLocation(prog,"uv");
+ uSize=gl.getUniformLocation(prog,"sz");uTex=gl.getUniformLocation(prog,"image");uAlpha=gl.getUniformLocation(prog,"alpha");
+ buffPos=gl.createBuffer();buffUv=gl.createBuffer();ibuffer=gl.createBuffer();
+ gl.enableVertexAttribArray(aPos);gl.enableVertexAttribArray(aUV);
+ gl.enable(gl.BLEND);gl.blendFunc(gl.SRC_ALPHA,gl.ONE_MINUS_SRC_ALPHA);
+ gl.disable(gl.DEPTH_TEST);
+ gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL,false);
+ return true;
+}
+function textureFor(image){
+ let t=gl.createTexture();gl.bindTexture(gl.TEXTURE_2D,t);
+ gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MIN_FILTER,gl.LINEAR);
+ gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_MAG_FILTER,gl.LINEAR);
+ gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_S,gl.CLAMP_TO_EDGE);
+ gl.texParameteri(gl.TEXTURE_2D,gl.TEXTURE_WRAP_T,gl.CLAMP_TO_EDGE);
+ gl.texImage2D(gl.TEXTURE_2D,0,gl.RGBA,gl.RGBA,gl.UNSIGNED_BYTE,image);
+ return t;
+}
+const grids=new Map();
+function grid(N){
+ if(grids.has(N))return grids.get(N);
+ const uv=new Float32Array((N+1)*(N+1)*2),indices=[];
+ for(let y=0;y<=N;y++)for(let x=0;x<=N;x++){let off=(y*(N+1)+x)*2;uv[off]=x/N;uv[off+1]=y/N}
+ for(let y=0;y<N;y++)for(let x=0;x<N;x++){
+  const i=y*(N+1)+x;indices.push(i,i+N+1,i+1,i+1,i+N+1,i+N+2);
+ }
+ const answer={uv,indices:new Uint16Array(indices)};grids.set(N,answer);return answer;
+}
+function drawWebGL(l,img,matrix,t,alpha){
+ const canMesh=l.idleSwing&&Array.isArray(l.bones)&&l.bones.length>=2&&l.bones.length<=8;
+ const N=canMesh?(l.swingMode==="SPRING"?32:16):1,G=grid(N),w=img.image.naturalWidth,h=img.image.naturalHeight;
+ let verts=canMesh?deformedVertices(l,w,h,t,N,l.swingMode==="SPRING"?springAngles(l,t):null):new Float32Array([0,0,w,0,0,h,w,h]);
+ // 1x1 grid order is (0,0),(w,0),(0,h),(w,h)
+ const pos=new Float32Array(verts.length);
+ const k=Math.min(viewport.w/rig.canvasWidth,viewport.h/rig.canvasHeight);
+ const offsetX=(viewport.w-rig.canvasWidth*k)/2,offsetY=(viewport.h-rig.canvasHeight*k)/2;
+ for(let i=0;i<verts.length;i+=2){
+  const q=point(matrix,verts[i],verts[i+1]);
+  pos[i]=q[0]*k+offsetX;pos[i+1]=q[1]*k+offsetY;
+ }
+ gl.bindBuffer(gl.ARRAY_BUFFER,buffPos);gl.bufferData(gl.ARRAY_BUFFER,pos,gl.STREAM_DRAW);
+ gl.vertexAttribPointer(aPos,2,gl.FLOAT,false,0,0);
+ gl.bindBuffer(gl.ARRAY_BUFFER,buffUv);gl.bufferData(gl.ARRAY_BUFFER,G.uv,gl.STREAM_DRAW);
+ gl.vertexAttribPointer(aUV,2,gl.FLOAT,false,0,0);
+ gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER,ibuffer);gl.bufferData(gl.ELEMENT_ARRAY_BUFFER,G.indices,gl.STREAM_DRAW);
+ gl.activeTexture(gl.TEXTURE0);gl.bindTexture(gl.TEXTURE_2D,img.texture);
+ gl.uniform1i(uTex,0);gl.uniform1f(uAlpha,clamp(alpha,0,1));gl.uniform2f(uSize,viewport.w,viewport.h);
+ gl.drawElements(gl.TRIANGLES,G.indices.length,gl.UNSIGNED_SHORT,0);
+}
+function draw2D(l,img,matrix,t,alpha){
+ const ctx=canvas2d,scale=Math.min(viewport.w/rig.canvasWidth,viewport.h/rig.canvasHeight);
+ const offX=(viewport.w-rig.canvasWidth*scale)/2,offY=(viewport.h-rig.canvasHeight*scale)/2;
+ ctx.save();ctx.translate(offX,offY);ctx.scale(scale,scale);
+ ctx.transform(...matrix);ctx.globalAlpha=clamp(alpha,0,1);
+ // Compatibility fallback: rigid rendering only when WebGL is unavailable.
+ ctx.drawImage(img.image,0,0);ctx.restore();
+}
+function chooseOwners(r,t,age){
+ const firstByOwner=new Map();
+ const available=new Set([...assets.keys()]);
+ for(let l of r.layers){
+  if(l.frameOwner)continue;
+  let active=l.id;
+  if(l.interactionConfigured){
+   let requested=0;
+   if(l.tapSwitchFrame&&age>=0&&age<1000)requested=l.tapFrame||1;
+   else if(l.idleBlinkEnabled&&age>1400&&blink(t))requested=l.blinkFrame||1;
+   else if(l.periodicEnabled&&l.periodicAction==="SWITCH_FRAME"&&periodicElapsed(l,t)!==null&&age>1400)requested=l.periodicFrame||1;
+   const child=r.layers.find(f=>f.frameOwner===l.id&&f.frameIndex===requested&&available.has(f.id));
+   if(child)active=child.id;
+  }
+  firstByOwner.set(l.id,active);
+ }
+ return firstByOwner;
+}
+function draw(time){
+ if(!rig)return;
+ const elapsed=Math.max(0,time-started),age=time-tapTime;
+ gl&&gl.clearColor(0,0,0,0);
+ gl&&gl.clear(gl.COLOR_BUFFER_BIT);
+ if(canvas2d)canvas2d.clearRect(0,0,canvas.width,canvas.height);
+ const faceType=rig.headMode==="BLANK_HEAD_WITH_FACE"?"face_":"head_";
+ const expression=age<1800&&rig.tapExpression>=0?rig.tapExpression:rig.blinkExpression>=0&&blink(elapsed)&&age>1400?rig.blinkExpression:0;
+ const face=faceType+expression;
+ const byId=new Map(rig.layers.map(l=>[l.id,l]));
+ const currentFrames=chooseOwners(rig,elapsed,age);
+ const poses=new Map();
+ function getPose(l){
+  if(poses.has(l.id))return poses.get(l.id);
+  const result=getClipPose(rig,l,elapsed,age);
+  poses.set(l.id,result);return result;
+ }
+ for(let layer of rig.layers.slice().sort((a,b)=>(a.zIndex||0)-(b.zIndex||0))){
+  if(layer.frameOwner)continue;
+  if(layer.id==="pickup_pose")continue;
+  if(layer.id.startsWith("head_")&&layer.id!=="head_blank"){
+   if(faceType!=="head_"||layer.id!==face&&!(!assets.has(face)&&layer.id==="head_0"))continue;
+  }
+  if(layer.id==="head_blank"&&faceType!=="face_")continue;
+  if(layer.id.startsWith("face_")&&(faceType!=="face_"||layer.id!==face&&!(!assets.has(face)&&layer.id==="face_0")))continue;
+  const selected=currentFrames.get(layer.id)||layer.id;
+  const img=assets.get(selected)||assets.get(layer.id);if(!img)continue;
+  const chain=[],seen=new Set();
+  let node=layer;
+  while(node&&!seen.has(node.id)&&chain.length<32){chain.unshift(node);seen.add(node.id);node=node.parentId?byId.get(node.parentId):null}
+  let matrix=ID,alpha=1;
+  if(layer.mirrorX)matrix=mul(matrix,mul(T(rig.canvasWidth,0),S(-1,1)));
+  for(let l of chain){
+   let p=getPose(l),q=assets.get(currentFrames.get(l.id))||assets.get(l.id),w=q?.image.naturalWidth||rig.canvasWidth,h=q?.image.naturalHeight||rig.canvasHeight;
+   const pivotX=clamp(l.pivotX??.5,0,1)*w,pivotY=clamp(l.pivotY??.5,0,1)*h,scale=clamp(l.restScale??1,.1,4);
+   matrix=mul(matrix,T((l.x||0)+(p.x||0)+pivotX*scale,(l.y||0)+(p.y||0)+pivotY*scale));
+   matrix=mul(matrix,R(p.angle||0));
+   matrix=mul(matrix,S(scale*(p.scaleX??1),scale*(p.scaleY??1)));
+   matrix=mul(matrix,T(-pivotX,-pivotY));alpha*=p.alpha??1;
+  }
+  if(gl)drawWebGL(layer,img,matrix,elapsed,alpha);
+  else draw2D(layer,img,matrix,elapsed,alpha);
+ }
+ if(!document.hidden)raf=requestAnimationFrame(draw);
+}
+function talk(message){
+ box.textContent=message;box.classList.add("show");
+ clearTimeout(talk.timer);talk.timer=setTimeout(()=>box.classList.remove("show"),2500);
+}
+function tap(){
+ tapTime=performance.now();tapCount++;
+ talk(["嘿嘿！","我在呢～","被你戳到啦！","好痒～"][tapCount%4]);
+}
+function openChat(){form.classList.add("open");try{input.focus()}catch(_){}}
+function closeChat(){form.classList.remove("open");input.blur()}
+let pressed=false,moved=false,long=false,x=0,y=0,timer=0;
+hit.addEventListener("pointerdown",e=>{
+ if(form.classList.contains("open"))return;
+ pressed=true;moved=false;long=false;x=e.clientX;y=e.clientY;
+ timer=setTimeout(()=>{if(pressed&&!moved){long=true;openChat()}},680);
+});
+hit.addEventListener("pointermove",e=>{if(pressed&&Math.hypot(e.clientX-x,e.clientY-y)>12){moved=true;clearTimeout(timer)}});
+hit.addEventListener("pointerup",()=>{clearTimeout(timer);if(pressed&&!moved&&!long)tap();pressed=false});
+hit.addEventListener("pointercancel",()=>{pressed=false;clearTimeout(timer)});
+form.addEventListener("submit",e=>{
+ e.preventDefault();if(!input.value.trim())return;
+ input.value="";closeChat();talk("我听到啦！等接上糯米机就能认真回答～");
+});
+document.getElementById("cancel").addEventListener("click",closeChat);
+document.addEventListener("contextmenu",e=>e.preventDefault());
+window.PetPreview=Object.freeze({openChat,closeChat,tap,version:"0.5"});
+window.addEventListener("resize",resize);
+document.addEventListener("visibilitychange",()=>{if(document.hidden)cancelAnimationFrame(raf);else if(rig)raf=requestAnimationFrame(draw)});
+async function initialize(){
+ resize();
+ if(!pack){status.textContent="演示模式 · 尚未导入 TapNest 模型";return}
+ try{
+  rig=validate(pack);
+  const list=rig.layers.filter(l=>l.image&&pack.assets[l.image]);
+  await Promise.all(list.map(l=>new Promise((resolve,reject)=>{
+   const pic=new Image();pic.onload=()=>{
+    if(pic.naturalWidth>4096||pic.naturalHeight>4096){reject(Error("图层尺寸超出限制："+l.image));return}
+    assets.set(l.id,{image:pic,texture:null});resolve();
+   };
+   pic.onerror=()=>reject(Error("图片损坏："+l.image));
+   pic.src=pack.assets[l.image];
+  })));
+  if(!assets.has("body"))throw Error("模型缺少身体图层 body.png");
+  try{initializeGL()}catch(e){gl=null;status.textContent="WebGL 不可用，改用普通图层渲染";}
+  if(gl)for(let item of assets.values())item.texture=textureFor(item.image);
+  if(!gl){canvas2d=canvas.getContext("2d");canvas2d.setTransform(dpr,0,0,dpr,0,0);}
+  demo.style.display="none";status.textContent="";
+  started=performance.now();raf=requestAnimationFrame(draw);
+  talk("TapNest 模型加载成功！");
+ }catch(e){
+  rig=null;demo.textContent="⚠️";status.textContent=String(e.message||e);
+ }
+}
+initialize();
+})();
+</script>
+</body>
+</html>
