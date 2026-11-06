@@ -2,44 +2,51 @@
 
 **轻轻一点，栖在身边。**
 
-TapNest is an Android floating desktop-pet app derived from
-[DeskPet](https://github.com/faysal-X-N/deskpet), licensed GPL-3.0-or-later.
+点点栖是一款可以在 Android 手机上显示、制作和互动的本地桌面伙伴应用。支持从手机导入自己的 PNG、GIF 和 Codex Pet 素材，也能在手机上给分层角色制作动作。
 
-## Development snapshot · TapNest layered companions (not yet a stable release)
-- New app name and independent Android application ID: `com.tapnest.pet`.
-- No bundled pet art. Import your own local PNG, GIF or Codex Pet packages.
-- New single-image PNG mode supports on-screen floating, dragging, resizing and
-  a tap-to-bounce interaction with no image generation.
-- Existing GIF and Codex Pet import and overlay mechanisms are retained.
-- Local layered character creation on Android: a built-in wing/bow/tail/head template, reusable custom templates, or a fully manual rig. Head/body/face/wing frames composite into the actual character.
-- Live multi-layer preview during creation: choose a layer, drag it to reposition, and adjust its size, pivot and parent binding. Long-press a completed **layered** character in the **桌面伙伴** library to re-edit it without changing its ID or preset dialogues.
-- Tapping swaps expressions temporarily, then returns to neutral automatically. For layered characters, long-press and stroke horizontally across the upper head region to trigger a head rock and optionally a dedicated petting expression.
-- Floating artwork starts smaller; scaling can go down to 20%. Layer rendering uses three rotating bitmap buffers to avoid drawing a frame while it is being cleared.
-- Per-pet **offline preset speech bubbles**: click the 💬 button on a pet card to edit lines (one per row), toggle speech on/off, and save. Tapping the floating pet cycles through the stored lines for around 3 seconds. No AI.
-- No network permission, AI model, API configuration or online upload.
+> **公开预览版 · 测试构建**：目前仍在开发中，并非已发布到应用商店的稳定正式版。Android 8+；不同厂商系统的悬浮窗、锁屏和后台行为可能有所不同。
 
-**Not implemented yet:** a visual keyframe timeline, arbitrary touch-region editor,
-`.tapet` character packages and in-app AI. This remains an unsigned development build:
-CI green verifies compilation/tests, not every Android or HarmonyOS phone's runtime.
+## 从零制作自己的分层桌宠
 
-## Build and test
-Android 8+; JDK 17+ and an Android SDK.
+选择「创建分层／绑骨桌宠」，从**通用空白模板**开始。没有任何内置私人角色、默认人物立绘或角色贴图，也无需联网生成图片。
 
-```sh
+- 默认可选部位：身体、头部、尾巴、左／右翅膀、左／右耳朵。不需要的部位可删除，也能自行新增其他部件。
+- 可以**对称新增**左右部件，例如翅膀、耳朵、眼睛；左右图层分别上传图片、分别调整参数。
+- 基础素材页只上传各部位的**默认帧**。点选该部位的「设置动作／变帧」按钮，可以添加动作帧并设置点触、晃动、眨眼、定时动作。
+- 支持单独选择骨骼点的移动方向：自动旋转、水平、垂直、反向或固定；可选弹簧惯性、保形和推荐尾巴预设。
+- 可在实时预览中隐藏其他部位，单独调整点位。骨骼点位带有简短折叠说明。
+- 图片、对话、角色存档和个人模板保存在设备本地。不会自动上传分享。
+
+**提示：** 动作帧图片需要按部位分别上传，且应与同一角色的默认图层使用一致的透明画布。二维骨骼变形不是三维建模，高幅度动画可能会拉伸轮廓。
+
+## 其他功能
+
+- 导入 PNG、GIF、Codex Pet 角色并作为悬浮桌宠显示，支持拖动、缩放、点触互动。
+- 分层角色可单独编辑头部、身体、翅膀、尾巴、耳朵等动作；支持表情和局部换帧。
+- 本地互动、预设气泡对话、日程提醒和伙伴小屋；不需要 LLM、API Key 或服务器。
+- 支持保存自制模板及本地数据备份。
+- **旧数据兼容**：此前已经创建或导入的角色与自定义模板仍可从本机读取；不再向新用户提供原来的私人内置模板创建入口。
+
+## 下载与构建
+
+开发版 APK 可从仓库 [Actions](../../actions/workflows/test.yml) 中选择最近一次 **绿色成功** 的构建，打开 `app-debug`，下载 ZIP 并解压安装。GitHub 可能要求登录账号。
+
+**请注意：** CI 的 Debug 包是测试签名，不保证可以直接覆盖升级另一台机器或另一轮构建的 Debug 包。升级前请先在应用中备份数据；不要为了更新而直接卸载旧版。
+
+在自己的 Android 构建环境中使用 JDK 21 和 Android SDK：
+
+```bash
 ./gradlew testDebugUnitTest assembleDebug
 ```
 
-A GitHub Actions workflow on `main` also runs tests, lint and produces an
-`app-debug` APK artifact if the build passes. This is a development artifact,
-not a signed public release.
+CI 会额外检查 Android lint、仪器测试编译和 APK 构建。自动化测试成功并不代表所有品牌手机上功能都已充分验证。
 
-## Privacy and ownership
-Character files stay on-device in private application storage. No account, image
-generation or LLM is involved. Any future AI companion function must be a
-**separate opt-in module**, off by default.
+## 隐私
 
-## Credits and licensing
-Source based on DeskPet; original Git history and LICENSE are preserved. Refer
-to [TAPNEST_NOTICES.md](TAPNEST_NOTICES.md) for distribution requirements.
-All upstream example pet art and branding resources are removed from the current
-working tree, including old store screenshots; Git history remains for attribution.
+应用不请求互联网访问权限；角色图片、聊天式预设气泡及本地记录不会主动上传。悬浮桌宠需要 Android 悬浮窗权限及前台服务授权；用户可以主动关闭。
+
+## 开源协议与致谢
+
+点点栖基于 [DeskPet](https://github.com/faysal-X-N/deskpet) 修改，遵循 **GPL-3.0-or-later**（完整条款见 [LICENSE](LICENSE)）。公开分发 APK 时，必须同时为接收者提供匹配版本的完整对应源代码和版权通知。详细要求见 [TAPNEST_NOTICES.md](TAPNEST_NOTICES.md)。
+
+项目**不含任何预装角色图片或第三方商业角色素材**；用户自行导入的原创素材不会因为导入应用而自动改变授权。历史代码仍保留原项目版权归属和 Git 历史。
