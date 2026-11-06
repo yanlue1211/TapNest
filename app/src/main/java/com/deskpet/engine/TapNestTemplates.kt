@@ -130,11 +130,13 @@ object TapNestTemplates {
 
     fun slotsFor(rig: TapNestRig): List<TapNestSlotSpec> =
         rig.layers.map { layer ->
-            legacySlots.find { it.id == layer.id }
-                ?: TapNestSlotSpec(layer.id,
+            if (rig.templateId == MANUAL)
+                TapNestSlotSpec(layer.id,
                     manualLabels[layer.id] ?: if (layer.frameOwner != null)
                         "动作帧 · ${layer.frameOwner} #${layer.frameIndex}" else layer.id,
                     layer.id != "body")
+            else legacySlots.find { it.id == layer.id }
+                ?: TapNestSlotSpec(layer.id, layer.id, layer.id != "body")
         }
 
     fun isRequired(slot: String, mode: TapNestHeadMode): Boolean =
