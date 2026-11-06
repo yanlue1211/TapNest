@@ -44,6 +44,25 @@ object TapNestPresets {
         ))
     ))
 
+    fun flap(id: String) = TapNestClip("wing_flap", 680, tracks = listOf(
+        TapNestTrack(id, listOf(
+            frame(0, TapNestPose()),
+            frame(160, TapNestPose(angle = if (id.endsWith("left")) -15f else 15f)),
+            frame(330, TapNestPose(angle = if (id.endsWith("left")) 7f else -7f)),
+            frame(500, TapNestPose(angle = if (id.endsWith("left")) -5f else 5f)),
+            frame(680, TapNestPose())
+        ))
+    ))
+
+    fun twitch(id: String) = TapNestClip("twitch", 420, tracks = listOf(
+        TapNestTrack(id, listOf(
+            frame(0, TapNestPose()),
+            frame(90, TapNestPose(angle = if (id.endsWith("right")) 9f else -9f)),
+            frame(205, TapNestPose(angle = if (id.endsWith("right")) -4f else 4f)),
+            frame(420, TapNestPose())
+        ))
+    ))
+
     fun earTwitch(left: String, right: String) = TapNestClip(
         "ears", 460, tracks = listOf(
             TapNestTrack(left, listOf(
