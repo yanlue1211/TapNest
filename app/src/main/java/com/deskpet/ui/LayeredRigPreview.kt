@@ -94,6 +94,7 @@ private fun visibleLayer(
 internal fun LayeredRigPreview(
     rig: TapNestRig, uris: Map<String, Uri>, selected: String, mode: RigPreviewMode,
     selectedBone: Int, showOtherParts: Boolean = true,
+    allowEditingDrag: Boolean = false,
     onSelectLayer: (String) -> Unit,
     onDragLayer: (Float, Float) -> Unit,
     onSetPivot: (Float, Float) -> Unit,
@@ -160,7 +161,8 @@ internal fun LayeredRigPreview(
     val newestBoneSelect by rememberUpdatedState(onSelectBone)
     val newestBoneIndex by rememberUpdatedState(selectedBone)
 
-    val dragModifier = if (mode == RigPreviewMode.POSITION || mode == RigPreviewMode.BONES)
+    val dragModifier = if (allowEditingDrag &&
+        (mode == RigPreviewMode.POSITION || mode == RigPreviewMode.BONES))
         Modifier.pointerInput(selected, mode) {
             var dragBone = -1
             detectDragGestures(
