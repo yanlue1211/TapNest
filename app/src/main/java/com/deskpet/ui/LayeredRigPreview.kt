@@ -219,7 +219,7 @@ internal fun LayeredRigPreview(
             .background(Color(0xFFE9F8EF))
             .onSizeChanged { viewport = it }
             .then(dragModifier)
-            .pointerInput(mode, selected) {
+            .pointerInput(mode, selected, showOtherParts) {
                 detectTapGestures(
                     onTap = { point ->
                         val current = newestRig
@@ -232,7 +232,8 @@ internal fun LayeredRigPreview(
                                 val top = current.layers.sortedByDescending { it.zIndex }.firstOrNull { layer ->
                                     val art = pictures[layer.id] ?: return@firstOrNull false
                                     val head = if (current.headMode == TapNestHeadMode.FULL_HEAD) "head_0" else "face_0"
-                                    if ((!showOtherParts && layer.id != selected) ||
+                                    if ((!showOtherParts && layer.id != selected &&
+                                            layer.frameOwner != selected) ||
                                         !visibleLayer(layer, current.headMode, head, false,
                                             pictures, defaultFrames))
                                         return@firstOrNull false
@@ -371,7 +372,7 @@ internal fun LayeredRigPreview(
         native.scale(factor, factor)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
         for (layer in rig.layers.sortedBy { it.zIndex }) {
-            if (!showOtherParts && layer.id != selected) continue
+            if (!showOtherParts && layer.id != selected && layer.frameOwner != selected) continue
             if (!visibleLayer(layer, rig.headMode, face, touched, assets, selectedFrames)) continue
             val art = assets[layer.id] ?: continue
             val ancestors = mutableListOf<TapNestLayer>()
