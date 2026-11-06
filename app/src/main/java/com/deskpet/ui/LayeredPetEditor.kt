@@ -320,6 +320,144 @@ fun LayeredPetEditor(
                 fun update(p: TapNestLayer) {
                     rig = rig.copy(layers = rig.layers.map { if (it.id == activeLayer) p else it })
                 }
+                Text("🎞️ 本部位的其他动作帧",
+                    style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("基础素材列表只放默认帧。此处可以为当前部位再传最多 3 张动作图；不上传也可以只用晃动。图片需与默认帧使用同一透明画布。",
+                    style = MaterialTheme.typography.bodySmall)
+                val extraFrames = rig.layers.filter { it.frameOwner == layer.id }
+                    .sortedBy { it.frameIndex }
+                extraFrames.forEach { frame ->
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("动作帧 ${frame.frameIndex}", modifier = Modifier.weight(1f))
+                        TextButton(onClick = {
+                            pickingLayer = frame.id
+                            picker.launch(arrayOf("image/png"))
+                        }) { Text(if (images[frame.id] == null) "上传图片" else "替换图片 ✓") }
+                        TextButton(onClick = {
+                            images.remove(frame.id)
+                            rig = rig.copy(layers = rig.layers.filterNot { it.id == frame.id })
+                        }) { Text("移除") }
+                    }
+                }
+                TextButton(onClick = {
+                    val next = (1..3).firstOrNull { n ->
+                        extraFrames.none { it.frameIndex == n }
+                    }
+                    if (next != null && rig.layers.size < 48) {
+                        val frameId = "${layer.id}_f${next}"
+                        if (frameId.matches(Regex("[A-Za-z][A-Za-z0-9_]{0,34}")) &&
+                            rig.layers.none { it.id == frameId }) {
+                            rig = rig.copy(layers = rig.layers + TapNestLayer(
+                                id = frameId, image = "", frameOwner = layer.id,
+                                frameIndex = next, parentId = layer.id,
+                                pivotX = 0f, pivotY = 0f, zIndex = layer.zIndex
+                            ))
+                        } else error = "图层名太长，无法添加动作帧；请缩短部位名称"
+                    }
+                }, enabled = extraFrames.size < 3) { Text("＋ 给本默认帧添加动作帧") }
+                HorizontalDivider()
+                Text("🎮 本部位的点触、定时和表情动作",
+                    style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                if (!layer.interactionConfigured) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("启用自定义动作（旧版角色原动作不变）",
+                            modifier = Modifier.weight(1f))
+                        Switch(checked = false, onCheckedChange = {
+                            if (it) update(layer.copy(interactionConfigured = true))
+                        })
+                    }
+                } else {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("点触时晃动本部位", modifier = Modifier.weight(1f))
+                        Switch(checked = layer.tapShake, onCheckedChange = {
+                            update(layer.copy(tapShake = it))
+                        })
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("点触时切换动作帧", modifier = Modifier.weight(1f))
+                        Switch(checked = layer.tapSwitchFrame, onCheckedChange = {
+                            update(layer.copy(tapSwitchFrame = it))
+                        })
+                    }
+                    if (layer.tapShake || (layer.periodicEnabled &&
+                        layer.periodicAction == TapNestPeriodicAction.SHAKE)) {
+                        Text("晃动方式（头部点头、身体弹跳、翅膀扇动、耳朵抖动）",
+                            style = MaterialTheme.typography.bodySmall)
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            TapNestPartMotion.entries.forEach { type ->
+                                FilterChip(selected = layer.tapMotion == type, onClick = {
+                                    update(layer.copy(tapMotion = type))
+                                }, label = { Text(when (type) {
+                                    TapNestPartMotion.NOD -> "摇头"
+                                    TapNestPartMotion.BOUNCE -> "弹跳"
+                                    TapNestPartMotion.FLAP -> "扇动"
+                                    TapNestPartMotion.TWITCH -> "抖动"
+                                }) })
+                            }
+                        }
+                    }
+                    if (layer.tapSwitchFrame) {
+                        Text("点触时显示哪张动作帧（约 1 秒）",
+                            style = MaterialTheme.typography.bodySmall)
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            for (n in 1..3) FilterChip(
+                                selected = layer.tapFrame == n,
+                                onClick = { update(layer.copy(tapFrame = n)) },
+                                label = { Text("帧 ${n}") }
+                            )
+                        }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("每隔一段时间自动动作／换帧", modifier = Modifier.weight(1f))
+                        Switch(checked = layer.periodicEnabled, onCheckedChange = {
+                            update(layer.copy(periodicEnabled = it))
+                        })
+                    }
+                    if (layer.periodicEnabled) {
+                        BindingSlider("自动动作间隔（秒）",
+                            layer.periodicIntervalSeconds, 2f, 60f) {
+                            update(layer.copy(periodicIntervalSeconds = it))
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            FilterChip(
+                                selected = layer.periodicAction == TapNestPeriodicAction.SHAKE,
+                                onClick = { update(layer.copy(periodicAction = TapNestPeriodicAction.SHAKE)) },
+                                label = { Text("短暂晃动") })
+                            FilterChip(
+                                selected = layer.periodicAction == TapNestPeriodicAction.SWITCH_FRAME,
+                                onClick = { update(layer.copy(periodicAction = TapNestPeriodicAction.SWITCH_FRAME)) },
+                                label = { Text("短暂换帧") })
+                        }
+                        if (layer.periodicAction == TapNestPeriodicAction.SWITCH_FRAME) {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                for (n in 1..3) FilterChip(
+                                    selected = layer.periodicFrame == n,
+                                    onClick = { update(layer.copy(periodicFrame = n)) },
+                                    label = { Text("帧 ${n}") }
+                                )
+                            }
+                        }
+                    }
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("正常静置时偶尔眨眼（需上传闭眼动作帧）",
+                            modifier = Modifier.weight(1f))
+                        Switch(checked = layer.idleBlinkEnabled, onCheckedChange = {
+                            update(layer.copy(idleBlinkEnabled = it))
+                        })
+                    }
+                    if (layer.idleBlinkEnabled) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            for (n in 1..3) FilterChip(
+                                selected = layer.blinkFrame == n,
+                                onClick = { update(layer.copy(blinkFrame = n)) },
+                                label = { Text("眨眼帧 ${n}") }
+                            )
+                        }
+                    }
+                    Text("默认连续晃动请在下方「闲置时自动晃动」开关中设置；与定时抖一下是两个独立功能。",
+                        style = MaterialTheme.typography.bodySmall)
+                }
+                HorizontalDivider()
                 var parentMenu by remember(activeLayer) { mutableStateOf(false) }
                 Box {
                     TextButton(onClick = { parentMenu = true }) {
