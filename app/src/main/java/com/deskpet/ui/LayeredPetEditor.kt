@@ -60,7 +60,14 @@ fun LayeredPetEditor(
     val editorRequester = remember { BringIntoViewRequester() }
     var previewMode by remember(editingPet?.id) { mutableStateOf(RigPreviewMode.POSITION) }
     var newLayerName by remember { mutableStateOf("") }
-    var symmetricNewLayer by remember { mutableStateOf(false) }
+    val partPresets = listOf(
+        "左右对称翅膀（上传一张，自动镜像）", "左右翅膀（分别上传）", "尾巴",
+        "左右对称耳朵（上传一张，自动镜像）", "左右耳朵（分别上传）",
+        "头部", "自定义单图层", "自定义左右对称图层"
+    )
+    var newPartPreset by remember { mutableStateOf(partPresets.first()) }
+    var partPresetMenu by remember { mutableStateOf(false) }
+    var pendingRemoveLayerId by remember { mutableStateOf<String?>(null) }
     var showSettings by remember(editingPet?.id) { mutableStateOf(false) }
     var showOtherParts by remember { mutableStateOf(true) }
     var showBonesHelp by remember { mutableStateOf(false) }
@@ -81,7 +88,14 @@ fun LayeredPetEditor(
     var pickingLayer by remember { mutableStateOf("") }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null && pickingLayer.isNotEmpty()) {
+            val previous = images[pickingLayer]
             images[pickingLayer] = uri
+            // A paired mirrored part shares the source art when first created.
+            // Manually replaced art on the mirrored side remains independent.
+            rig.layers.filter { it.mirroredFromId == pickingLayer }.forEach { mirror ->
+                if (images[mirror.id] == null || images[mirror.id] == previous)
+                    images[mirror.id] = uri
+            }
         }
     }
 
@@ -144,7 +158,8 @@ fun LayeredPetEditor(
                     onClick = { select(template.id) },
                     label = { Text("我的模板 · ${template.name}") })
             }
-            if (rig.layers.any { it.id.startsWith("head_") || it.id.startsWith("face_") }) {
+            if (rig.templateId != TapNestTemplates.MANUAL &&
+                rig.layers.any { it.id.startsWith("head_") || it.id.startsWith("face_") }) {
                 Text("头部展示方式", style = MaterialTheme.typography.titleSmall)
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     FilterChip(
@@ -188,45 +203,193 @@ fun LayeredPetEditor(
                         picker.launch(arrayOf("image/png"))
                     }) { Text(if (uri == null) "导入" else "已选 ✓") }
                     if (uri != null) TextButton(onClick = { images.remove(slot.id) }) { Text("清除") }
+                    if (rig.templateId == TapNestTemplates.MANUAL && slot.id != "body") {
+                        TextButton(onClick = { pendingRemoveLayerId = slot.id }) {
+                            Text("删除", color = MaterialTheme.colorScheme.error)
+                        }
+                    }
                 }
-                TextButton(onClick = {
-                    activeLayer = slot.id
-                    previewMode = RigPreviewMode.POSITION
-                    showSettings = true
-                }) { Text("⚙️ 设置本默认帧的动作／变帧 ›") }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    TextButton(onClick = {
+                        activeLayer = slot.id
+                        previewMode = RigPreviewMode.POSITION
+                        showSettings = true
+                    }) { Text("⚙️ 设置动作／变帧 ›") }
+                    if (rig.templateId == TapNestTemplates.MANUAL && slot.id != "body") {
+                        TextButton(onClick = {
+                            val original = rig.layers.firstOrNull { it.id == slot.id }
+                            if (original != null) {
+                                val suggestedId = when {
+                                    original.id.endsWith("_left") ->
+                                        original.id.removeSuffix("_left") + "_right"
+                                    original.id.endsWith("_right") ->
+                                        original.id.removeSuffix("_right") + "_left"
+                                    else -> {
+                                        val candidate = original.id + "_mirror"
+                                        if (candidate.length <= 32) candidate
+                                        else "copy_" + (1..999).first { n ->
+                                            rig.layers.none { it.id == "copy_$n" }
+                                        }
+                                    }
+                                }
+                                val oppositeId = if (suggestedId.length <= 32) suggestedId
+                                    else "copy_" + (1..999).first { n ->
+                                        rig.layers.none { it.id == "copy_$n" }
+                                    }
+                                if (rig.layers.any { it.id == oppositeId }) {
+                                    error = "对应的另一侧已经存在，可直接编辑它"
+                                } else {
+                                    val display = original.displayName.ifBlank { slot.label.removeSuffix(" · 默认帧") }
+                                    val oppositeName = when {
+                                        display.contains("左") -> display.replaceFirst("左", "右")
+                                        display.contains("右") -> display.replaceFirst("右", "左")
+                                        else -> "$display（镜像）"
+                                    }
+                                    val copied = TapNestSymmetry.mirroredGroup(
+                                        original, rig.layers, oppositeId, oppositeName)
+                                    if (rig.layers.size + copied.size > 48) {
+                                        error = "图层已达到上限，无法复制"
+                                    } else {
+                                        copied.forEach { part ->
+                                            part.mirroredFromId?.let { sourceId ->
+                                                images[sourceId]?.let { images[part.id] = it }
+                                            }
+                                        }
+                                        rig = rig.copy(layers = rig.layers + copied)
+                                        error = null
+                                    }
+                                }
+                            }
+                        }) { Text("↔ 镜像复制") }
+                    }
+                }
             }
             if (rig.templateId == TapNestTemplates.MANUAL) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("对称建立两个独立图层", modifier = Modifier.weight(1f))
-                    Switch(checked = symmetricNewLayer,
-                        onCheckedChange = { symmetricNewLayer = it })
-                }
-                Text("例如输入 wing / ear / eye，勾选对称后自动创建 _left 和 _right；图片分别上传，参数也可以分别修改。",
+                HorizontalDivider()
+                Text("＋ 自行添加默认部位", style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold)
+                Text("身体是唯一必需的默认帧。翅膀、耳朵、尾巴、头部都按需添加；对称模板只需上传左侧图片，就会自动生成中轴镜像的右侧图片和相同参数。",
                     style = MaterialTheme.typography.bodySmall)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    OutlinedTextField(value = newLayerName,
-                        onValueChange = { newLayerName = it.take(35) },
-                        label = { Text("新图层名称（如 left_ear）") },
-                        modifier = Modifier.weight(1f))
-                    TextButton(onClick = {
-                        val base = newLayerName.trim()
-                            .removeSuffix("_left").removeSuffix("_right")
-                        val ids = if (symmetricNewLayer)
-                            listOf("${base}_left", "${base}_right")
-                            else listOf(newLayerName.trim())
-                        if (ids.all { it.matches(Regex("[a-zA-Z][a-zA-Z0-9_]{0,34}")) } &&
-                            ids.none { id -> rig.layers.any { it.id == id } } &&
-                            rig.layers.size + ids.size <= 32) {
-                            rig = rig.copy(layers = rig.layers + ids.mapIndexed { i, id ->
-                                TapNestTemplates.newPart(id, rig.layers.size + 10 + i)
+                Box {
+                    OutlinedButton(onClick = { partPresetMenu = true }) {
+                        Text(newPartPreset + " ▾")
+                    }
+                    DropdownMenu(expanded = partPresetMenu,
+                        onDismissRequest = { partPresetMenu = false }) {
+                        partPresets.forEach { option ->
+                            DropdownMenuItem(text = { Text(option) }, onClick = {
+                                newPartPreset = option
+                                partPresetMenu = false
                             })
-                            activeLayer = ids.first()
+                        }
+                    }
+                }
+                if (newPartPreset.startsWith("自定义")) {
+                    OutlinedTextField(value = newLayerName,
+                        onValueChange = { newLayerName = it.take(40) },
+                        label = { Text("图层名称（可直接输入中文）") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true)
+                }
+                Button(onClick = {
+                    fun freeId(prefix: String): String {
+                        val used = rig.layers.map { it.id }.toSet()
+                        return (1..999).map { "${prefix}_$it" }.first { it !in used }
+                    }
+                    fun freePairPrefix(prefix: String): String {
+                        val used = rig.layers.map { it.id }.toSet()
+                        return (listOf(prefix) + (2..999).map { "$prefix$it" })
+                            .first { "${it}_left" !in used && "${it}_right" !in used }
+                    }
+                    val spec = newPartPreset
+                    val customLabel = newLayerName.trim()
+                    val paired = spec.contains("左右") || spec == "自定义左右对称图层"
+                    val sharedArt = spec.contains("对称")
+                    val kind = when {
+                        spec.contains("翅膀") -> "wing"
+                        spec.contains("耳朵") -> "ear"
+                        spec == "尾巴" -> "tail"
+                        spec == "头部" -> "head"
+                        else -> "part"
+                    }
+                    if (kind == "part" && customLabel.isBlank()) {
+                        error = "请先填写图层名称（支持中文）"
+                    } else if (kind == "head" && rig.layers.any { it.id == "head_0" }) {
+                        error = "已经有头部图层了，可在上面直接调整"
+                    } else {
+                        val label = when (kind) {
+                            "wing" -> "翅膀"
+                            "ear" -> "耳朵"
+                            "tail" -> "尾巴"
+                            "head" -> "头部"
+                            else -> customLabel
+                        }
+                        val z = when (kind) {
+                            "tail" -> 0
+                            "wing" -> 5
+                            "ear" -> 15
+                            "head" -> 20
+                            else -> 12
+                        }
+                        val created = if (paired) {
+                            val p = freePairPrefix(kind)
+                            val left = TapNestTemplates.newPart("${p}_left", z)
+                                .copy(displayName = "左$label")
+                            if (sharedArt) {
+                                TapNestSymmetry.mirroredGroup(left, emptyList(),
+                                    "${p}_right", "右$label").let { listOf(left) + it }
+                            } else {
+                                listOf(left, TapNestTemplates.newPart("${p}_right", z)
+                                    .copy(displayName = "右$label"))
+                            }
+                        } else {
+                            val id = when (kind) {
+                                "head" -> "head_0"
+                                "tail" -> if (rig.layers.none { it.id == "tail" }) "tail" else freeId("tail")
+                                else -> freeId(kind)
+                            }
+                            listOf(TapNestTemplates.newPart(id, z).copy(displayName = label))
+                        }
+                        if (rig.layers.size + created.size > 48) {
+                            error = "图层已满（最多 48 层，包含动作帧）"
+                        } else {
+                            rig = rig.copy(layers = rig.layers + created)
+                            activeLayer = created.first().id
                             newLayerName = ""
                             error = null
-                        } else error = "名称请用英文字母、数字或下划线且不可重复；对称图层需要预留 _left/_right 后缀"
-                    }) { Text("＋添加") }
-                }
+                        }
+                    }
+                }) { Text("＋ 添加选中的部位") }
+                Text("需要复制已经调好的整套参数？在现有部位下点「↔ 镜像复制」，动作帧和图片也会一起复制。",
+                    style = MaterialTheme.typography.bodySmall)
             }
+            val toRemove = pendingRemoveLayerId
+            if (toRemove != null) AlertDialog(
+                onDismissRequest = { pendingRemoveLayerId = null },
+                title = { Text("删除这个默认图层？") },
+                text = { Text("将同时删除该部位已有的动作帧；身体不允许删除。") },
+                confirmButton = { TextButton(onClick = {
+                    if (toRemove != "body") {
+                        val removed = rig.layers.filter {
+                            it.id == toRemove || it.frameOwner == toRemove
+                        }.map { it.id }.toSet()
+                        removed.forEach { images.remove(it) }
+                        rig = rig.copy(layers = rig.layers
+                            .filterNot { it.id in removed }
+                            .map { old ->
+                                old.copy(
+                                    parentId = if (old.parentId in removed) "body" else old.parentId,
+                                    mirroredFromId = if (old.mirroredFromId in removed) null else old.mirroredFromId
+                                )
+                            })
+                        if (activeLayer in removed) activeLayer = "body"
+                    }
+                    pendingRemoveLayerId = null
+                }) { Text("确定删除") } },
+                dismissButton = { TextButton(onClick = { pendingRemoveLayerId = null }) {
+                    Text("取消")
+                } }
+            )
             } // Basic default-frame upload page
             if (showSettings) {
             TextButton(onClick = { showSettings = false }) { Text("← 返回默认帧素材列表") }
@@ -235,12 +398,37 @@ fun LayeredPetEditor(
                 style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             val layer = rig.layers.firstOrNull { it.id == activeLayer }
             if (layer != null) {
+                var foldPreview by remember(activeLayer) { mutableStateOf(false) }
+                var foldFrames by remember(activeLayer) { mutableStateOf(false) }
+                var foldActions by remember(activeLayer) { mutableStateOf(false) }
+                var foldPosition by remember(activeLayer) { mutableStateOf(false) }
+                var foldBones by remember(activeLayer) { mutableStateOf(false) }
+                var foldTailPreset by remember(activeLayer) { mutableStateOf(false) }
+                var foldSwing by remember(activeLayer) { mutableStateOf(false) }
+                var foldBonePoints by remember(activeLayer) { mutableStateOf(false) }
+                var dragUnlocked by remember(activeLayer) { mutableStateOf(false) }
                 Text("当前：${TapNestTemplates.slotsFor(rig).firstOrNull { it.id == activeLayer }?.label ?: activeLayer}")
+                OutlinedTextField(
+                    value = layer.displayName,
+                    onValueChange = { text -> rig = rig.copy(layers = rig.layers.map {
+                        if (it.id == layer.id) it.copy(displayName = text.take(40)) else it
+                    }) },
+                    label = { Text("中文图层名（可修改，留空显示默认名称）") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+            FoldHeader("🖼️ 实时合成预览", foldPreview) { foldPreview = !foldPreview }
+            if (foldPreview) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("🖼️ 实时合成预览", modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                 Text("其他部位", style = MaterialTheme.typography.bodySmall)
                 Switch(checked = showOtherParts, onCheckedChange = { showOtherParts = it })
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("解锁拖动（默认锁定，避免滚动误移位）",
+                    modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
+                Switch(checked = dragUnlocked, onCheckedChange = { dragUnlocked = it })
             }
             Row(modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -292,6 +480,7 @@ fun LayeredPetEditor(
                 mode = previewMode,
                 selectedBone = selectedBone,
                 showOtherParts = showOtherParts,
+                allowEditingDrag = dragUnlocked,
                 onSelectBone = { selectedBone = it },
                 onSetBone = { index, bx, by ->
                     rig = rig.copy(layers = rig.layers.map { layer ->
@@ -304,7 +493,7 @@ fun LayeredPetEditor(
                 onDragLayer = { dx, dy ->
                     rig = rig.copy(layers = rig.layers.map { layer ->
                         if (layer.id == activeLayer)
-                            layer.copy(x = (layer.x + dx).coerceIn(-2048f, 2048f),
+                            layer.copy(x = (layer.x + if (layer.mirrorX) -dx else dx).coerceIn(-2048f, 2048f),
                                 y = (layer.y + dy).coerceIn(-2048f, 2048f))
                         else layer
                     })
@@ -317,11 +506,13 @@ fun LayeredPetEditor(
                 }
             )
 
+            } // foldPreview
+
                 fun update(p: TapNestLayer) {
                     rig = rig.copy(layers = rig.layers.map { if (it.id == activeLayer) p else it })
                 }
-                Text("🎞️ 本部位的其他动作帧",
-                    style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                FoldHeader("🎞️ 动作帧 / 换图设置", foldFrames) { foldFrames = !foldFrames }
+                if (foldFrames) {
                 Text("基础素材列表只放默认帧。此处可以为当前部位再传最多 3 张动作图；不上传也可以只用晃动。图片需与默认帧使用同一透明画布。",
                     style = MaterialTheme.typography.bodySmall)
                 val extraFrames = rig.layers.filter { it.frameOwner == layer.id }
@@ -355,9 +546,9 @@ fun LayeredPetEditor(
                         } else error = "图层名太长，无法添加动作帧；请缩短部位名称"
                     }
                 }, enabled = extraFrames.size < 3) { Text("＋ 给本默认帧添加动作帧") }
-                HorizontalDivider()
-                Text("🎮 本部位的点触、定时和表情动作",
-                    style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                } // foldFrames
+                FoldHeader("🎮 点触 / 定时 / 眨眼", foldActions) { foldActions = !foldActions }
+                if (foldActions) {
                 if (!layer.interactionConfigured) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("启用自定义动作（旧版角色原动作不变）",
@@ -457,7 +648,9 @@ fun LayeredPetEditor(
                     Text("默认连续晃动请在下方「闲置时自动晃动」开关中设置；与定时抖一下是两个独立功能。",
                         style = MaterialTheme.typography.bodySmall)
                 }
-                HorizontalDivider()
+                } // foldActions
+                FoldHeader("📍 位置 / 缩放 / 父图层", foldPosition) { foldPosition = !foldPosition }
+                if (foldPosition) {
                 var parentMenu by remember(activeLayer) { mutableStateOf(false) }
                 Box {
                     TextButton(onClick = { parentMenu = true }) {
@@ -488,16 +681,26 @@ fun LayeredPetEditor(
                 BindingSlider("前后层级", layer.zIndex.toFloat(), 0f, 50f) {
                     update(layer.copy(zIndex = it.toInt()))
                 }
-                HorizontalDivider()
-                Text("🌿 多点柔性绑骨与日常动作", style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold)
+                OutlinedButton(onClick = { update(layer.copy(x = 0f, y = 0f)) }) {
+                    Text("↺ 图层位置复位（恢复最初 X / Y）")
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("对本部位应用中轴镜像", modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodySmall)
+                    Switch(checked = layer.mirrorX,
+                        onCheckedChange = { update(layer.copy(mirrorX = it)) })
+                }
+                } // foldPosition
+                FoldHeader("🌿 绑骨 / 闲置晃动", foldBones) { foldBones = !foldBones }
+                if (foldBones) {
                 Text("尾巴、翅膀、耳朵都可以独立绑定。2～8 个点从根到尖，选中点位后可分别设置左右、上下或旋转方向。",
                     style = MaterialTheme.typography.bodySmall)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("闲置时自动晃动", modifier = Modifier.weight(1f))
                     Switch(checked = layer.idleSwing, onCheckedChange = { update(layer.copy(idleSwing = it)) })
                 }
-                Text("🐾 弹簧尾巴预设", fontWeight = FontWeight.SemiBold)
+                FoldHeader("🐾 弹簧参数预设", foldTailPreset) { foldTailPreset = !foldTailPreset }
+                if (foldTailPreset) {
                 var chosenTailPreset by remember(activeLayer) {
                     mutableStateOf(TapNestTailPresets.ALL.first())
                 }
@@ -546,8 +749,11 @@ fun LayeredPetEditor(
                     Text("单侧模式：沿身体一侧斜放，从根到尖排点；程序根据方向自动选择向外摇（不跨过原始姿势向内甩）。",
                         style = MaterialTheme.typography.bodySmall)
                 }
+                } // foldTailPreset
+                FoldHeader("🎐 晃动方式和参数", foldSwing) { foldSwing = !foldSwing }
+                if (foldSwing) {
                 if (layer.idleSwing) {
-                    Text("🎐 晃动方式", fontWeight = FontWeight.SemiBold)
+                    Text("晃动方式", fontWeight = FontWeight.SemiBold)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         FilterChip(
                             selected = layer.swingMode == TapNestSwingMode.DELAY,
@@ -602,6 +808,9 @@ fun LayeredPetEditor(
                             style = MaterialTheme.typography.bodySmall)
                     }
                 }
+                } // foldSwing
+                FoldHeader("🦴 控制点 / 方向 / 骨骼", foldBonePoints) { foldBonePoints = !foldBonePoints }
+                if (foldBonePoints) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("控制点 ${layer.bones.size}/8", modifier = Modifier.weight(1f))
                     TextButton(onClick = {
@@ -676,6 +885,7 @@ fun LayeredPetEditor(
                     Text("✨ 已启用多点柔性变形。可点上方「试玩互动」查看动态效果。",
                         color = MaterialTheme.colorScheme.primary)
                 }
+                } // foldBonePoints
                 OutlinedButton(onClick = { showBonesHelp = !showBonesHelp }) {
                     Text(if (showBonesHelp) "收起点位说明 ▲" else "❓ 控制点怎么绑？展开说明 ▾")
                 }
@@ -697,41 +907,20 @@ fun LayeredPetEditor(
                         }
                     }
                 }
-                if (layer.id != "body" && layer.frameOwner == null) {
-                    var confirmRemovePart by remember(layer.id) { mutableStateOf(false) }
-                    TextButton(onClick = { confirmRemovePart = true }) {
-                        Text("删除不需要的默认部位", color = MaterialTheme.colorScheme.error)
-                    }
-                    if (confirmRemovePart) AlertDialog(
-                        onDismissRequest = { confirmRemovePart = false },
-                        title = { Text("删除这个部位？") },
-                        text = { Text("将删除此部位及其添加的动作帧，不会影响其他独立部位。保存前仍可返回模板重新创建。") },
-                        confirmButton = { TextButton(onClick = {
-                            val removed = rig.layers.filter {
-                                it.id == layer.id || it.frameOwner == layer.id
-                            }.map { it.id }.toSet()
-                            removed.forEach { images.remove(it) }
-                            rig = rig.copy(layers = rig.layers
-                                .filterNot { it.id in removed }
-                                .map { if (it.parentId in removed) it.copy(parentId = "body") else it })
-                            activeLayer = "body"
-                            showSettings = false
-                            confirmRemovePart = false
-                        }) { Text("确定删除") } },
-                        dismissButton = { TextButton(onClick = {
-                            confirmRemovePart = false
-                        }) { Text("取消") } }
-                    )
-                }
+                } // foldBones
+
 
             }
             } // End per-part settings page
+            var foldEmotions by remember(activeLayer) { mutableStateOf(false) }
+            var foldLegacyFaces by remember(activeLayer) { mutableStateOf(false) }
+            var foldPetting by remember(activeLayer) { mutableStateOf(false) }
             if (showSettings && (activeLayer.startsWith("head_") ||
                 activeLayer.startsWith("face_") || activeLayer == "head_blank") &&
                 (rig.templateId != TapNestTemplates.MANUAL ||
                 rig.layers.any { it.id.startsWith("head_") || it.id.startsWith("face_") })) {
-                Text("🎭 表情与情感绑定", style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold)
+                FoldHeader("🎭 表情与情感绑定", foldEmotions) { foldEmotions = !foldEmotions }
+                if (foldEmotions) {
                 Text("好感度下降会自动使用「不开心」或「生气」表情；点击互动仍可临时换表情。",
                     style = MaterialTheme.typography.bodySmall)
                 for (frameIndex in 0..3) {
@@ -765,11 +954,12 @@ fun LayeredPetEditor(
                         }
                     }
                 }
+                } // foldEmotions
             }
             if (showSettings && rig.templateId != TapNestTemplates.MANUAL &&
                 (activeLayer.startsWith("head_") || activeLayer.startsWith("face_"))) {
-                Text("👀 旧版头部眨眼 / 被戳表情", style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold)
+                FoldHeader("👀 旧版头部眨眼 / 被戳表情", foldLegacyFaces) { foldLegacyFaces = !foldLegacyFaces }
+                if (foldLegacyFaces) {
                 Text("从现有的 4 张头部表情（或独立脸图）里指定。眨眼仅在静置时偶尔短暂出现；被戳表情优先，不会被眨眼盖掉。",
                     style = MaterialTheme.typography.bodySmall)
                 var blinkMenu by remember { mutableStateOf(false) }
@@ -802,11 +992,12 @@ fun LayeredPetEditor(
                 }
                 Text("请确认指定的表情帧已导入闭眼或戳戳对应图片；未导入时仍会回退到默认脸。",
                     style = MaterialTheme.typography.bodySmall)
+                } // foldLegacyFaces
             }
-            if (showSettings) Text("所有部件的静置、点触和定时动作在各自默认帧内分别设置。",
-                style = MaterialTheme.typography.bodySmall)
             if (showSettings && (activeLayer.startsWith("head") || activeLayer.startsWith("face")) &&
                 rig.templateId != TapNestTemplates.MANUAL) {
+                FoldHeader("🐾 摸摸头专属表情", foldPetting) { foldPetting = !foldPetting }
+                if (foldPetting) {
                 var pettingMenu by remember { mutableStateOf(false) }
                 Box {
                     OutlinedButton(onClick = { pettingMenu = true }) {
@@ -824,6 +1015,7 @@ fun LayeredPetEditor(
                         }
                     }
                 }
+                } // foldPetting
             }
             if (!showSettings) {
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -871,5 +1063,23 @@ private fun BindingSlider(label: String, value: Float, min: Float, max: Float, o
             Text("%.2f".format(value), style = MaterialTheme.typography.bodySmall)
         }
         Slider(value = value.coerceIn(min, max), onValueChange = onChange, valueRange = min..max)
+    }
+}
+
+@Composable
+private fun FoldHeader(title: String, expanded: Boolean, onToggle: () -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(title, modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
+            Text(if (expanded) "收起 ▲" else "展开 ▼",
+                style = MaterialTheme.typography.bodySmall)
+        }
     }
 }

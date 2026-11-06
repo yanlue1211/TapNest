@@ -50,6 +50,7 @@ private fun previewLocalPoint(
         viewport.height / rig.canvasHeight.coerceAtLeast(1).toFloat()
     ).coerceAtLeast(0.001f)
     var x = (point.x - (viewport.width - rig.canvasWidth * factor) / 2f) / factor
+    if (layer.mirrorX) x = rig.canvasWidth - x
     var y = (point.y - (viewport.height - rig.canvasHeight * factor) / 2f) / factor
     val nodes = rig.layers.associateBy { it.id }
     val ancestors = mutableListOf<TapNestLayer>()
@@ -93,6 +94,7 @@ private fun visibleLayer(
 internal fun LayeredRigPreview(
     rig: TapNestRig, uris: Map<String, Uri>, selected: String, mode: RigPreviewMode,
     selectedBone: Int, showOtherParts: Boolean = true,
+    allowEditingDrag: Boolean = false,
     onSelectLayer: (String) -> Unit,
     onDragLayer: (Float, Float) -> Unit,
     onSetPivot: (Float, Float) -> Unit,
@@ -159,7 +161,8 @@ internal fun LayeredRigPreview(
     val newestBoneSelect by rememberUpdatedState(onSelectBone)
     val newestBoneIndex by rememberUpdatedState(selectedBone)
 
-    val dragModifier = if (mode == RigPreviewMode.POSITION || mode == RigPreviewMode.BONES)
+    val dragModifier = if (allowEditingDrag &&
+        (mode == RigPreviewMode.POSITION || mode == RigPreviewMode.BONES))
         Modifier.pointerInput(selected, mode) {
             var dragBone = -1
             detectDragGestures(
@@ -383,6 +386,11 @@ internal fun LayeredRigPreview(
                 node = node.parentId?.let(nodes::get)
             }
             native.save()
+            val reflectionOwner = layer.frameOwner?.let(nodes::get) ?: layer
+            if (reflectionOwner.mirrorX) {
+                native.translate(rig.canvasWidth.toFloat(), 0f)
+                native.scale(-1f, 1f)
+            }
             for (joint in ancestors.asReversed()) {
                 val parentArt = assets[joint.id]
                 val pivotX = joint.pivotX.coerceIn(0f, 1f) * (parentArt?.width ?: rig.canvasWidth)

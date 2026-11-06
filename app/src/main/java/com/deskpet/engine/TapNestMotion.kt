@@ -48,6 +48,12 @@ enum class TapNestPeriodicAction { SHAKE, SWITCH_FRAME }
 data class TapNestLayer(
     val id: String,
     val image: String,
+    /** Human-readable label, including Chinese; id remains safe ASCII for local filenames. */
+    val displayName: String = "",
+    /** Reflect the whole part across the character canvas' vertical centre. */
+    val mirrorX: Boolean = false,
+    /** Original part used when one-tap cloning; independent after creation. */
+    val mirroredFromId: String? = null,
     val parentId: String? = null,
     val zIndex: Int = 0,
     val pivotX: Float = 0.5f,
