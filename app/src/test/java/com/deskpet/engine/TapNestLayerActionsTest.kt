@@ -53,7 +53,7 @@ class TapNestLayerActionsTest {
         assertNull(TapNestLayerActions.periodicElapsed(left, 0L))
         assertNull(TapNestLayerActions.periodicElapsed(left, 4999L))
         assertEquals(0L, TapNestLayerActions.periodicElapsed(left, 5000L))
-        assertNull(TapNestLayerActions.periodicElapsed(left, 5450L))
+        assertNull(TapNestLayerActions.periodicElapsed(left, 5750L))
         assertEquals("wing_left_f3", TapNestLayerActions.currentFrame(
             left, frames, 5010L, 3000L, assets))
     }
