@@ -391,17 +391,18 @@ internal fun LayeredRigPreview(
                 native.translate(-pivotX, -pivotY)
             }
             paint.alpha = (poseFor(layer.id).alpha.coerceIn(0f, 1f) * 255).toInt()
-            val spring = mode == RigPreviewMode.TEST && layer.idleSwing &&
-                layer.bones.size >= 2 && layer.swingMode == TapNestSwingMode.SPRING
+            val skinLayer = layer.frameOwner?.let(nodes::get) ?: layer
+            val spring = mode == RigPreviewMode.TEST && skinLayer.idleSwing &&
+                skinLayer.bones.size >= 2 && skinLayer.swingMode == TapNestSwingMode.SPRING
             val resolution = if (spring) TapNestFlexibleMesh.SPRING_GRID else TapNestFlexibleMesh.GRID
             val elapsed = (now - previewStartedAt).coerceAtLeast(0L)
             val jointAngles = if (spring) {
-                springChains.getOrPut(layer.id) { TapNestSpringChain() }.step(layer, elapsed)
+                springChains.getOrPut(skinLayer.id) { TapNestSpringChain() }.step(skinLayer, elapsed)
             } else null
-            if (spring && layer.shapePreservation >= 0.999f &&
-                layer.bones.all { it.swingDirection == TapNestBoneSwingDirection.AUTO } &&
+            if (spring && skinLayer.shapePreservation >= 0.999f &&
+                skinLayer.bones.all { it.swingDirection == TapNestBoneSwingDirection.AUTO } &&
                 jointAngles != null && jointAngles.isNotEmpty()) {
-                val root = layer.bones.first()
+                val root = skinLayer.bones.first()
                 native.save()
                 native.rotate(jointAngles[0], root.x.coerceIn(0f, 1f) * art.width,
                     root.y.coerceIn(0f, 1f) * art.height)
@@ -410,7 +411,7 @@ internal fun LayeredRigPreview(
                 native.restore()
             } else {
                 val mesh = if (mode == RigPreviewMode.TEST) TapNestFlexibleMesh.vertices(
-                    layer, art.width, art.height, elapsed, resolution, jointAngles) else null
+                    skinLayer, art.width, art.height, elapsed, resolution, jointAngles) else null
                 if (mesh != null) {
                     native.drawBitmapMesh(art.bitmap, resolution, resolution, mesh, 0, null, 0, paint)
                 } else native.drawBitmap(art.bitmap, null,
