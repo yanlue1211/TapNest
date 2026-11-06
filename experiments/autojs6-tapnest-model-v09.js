@@ -11,7 +11,7 @@ if (!floaty.hasPermission()) {
 }
 var TAG="TapNest V0.9";
 var rawRoot="https://raw.githubusercontent.com/yanlue1211/TapNest/main/experiments/pet-web/";
-var rigPage=rawRoot+"rig-viewer.html", demoPage=rawRoot+"index.html";
+var rigPage=rawRoot+"rig-viewer.html?v=09", demoPage=rawRoot+"index.html";
 var MAX_ZIP=60*1024*1024,MAX_JSON=1024*1024,MAX_PNG=6*1024*1024,MAX_TOTAL=26*1024*1024;
 var chosen=null,pack=null,viewUrl=demoPage,webHtml="";
 
