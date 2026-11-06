@@ -9,7 +9,7 @@ class TapNestSittingTemplateTest {
     @Test
     fun sittingTailIsBehindBodyAndAttachedAtHip() {
         val rig = TapNestTemplates.manual()
-        val tail = requireNotNull(rig.layers.firstOrNull { it.id == "tail" })
+        val tail = TapNestTemplates.newPart("tail", 0)
         val body = requireNotNull(rig.layers.firstOrNull { it.id == "body" })
         assertEquals("body", tail.parentId)
         assertNull(body.parentId)
@@ -25,8 +25,7 @@ class TapNestSittingTemplateTest {
         val starter = TapNestTemplates.manual()
         assertEquals(TapNestTemplates.MANUAL, starter.templateId)
         assertTrue(starter.layers.all { it.image.isBlank() })
-        assertEquals(setOf("body", "head_0", "tail", "wing_left", "wing_right",
-            "ear_left", "ear_right"), starter.layers.map { it.id }.toSet())
+        assertEquals(setOf("body"), starter.layers.map { it.id }.toSet())
         assertTrue(starter.layers.none { it.id.contains("bow") || it.id.contains("eye") ||
             it.id.contains("hair") })
     }
@@ -34,9 +33,8 @@ class TapNestSittingTemplateTest {
     @Test
     fun copyingTemplateKeepsRigButStripsArtwork() {
         val rig = TapNestTemplates.manual().copy(
-            layers = TapNestTemplates.manual().layers.map {
-                if (it.id == "tail") it.copy(image = "tail.png") else it
-            }
+            layers = TapNestTemplates.manual().layers +
+                TapNestTemplates.newPart("tail", 0).copy(image = "tail.png")
         )
         val reusable = TapNestTemplates.asReusableTemplate(rig)
         val tail = requireNotNull(reusable.layers.firstOrNull { it.id == "tail" })

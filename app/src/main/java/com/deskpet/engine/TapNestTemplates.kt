@@ -38,33 +38,8 @@ object TapNestTemplates {
         canvasWidth = 512, canvasHeight = 512, templateId = MANUAL,
         layers = listOf(
             TapNestLayer("body", "", zIndex = 10, pivotY = .65f,
-                tapShake = true, tapMotion = TapNestPartMotion.BOUNCE, interactionConfigured = true),
-            TapNestLayer("tail", "", parentId = "body", zIndex = 0,
-                pivotX = .75f, pivotY = .72f, idleSwing = true,
-                swingMode = TapNestSwingMode.SPRING,
-                idleAmplitude = 85f, idleSpeed = .48f,
-                springSoftness = .85f, springDamping = .45f,
-                shapePreservation = .30f, interactionConfigured = true),
-            TapNestLayer("wing_left", "", parentId = "body", zIndex = 5,
-                pivotX = .42f, pivotY = .5f, idleSwing = true,
-                idleAmplitude = 14f, idleSpeed = .75f,
-                tapShake = true, tapMotion = TapNestPartMotion.FLAP, interactionConfigured = true),
-            TapNestLayer("wing_right", "", parentId = "body", zIndex = 5,
-                pivotX = .58f, pivotY = .5f, idleSwing = true,
-                idleAmplitude = 14f, idleSpeed = .75f,
-                tapShake = true, tapMotion = TapNestPartMotion.FLAP, interactionConfigured = true),
-            TapNestLayer("ear_left", "", parentId = "head_0", zIndex = 15,
-                pivotX = .40f, pivotY = .28f,
-                periodicEnabled = true, periodicIntervalSeconds = 8f,
-                tapMotion = TapNestPartMotion.TWITCH, interactionConfigured = true),
-            TapNestLayer("ear_right", "", parentId = "head_0", zIndex = 15,
-                pivotX = .60f, pivotY = .28f,
-                periodicEnabled = true, periodicIntervalSeconds = 9f,
-                tapMotion = TapNestPartMotion.TWITCH, interactionConfigured = true),
-            TapNestLayer("head_0", "", parentId = "body", zIndex = 20,
-                pivotX = .5f, pivotY = .72f,
-                tapShake = true, tapMotion = TapNestPartMotion.NOD, interactionConfigured = true),
-         )
+                tapShake = true, tapMotion = TapNestPartMotion.BOUNCE, interactionConfigured = true)
+        )
     )
 
     val manualLabels = mapOf(
@@ -76,7 +51,8 @@ object TapNestTemplates {
 
     /**
      * Make optional components without any bundled art. Symmetric creation
-     * mirrors only the initial anchor; each side has its own image and settings.
+     * creates an independently adjustable blank part; use TapNestSymmetry
+     * when the user wants to COPY artwork, bone settings and animations.
      */
     fun newPart(id: String, zIndex: Int): TapNestLayer {
         val lower = id.lowercase()
@@ -125,8 +101,10 @@ object TapNestTemplates {
         rig.layers.map { layer ->
             if (rig.templateId == MANUAL)
                 TapNestSlotSpec(layer.id,
-                    manualLabels[layer.id] ?: if (layer.frameOwner != null)
-                        "动作帧 · ${layer.frameOwner} #${layer.frameIndex}" else layer.id,
+                    layer.displayName.ifBlank {
+                        manualLabels[layer.id] ?: if (layer.frameOwner != null)
+                            "动作帧 · ${layer.frameOwner} #${layer.frameIndex}" else layer.id
+                    },
                     layer.id != "body")
             else legacySlots.find { it.id == layer.id }
                 ?: TapNestSlotSpec(layer.id, layer.id, layer.id != "body")

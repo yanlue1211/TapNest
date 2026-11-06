@@ -50,6 +50,7 @@ private fun previewLocalPoint(
         viewport.height / rig.canvasHeight.coerceAtLeast(1).toFloat()
     ).coerceAtLeast(0.001f)
     var x = (point.x - (viewport.width - rig.canvasWidth * factor) / 2f) / factor
+    if (layer.mirrorX) x = rig.canvasWidth - x
     var y = (point.y - (viewport.height - rig.canvasHeight * factor) / 2f) / factor
     val nodes = rig.layers.associateBy { it.id }
     val ancestors = mutableListOf<TapNestLayer>()
@@ -383,6 +384,10 @@ internal fun LayeredRigPreview(
                 node = node.parentId?.let(nodes::get)
             }
             native.save()
+            if (layer.mirrorX) {
+                native.translate(rig.canvasWidth.toFloat(), 0f)
+                native.scale(-1f, 1f)
+            }
             for (joint in ancestors.asReversed()) {
                 val parentArt = assets[joint.id]
                 val pivotX = joint.pivotX.coerceIn(0f, 1f) * (parentArt?.width ?: rig.canvasWidth)

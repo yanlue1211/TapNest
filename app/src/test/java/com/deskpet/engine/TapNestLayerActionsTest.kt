@@ -24,12 +24,9 @@ class TapNestLayerActionsTest {
     @Test fun publicManualTemplateOnlyIncludesEverydayMovingParts() {
         val rig = TapNestTemplates.manual()
         assertEquals(TapNestTemplates.MANUAL, rig.templateId)
-        assertEquals(setOf("body", "head_0", "tail", "wing_left", "wing_right",
-            "ear_left", "ear_right"), rig.layers.map { it.id }.toSet())
+        assertEquals(listOf("body"), rig.layers.map { it.id })
         assertTrue(rig.layers.all { it.image == "" })
-        assertTrue(rig.layers.any { it.id == "wing_left" && it.idleSwing })
-        assertTrue(rig.layers.any { it.id == "ear_left" && it.periodicEnabled })
-        assertTrue(rig.layers.any { it.id == "body" && it.tapShake })
+        assertTrue(rig.layers.single().tapShake)
     }
 
     @Test fun symmetricOptionalPartCreationNeverIncludesArtwork() {
