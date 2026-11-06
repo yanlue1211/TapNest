@@ -4,7 +4,7 @@ try {
   var res=http.get(URL,{timeout:20000});
   if(res.statusCode!==200)throw Error("HTTP "+res.statusCode);
   var code=res.body.string();
-  if(code.indexOf('var TAG="TapNest V0.8"')<0)throw Error("不是预期的桌宠 V0.7 文件");
+  if(code.indexOf('var TAG="TapNest V0.8"')<0)throw Error("不是预期的桌宠 V0.8 文件");
   engines.execScript("🐾 TapNest 网页桌宠",code);
   toast("🐶 已启动桌宠，接下来选择模型和大小");
 }catch(e){
