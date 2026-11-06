@@ -117,7 +117,9 @@ class LayeredPetPlayer private constructor(
                 lastAction?.let {
                     p = TapNestMotion.sample(TapNestPresets.companionAction(it, id), id, actionElapsed)
                 }
-            } else if (node.frameOwner == null && node.interactionConfigured) {
+            } else if (node.frameOwner != null) {
+                // Alternate art follows its owner transform, not a second nod.
+            } else if (node.interactionConfigured) {
                 val periodic = TapNestLayerActions.periodicElapsed(node, now - launchedAtMs)
                 if (node.tapShake && touched) {
                     p = TapNestLayerActions.motionPose(node, elapsed)
