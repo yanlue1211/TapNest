@@ -676,6 +676,53 @@ fun LayeredPetEditor(
                     Text("✨ 已启用多点柔性变形。可点上方「试玩互动」查看动态效果。",
                         color = MaterialTheme.colorScheme.primary)
                 }
+                OutlinedButton(onClick = { showBonesHelp = !showBonesHelp }) {
+                    Text(if (showBonesHelp) "收起点位说明 ▲" else "❓ 控制点怎么绑？展开说明 ▾")
+                }
+                if (showBonesHelp) {
+                    Surface(
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerLow
+                    ) {
+                        Column(Modifier.fillMaxWidth().padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                            Text("控制点是部件的活动骨架，不是描外轮廓。",
+                                fontWeight = FontWeight.SemiBold)
+                            Text("① P1 放在连接身体的根部；② 按根→尖沿部位中线排点；③ P2、P3 等控制相邻段的方向；④ 点位越多弯曲层次越多，但太密容易扭曲。")
+                            Text("尾巴：从屁股后方一直排到尾尖，粗尾优先调「保形」。")
+                            Text("翅膀：从背部连接点朝翅尖排，可选上下扇动；左右翅膀分别导入并各自设点。")
+                            Text("耳朵：从耳根排向耳尖，适合少量点位和「每隔几秒抖一下」。")
+                            Text("想调整画面：关闭「其他部位」暂时只看本图层；试玩时再打开，检查整体配合。")
+                            Text("方向菜单决定单段如何位移；大幅上下／左右位移可能拉长 PNG，不能模拟三维折翼。")
+                        }
+                    }
+                }
+                if (layer.id != "body" && layer.frameOwner == null) {
+                    var confirmRemovePart by remember(layer.id) { mutableStateOf(false) }
+                    TextButton(onClick = { confirmRemovePart = true }) {
+                        Text("删除不需要的默认部位", color = MaterialTheme.colorScheme.error)
+                    }
+                    if (confirmRemovePart) AlertDialog(
+                        onDismissRequest = { confirmRemovePart = false },
+                        title = { Text("删除这个部位？") },
+                        text = { Text("将删除此部位及其添加的动作帧，不会影响其他独立部位。保存前仍可返回模板重新创建。") },
+                        confirmButton = { TextButton(onClick = {
+                            val removed = rig.layers.filter {
+                                it.id == layer.id || it.frameOwner == layer.id
+                            }.map { it.id }.toSet()
+                            removed.forEach { images.remove(it) }
+                            rig = rig.copy(layers = rig.layers
+                                .filterNot { it.id in removed }
+                                .map { if (it.parentId in removed) it.copy(parentId = "body") else it })
+                            activeLayer = "body"
+                            showSettings = false
+                            confirmRemovePart = false
+                        }) { Text("确定删除") } },
+                        dismissButton = { TextButton(onClick = {
+                            confirmRemovePart = false
+                        }) { Text("取消") } }
+                    )
+                }
 
             }
             } // End per-part settings page
