@@ -95,6 +95,7 @@ internal fun LayeredRigPreview(
     rig: TapNestRig, uris: Map<String, Uri>, selected: String, mode: RigPreviewMode,
     selectedBone: Int, showOtherParts: Boolean = true,
     allowEditingDrag: Boolean = false,
+    pickupPreview: Boolean = false,
     onSelectLayer: (String) -> Unit,
     onDragLayer: (Float, Float) -> Unit,
     onSetPivot: (Float, Float) -> Unit,
@@ -131,13 +132,12 @@ internal fun LayeredRigPreview(
     var viewport by remember { mutableStateOf(IntSize.Zero) }
     var expression by remember { mutableIntStateOf(0) }
     var tappedAt by remember { mutableLongStateOf(-10000L) }
-    var pettedAt by remember { mutableLongStateOf(-10000L) }
     var clock by remember { mutableLongStateOf(SystemClock.uptimeMillis()) }
     val springChains = remember { mutableMapOf<String, TapNestSpringChain>() }
     var previewStartedAt by remember { mutableLongStateOf(SystemClock.uptimeMillis()) }
 
-    LaunchedEffect(mode) {
-        if (mode == RigPreviewMode.TEST) {
+    LaunchedEffect(mode, pickupPreview) {
+        if (mode == RigPreviewMode.TEST || pickupPreview) {
             springChains.clear()
             previewStartedAt = SystemClock.uptimeMillis()
             while (isActive) {
@@ -146,7 +146,6 @@ internal fun LayeredRigPreview(
             }
         } else {
             tappedAt = -10000L
-            pettedAt = -10000L
             expression = 0
             clock = SystemClock.uptimeMillis()
         }
@@ -283,25 +282,10 @@ internal fun LayeredRigPreview(
                             RigPreviewMode.TEST -> {
                                 expression = if (newestRig.tapExpression in 0..3) newestRig.tapExpression else (expression % 3) + 1
                                 tappedAt = SystemClock.uptimeMillis()
-                                pettedAt = -10000L
-                            }
+                                                }
                         }
                     },
-                    onLongPress = { point ->
-                        if (mode == RigPreviewMode.TEST) {
-                            val current = newestRig
-                            val factor = min(
-                                viewport.width / current.canvasWidth.coerceAtLeast(1).toFloat(),
-                                viewport.height / current.canvasHeight.coerceAtLeast(1).toFloat()
-                            ).coerceAtLeast(0.01f)
-                            val canvasY = (point.y -
-                                (viewport.height - current.canvasHeight * factor) / 2f) / factor
-                            if (canvasY <= current.canvasHeight * 0.45f) {
-                                pettedAt = SystemClock.uptimeMillis()
-                                tappedAt = -10000L
-                            }
-                        }
-                    }
+                    onLongPress = { /* Petting removed: hold is for lifting/moving. */ }
                 )
             }
     ) {
@@ -312,13 +296,9 @@ internal fun LayeredRigPreview(
         val native = drawContext.canvas.nativeCanvas
         val now = if (mode == RigPreviewMode.TEST) clock else -10000L
         val touchElapsed = now - tappedAt
-        val petElapsed = now - pettedAt
         val touched = mode == RigPreviewMode.TEST && touchElapsed in 0..679L
-        val petting = mode == RigPreviewMode.TEST && petElapsed in 0..1449L
         val expressionIndex = when {
-            petting && rig.pettingExpression in 0..3 -> rig.pettingExpression
             mode == RigPreviewMode.TEST && touchElapsed in 0..1799L -> expression
-            petting -> 0
             mode == RigPreviewMode.TEST && rig.blinkExpression in 0..3 &&
                 TapNestBlink.isBlinking(clock - previewStartedAt) -> rig.blinkExpression
             else -> 0
@@ -344,9 +324,7 @@ internal fun LayeredRigPreview(
                     layer, (clock - previewStartedAt).coerceAtLeast(0L))
                 if (touched && layer.tapShake) {
                     pose = TapNestLayerActions.motionPose(layer, touchElapsed)
-                } else if (petting && id.startsWith("head_")) {
-                    pose = TapNestMotion.sample(TapNestPresets.petHead(id), id, petElapsed)
-                } else if (periodic != null && !touched && !petting &&
+                } else if (periodic != null && !touched &&
                     layer.periodicAction == TapNestPeriodicAction.SHAKE) {
                     pose = TapNestLayerActions.motionPose(layer, periodic)
                 }
@@ -354,12 +332,11 @@ internal fun LayeredRigPreview(
                 layer?.idleSwing != true && layer?.interactionConfigured != true) {
                 pose = TapNestMotion.sample(TapNestPresets.wag(id), id, phase)
             } else if (id.startsWith("head_") || id == "head_blank") {
-                if (petting) pose = TapNestMotion.sample(TapNestPresets.petHead(id), id, petElapsed)
-                else if (touched) pose = TapNestMotion.sample(TapNestPresets.nod(id), id, touchElapsed)
+                if (touched) pose = TapNestMotion.sample(TapNestPresets.nod(id), id, touchElapsed)
             }
             rig.clips.firstOrNull { it.tracks.any { track -> track.layerId == id } }?.let {
                 if (mode == RigPreviewMode.TEST) pose = TapNestMotion.sample(
-                    it, id, if (it.loop) phase else (if (petting) petElapsed else touchElapsed).coerceAtLeast(0L))
+                    it, id, if (it.loop) phase else touchElapsed.coerceAtLeast(0L))
             }
             if (mode == RigPreviewMode.TEST && layer?.idleSwing == true && layer.bones.size < 2) {
                 val angle = sin((phase / 1000.0 * layer.idleSpeed.coerceIn(0.1f, 3f) *
@@ -374,7 +351,23 @@ internal fun LayeredRigPreview(
             (size.height - rig.canvasHeight * factor) / 2f)
         native.scale(factor, factor)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+        if (pickupPreview) {
+            native.rotate(TapNestPickupMotion.angle(
+                (clock - previewStartedAt).coerceAtLeast(0L), 8f, 1.25f),
+                rig.canvasWidth * .5f, 0f)
+            val pickupArt = if (rig.pickupArtworkEnabled) assets["pickup_pose"] else null
+            if (pickupArt != null) {
+                val sc = rig.layers.firstOrNull { it.id == "pickup_pose" }
+                    ?.restScale?.coerceIn(.3f, 3f) ?: 1f
+                native.scale(sc, sc, rig.canvasWidth * .5f, 0f)
+                native.drawBitmap(pickupArt.bitmap, null,
+                    RectF(0f, 0f, pickupArt.width.toFloat(), pickupArt.height.toFloat()), paint)
+                native.restore()
+                return@Canvas
+            }
+        }
         for (layer in rig.layers.sortedBy { it.zIndex }) {
+            if (layer.id == "pickup_pose") continue
             if (!showOtherParts && layer.id != selected && layer.frameOwner != selected) continue
             if (!visibleLayer(layer, rig.headMode, face, touched, assets, selectedFrames)) continue
             val art = assets[layer.id] ?: continue

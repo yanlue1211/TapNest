@@ -94,6 +94,7 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
                 // 亮屏后宠物会播放一段"没来由"的动作
                 Intent.ACTION_SCREEN_OFF -> {
                     screenOn = false
+                    anim.setLayeredPickedUp(false)
                     anim.stop()
                     auto?.stop()
                     speechJob?.cancel()
@@ -260,13 +261,14 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
             onDoubleTap = ::onDoubleTap,
             isCodexPet = anim::isCodexPet,
             onScale = ::onScale,
-            onDragEnd = ::persistPositionSoon,
-            onStrokeHead = {
-                anim.petLayeredHead()
+            onDragStart = {
+                anim.setLayeredPickedUp(true)
                 auto?.onUserTouch()
             },
-            canStrokeHead = anim::isLayeredPet,
-            petHeightPx = { anim.petHeight.value }
+            onDragEnd = {
+                anim.setLayeredPickedUp(false)
+                persistPositionSoon()
+            }
         )
         registerReceiverSafely()
         startForeground()

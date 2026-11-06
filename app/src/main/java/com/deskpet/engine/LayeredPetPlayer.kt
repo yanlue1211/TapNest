@@ -28,7 +28,8 @@ class LayeredPetPlayer private constructor(
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     private val springChains = mutableMapOf<String, TapNestSpringChain>()
     @Volatile private var tappedAtMs = -10000L
-    @Volatile private var pettingAtMs = -10000L
+    @Volatile private var pickedUp = false
+    @Volatile private var pickedUpAtMs = 0L
     @Volatile private var expression = 0
     @Volatile private var actionAtMs = -10000L
     @Volatile private var lastAction: com.deskpet.data.CompanionAction? = null
@@ -57,12 +58,11 @@ class LayeredPetPlayer private constructor(
     fun tap() {
         expression = if (rig.tapExpression in 0..3) rig.tapExpression else (expression % 3) + 1
         tappedAtMs = SystemClock.uptimeMillis()
-        pettingAtMs = -10000L
     }
 
-    fun petHead() {
-        pettingAtMs = SystemClock.uptimeMillis()
-        tappedAtMs = -10000L
+    fun setPickedUp(held: Boolean) {
+        if (held && !pickedUp) pickedUpAtMs = SystemClock.uptimeMillis()
+        pickedUp = held
     }
 
     /** Triple-buffered render target. The UI never observes a bitmap being cleared. */
@@ -72,19 +72,40 @@ class LayeredPetPlayer private constructor(
         val canvas = Canvas(frame)
         canvas.drawColor(android.graphics.Color.TRANSPARENT, android.graphics.PorterDuff.Mode.CLEAR)
         val now = SystemClock.uptimeMillis()
+        val held = pickedUp
+        val heldMs = if (held) (now - pickedUpAtMs).coerceAtLeast(0) else 0L
+        val sx = width.toFloat() / rig.canvasWidth.coerceAtLeast(1)
+        val sy = height.toFloat() / rig.canvasHeight.coerceAtLeast(1)
+        val pickupAngle = if (held) TapNestPickupMotion.angle(
+            heldMs, 8f, 1.25f) else 0f // Fixed, lightweight pickup motion.
+        val pickupPicture = if (held && rig.pickupArtworkEnabled)
+            pictures["pickup_pose"] else null
+        if (pickupPicture != null) {
+            val source = sourceSizes["pickup_pose"]
+                ?: (pickupPicture.width to pickupPicture.height)
+            val scale = rig.layers.firstOrNull { it.id == "pickup_pose" }
+                ?.restScale?.coerceIn(.3f, 3f) ?: 1f
+            canvas.save()
+            canvas.scale(sx, sy)
+            canvas.rotate(pickupAngle, rig.canvasWidth * .5f, 0f)
+            // Single full-frame art; only shared top-centre pivot and size control.
+            canvas.scale(scale, scale, rig.canvasWidth * .5f, 0f)
+            paint.alpha = 255
+            canvas.drawBitmap(pickupPicture, null,
+                RectF(0f, 0f, source.first.toFloat(), source.second.toFloat()), paint)
+            canvas.restore()
+            return frame
+        }
         val elapsed = (now - tappedAtMs).coerceAtLeast(0)
-        val petElapsed = (now - pettingAtMs).coerceAtLeast(0)
         val actionElapsed = (now - actionAtMs).coerceAtLeast(0)
         val reacting = actionElapsed < 950
-        val touched = elapsed < 680
-        val petting = petElapsed < 1450
+        val touched = !held && elapsed < 680
         val activeExpression = when {
-            petting && rig.pettingExpression in 0..3 -> rig.pettingExpression
+            held -> naturalExpression() // No additional expression/animation controls while lifted.
             reacting -> rig.expressionEmotions.entries.firstOrNull {
                 it.value == TapNestEmotion.HAPPY && it.key in 0..3
             }?.key ?: naturalExpression()
             elapsed < 1800 -> expression.coerceIn(0, 3)
-            petting -> naturalExpression()
             rig.blinkExpression in 0..3 &&
                 TapNestBlink.isBlinking(now - launchedAtMs) -> rig.blinkExpression
             else -> naturalExpression()
@@ -99,19 +120,19 @@ class LayeredPetPlayer private constructor(
                 if (pictures.containsKey(slot)) slot else "face_0"
             }
         }
-        val sx = width.toFloat() / rig.canvasWidth.coerceAtLeast(1)
-        val sy = height.toFloat() / rig.canvasHeight.coerceAtLeast(1)
         val nodes = rig.layers.associateBy { it.id }
         val selectedFrameByOwner = rig.layers.filter { it.frameOwner == null }
             .associate { owner ->
-                owner.id to TapNestLayerActions.currentFrame(
+                owner.id to if (held) owner.id else TapNestLayerActions.currentFrame(
                     owner, rig.layers, now - launchedAtMs, elapsed, pictures.keys
                 )
             }
+
         // Parent transformations are evaluated even when a parent image is hidden or optional.
         // Drawing uses a shared canvas coordinate system so cropped PNGs keep their natural size.
         fun poseFor(node: TapNestLayer): TapNestPose {
             val id = node.id
+            if (held) return TapNestPose() // All child parts freeze; only the whole pet rocks.
             var p = TapNestPose()
             if (id == "body" && reacting) {
                 lastAction?.let {
@@ -123,17 +144,14 @@ class LayeredPetPlayer private constructor(
                 val periodic = TapNestLayerActions.periodicElapsed(node, now - launchedAtMs)
                 if (node.tapShake && touched) {
                     p = TapNestLayerActions.motionPose(node, elapsed)
-                } else if (petting && id.startsWith("head_")) {
-                    p = TapNestMotion.sample(TapNestPresets.petHead(id), id, petElapsed)
-                } else if (periodic != null && !petting && !touched &&
+                } else if (periodic != null && !held && !touched &&
                     node.periodicAction == TapNestPeriodicAction.SHAKE) {
                     p = TapNestLayerActions.motionPose(node, periodic)
                 }
             } else if (id == "tail" && !node.idleSwing && !node.interactionConfigured) {
                 p = TapNestMotion.sample(TapNestPresets.wag(id), id, now - launchedAtMs)
             } else if (id.startsWith("head_") || id == "head_blank") {
-                if (petting) p = TapNestMotion.sample(TapNestPresets.petHead(id), id, petElapsed)
-                else if (touched) p = TapNestMotion.sample(TapNestPresets.nod(id), id, elapsed)
+                if (touched) p = TapNestMotion.sample(TapNestPresets.nod(id), id, elapsed)
             }
             rig.clips.firstOrNull { c -> c.tracks.any { it.layerId == id } }
                 ?.let { p = TapNestMotion.sample(it, id, if (it.loop) now - launchedAtMs else elapsed) }
@@ -150,6 +168,7 @@ class LayeredPetPlayer private constructor(
         for (layer in rig.layers.sortedBy { it.zIndex }) {
             val id = layer.id
             val visible = when {
+                id == "pickup_pose" -> false // Dedicated art is visible only while held.
                 layer.frameOwner != null ->
                     selectedFrameByOwner[layer.frameOwner] == id
                 selectedFrameByOwner[id] != null && selectedFrameByOwner[id] != id -> false
@@ -172,6 +191,8 @@ class LayeredPetPlayer private constructor(
             }
             canvas.save()
             canvas.scale(sx, sy)
+            if (held) canvas.rotate(pickupAngle,
+                rig.canvasWidth * .5f, 0f)
             // Reflect once around the whole character, including bones and alternate frames.
             val reflectionOwner = layer.frameOwner?.let(nodes::get) ?: layer
             if (reflectionOwner.mirrorX) {
@@ -198,7 +219,7 @@ class LayeredPetPlayer private constructor(
             val spring = skinLayer.idleSwing && skinLayer.bones.size >= 2 &&
                 skinLayer.swingMode == TapNestSwingMode.SPRING
             val mesh = if (spring) TapNestFlexibleMesh.SPRING_GRID else TapNestFlexibleMesh.GRID
-            val jointAngles = if (spring) {
+            val jointAngles = if (spring && !held) {
                 springChains.getOrPut(skinLayer.id) { TapNestSpringChain() }.step(skinLayer, now - launchedAtMs)
             } else null
             if (spring && skinLayer.shapePreservation >= 0.999f &&
@@ -214,7 +235,7 @@ class LayeredPetPlayer private constructor(
                     RectF(0f, 0f, source.first.toFloat(), source.second.toFloat()), paint)
                 canvas.restore()
             } else {
-                val flexible = TapNestFlexibleMesh.vertices(
+                val flexible = if (held) null else TapNestFlexibleMesh.vertices(
                     skinLayer, source.first, source.second, now - launchedAtMs, mesh, jointAngles
                 )
                 if (flexible != null) {
