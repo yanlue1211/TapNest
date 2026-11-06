@@ -370,7 +370,9 @@ function draw(time){
 }
 function talk(message){
  box.textContent=message;box.classList.add("show");
- clearTimeout(talk.timer);talk.timer=setTimeout(()=>box.classList.remove("show"),2500);
+ // 完整换行后按字数留足阅读时间，长气泡不再两秒闪过。
+ const readingMs=Math.min(9000,Math.max(2700,1800+[...String(message)].length*170));
+ clearTimeout(talk.timer);talk.timer=setTimeout(()=>box.classList.remove("show"),readingMs);
 }
 function tap(){
  tapTime=performance.now();tapCount++;
