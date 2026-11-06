@@ -12,14 +12,7 @@ data class TapNestSavedTemplate(val id: String, val name: String, val rig: TapNe
 data class TapNestSlotSpec(val id: String, val label: String, val optional: Boolean = true)
 
 object TapNestTemplates {
-    const val LEGACY_FAIRY = "fairy_twinkle_v1" // Existing rigs only; do not offer in creation
     const val MANUAL = "manual"
-
-    // Default for a front-facing, seated cat/dog: the tail emerges from behind
-    // the lower-right hip. PNG layers should share a transparent canvas.
-    // These are editable in the mobile rig preview for other art layouts.
-    const val SITTING_TAIL_PIVOT_X = 0.77f
-    const val SITTING_TAIL_PIVOT_Y = 0.73f
 
     /** IDs retained strictly to label older saved character rigs. Not a selectable template. */
     private val legacySlots: List<TapNestSlotSpec> = listOf(
@@ -51,7 +44,7 @@ object TapNestTemplates {
                 swingMode = TapNestSwingMode.SPRING,
                 idleAmplitude = 85f, idleSpeed = .48f,
                 springSoftness = .85f, springDamping = .45f,
-                shapePreservation = .30f),
+                shapePreservation = .30f, interactionConfigured = true),
             TapNestLayer("wing_left", "", parentId = "body", zIndex = 5,
                 pivotX = .42f, pivotY = .5f, idleSwing = true,
                 idleAmplitude = 14f, idleSpeed = .75f,
@@ -59,7 +52,7 @@ object TapNestTemplates {
             TapNestLayer("wing_right", "", parentId = "body", zIndex = 5,
                 pivotX = .58f, pivotY = .5f, idleSwing = true,
                 idleAmplitude = 14f, idleSpeed = .75f,
-                tapShake = true, tapMotion = TapNestPartMotion.FLAP),
+                tapShake = true, tapMotion = TapNestPartMotion.FLAP, interactionConfigured = true),
             TapNestLayer("ear_left", "", parentId = "head_0", zIndex = 15,
                 pivotX = .40f, pivotY = .28f,
                 periodicEnabled = true, periodicIntervalSeconds = 8f,
@@ -67,7 +60,7 @@ object TapNestTemplates {
             TapNestLayer("ear_right", "", parentId = "head_0", zIndex = 15,
                 pivotX = .60f, pivotY = .28f,
                 periodicEnabled = true, periodicIntervalSeconds = 9f,
-                tapMotion = TapNestPartMotion.TWITCH),
+                tapMotion = TapNestPartMotion.TWITCH, interactionConfigured = true),
             TapNestLayer("head_0", "", parentId = "body", zIndex = 20,
                 pivotX = .5f, pivotY = .72f,
                 tapShake = true, tapMotion = TapNestPartMotion.NOD, interactionConfigured = true),
