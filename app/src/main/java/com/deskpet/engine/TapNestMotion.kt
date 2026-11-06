@@ -39,6 +39,12 @@ enum class TapNestSwingMode { DELAY, SPRING }
 enum class TapNestSwingRange { CENTERED, OUTWARD_ONLY }
 
 @Serializable
+enum class TapNestPartMotion { NOD, BOUNCE, FLAP, TWITCH }
+
+@Serializable
+enum class TapNestPeriodicAction { SHAKE, SWITCH_FRAME }
+
+@Serializable
 data class TapNestLayer(
     val id: String,
     val image: String,
@@ -63,7 +69,20 @@ data class TapNestLayer(
     /** 0: freely bend the skin, 1: preserve the original stroke as a rigid shape. */
     val shapePreservation: Float = 0f,
     /** Centered for classic oscillation; one-sided for diagonal tail silhouettes. */
-    val swingRange: TapNestSwingRange = TapNestSwingRange.CENTERED
+    val swingRange: TapNestSwingRange = TapNestSwingRange.CENTERED,
+    /** Non-null for a nested alternative image frame; it is not a separate pet limb. */
+    val frameOwner: String? = null,
+    /** Motion settings are edited on the owner/default-frame screen. */
+    val tapShake: Boolean = false,
+    val tapMotion: TapNestPartMotion = TapNestPartMotion.NOD,
+    val tapSwitchFrame: Boolean = false,
+    val tapFrame: Int = 1,
+    val periodicEnabled: Boolean = false,
+    val periodicIntervalSeconds: Float = 7f,
+    val periodicAction: TapNestPeriodicAction = TapNestPeriodicAction.SHAKE,
+    val periodicFrame: Int = 1,
+    val idleBlinkEnabled: Boolean = false,
+    val blinkFrame: Int = 1
 )
 
 @Serializable
