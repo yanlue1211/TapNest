@@ -19,7 +19,7 @@ object TapNestLayerActions {
 
     fun currentFrame(
         owner: TapNestLayer, allLayers: List<TapNestLayer>,
-        elapsedMs: Long, touchAgeMs: Long
+        elapsedMs: Long, touchAgeMs: Long, availableIds: Set<String>
     ): String {
         if (!owner.interactionConfigured) return owner.id
         val requested = when {
@@ -33,7 +33,7 @@ object TapNestLayerActions {
         }
         if (requested <= 0) return owner.id
         return allLayers.firstOrNull {
-            it.frameOwner == owner.id && it.frameIndex == requested
+            it.frameOwner == owner.id && it.frameIndex == requested && it.id in availableIds
         }?.id ?: owner.id
     }
 
