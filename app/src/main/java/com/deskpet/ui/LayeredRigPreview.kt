@@ -71,21 +71,28 @@ private fun previewLocalPoint(
     return Offset(x, y)
 }
 
-private fun visibleLayer(id: String, headMode: TapNestHeadMode, face: String, touched: Boolean,
-    assets: Map<String, PreviewAsset>): Boolean = when {
+private fun visibleLayer(
+    layer: TapNestLayer, headMode: TapNestHeadMode, face: String, touched: Boolean,
+    assets: Map<String, PreviewAsset>, selectedFrames: Map<String, String>
+): Boolean {
+    val id = layer.id
+    return when {
+    layer.frameOwner != null -> selectedFrames[layer.frameOwner] == id
+    selectedFrames[id] != null && selectedFrames[id] != id -> false
     id.startsWith("head_") && id != "head_blank" ->
         headMode == TapNestHeadMode.FULL_HEAD && id == face
     id == "head_blank" -> headMode == TapNestHeadMode.BLANK_HEAD_WITH_FACE
     id.startsWith("face_") -> headMode == TapNestHeadMode.BLANK_HEAD_WITH_FACE && id == face
-    id.startsWith("wing_") -> id == if (touched && assets.containsKey("wing_1")) "wing_1" else "wing_0"
-    id.startsWith("bow_") -> id == if (touched && assets.containsKey("bow_1")) "bow_1" else "bow_0"
+    id == "wing_0" || id == "wing_1" -> id == if (touched && assets.containsKey("wing_1")) "wing_1" else "wing_0"
+    id == "bow_0" || id == "bow_1" -> id == if (touched && assets.containsKey("bow_1")) "bow_1" else "bow_0"
     else -> true
+    }
 }
 
 @Composable
 internal fun LayeredRigPreview(
     rig: TapNestRig, uris: Map<String, Uri>, selected: String, mode: RigPreviewMode,
-    selectedBone: Int,
+    selectedBone: Int, showOtherParts: Boolean = true,
     onSelectLayer: (String) -> Unit,
     onDragLayer: (Float, Float) -> Unit,
     onSetPivot: (Float, Float) -> Unit,
@@ -312,11 +319,30 @@ internal fun LayeredRigPreview(
         val chosen = facePrefix + expressionIndex
         val face = if (assets.containsKey(chosen)) chosen else facePrefix + "0"
         val nodes = rig.layers.associateBy { it.id }
+        val selectedFrames = rig.layers.filter { it.frameOwner == null }.associate { owner ->
+            owner.id to if (mode == RigPreviewMode.TEST)
+                TapNestLayerActions.currentFrame(owner, rig.layers,
+                    (clock - previewStartedAt).coerceAtLeast(0L), touchElapsed, assets.keys)
+                else owner.id
+        }
         fun poseFor(id: String): TapNestPose {
             val phase = if (mode == RigPreviewMode.TEST) clock else 0L
             var pose = TapNestPose()
             val layer = nodes[id]
-            if (id == "tail" && mode == RigPreviewMode.TEST && layer?.idleSwing != true) {
+            if (layer?.frameOwner != null) {
+                // Alternate frame follows its default image through the parent chain.
+            } else if (mode == RigPreviewMode.TEST && layer?.interactionConfigured == true) {
+                val periodic = TapNestLayerActions.periodicElapsed(
+                    layer, (clock - previewStartedAt).coerceAtLeast(0L))
+                if (touched && layer.tapShake) {
+                    pose = TapNestLayerActions.motionPose(layer, touchElapsed)
+                } else if (petting && id.startsWith("head_")) {
+                    pose = TapNestMotion.sample(TapNestPresets.petHead(id), id, petElapsed)
+                } else if (periodic != null && !touched && !petting &&
+                    layer.periodicAction == TapNestPeriodicAction.SHAKE) {
+                    pose = TapNestLayerActions.motionPose(layer, periodic)
+                }
+            } else if (id == "tail" && mode == RigPreviewMode.TEST && layer?.idleSwing != true) {
                 pose = TapNestMotion.sample(TapNestPresets.wag(id), id, phase)
             } else if (id.startsWith("head_") || id == "head_blank") {
                 if (petting) pose = TapNestMotion.sample(TapNestPresets.petHead(id), id, petElapsed)
@@ -339,7 +365,8 @@ internal fun LayeredRigPreview(
         native.scale(factor, factor)
         val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
         for (layer in rig.layers.sortedBy { it.zIndex }) {
-            if (!visibleLayer(layer.id, rig.headMode, face, touched, assets)) continue
+            if (!showOtherParts && layer.id != selected) continue
+            if (!visibleLayer(layer, rig.headMode, face, touched, assets, selectedFrames)) continue
             val art = assets[layer.id] ?: continue
             val ancestors = mutableListOf<TapNestLayer>()
             val visited = mutableSetOf<String>()
