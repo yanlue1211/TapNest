@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>TapNest 网页模型引擎 V0.9</title>
+<title>TapNest 网页模型引擎 V0.10</title>
 <style>
 *{box-sizing:border-box}
 html,body{margin:0;padding:0;width:100%;height:100%;background:transparent!important;overflow:hidden;font-family:system-ui,sans-serif}
@@ -24,7 +24,6 @@ html,body{margin:0;padding:0;width:100%;height:100%;background:transparent!impor
 #actions{display:flex;flex:0 0 auto;gap:3px}
 #actions button{flex:0 0 25px;width:25px;min-height:32px;padding:0;border:0;border-radius:9px;background:#6bd9b0;color:#145944;font-size:11px;font-weight:bold}
 #actions button:last-child{background:#e3f0e9}
-#quit{position:absolute;z-index:7;bottom:5px;right:3px;width:23px;height:23px;border:1px solid #b5daca;border-radius:50%;background:#fffffff0;color:#47836f;font-size:17px;line-height:20px;text-align:center;padding:0;touch-action:manipulation}
 #status{position:absolute;bottom:5px;left:5px;right:5px;text-align:center;white-space:normal;font-size:10px;color:#7b7878;pointer-events:none}
 #demo{position:absolute;inset:17%;pointer-events:none;display:grid;place-items:center;font-size:64px;filter:drop-shadow(0 8px 8px #4a987355);animation:idle 3s ease-in-out infinite}
 @keyframes idle{50%{transform:translateY(4px) rotate(2deg)}}
@@ -38,7 +37,6 @@ html,body{margin:0;padding:0;width:100%;height:100%;background:transparent!impor
 <div id="hit" aria-label="桌宠，点击互动，长按聊天"></div></div>
 <div id="bubble" aria-live="polite"></div>
 <form id="chat"><label>🐾 想对我说什么？</label><input id="message" maxlength="200" placeholder="和小狗说句话……"><div id="actions"><button type="submit">发送</button><button type="button" id="cancel">取消</button></div></form>
-<button type="button" id="quit" title="关闭桌宠" aria-label="关闭桌宠">×</button>
 <div id="status"></div>
 </div>
 <script>
@@ -416,24 +414,31 @@ function tap(){
 }
 function openChat(){form.classList.add("open");document.getElementById("stage").classList.add("chatting");try{input.focus()}catch(_){}}
 function closeChat(){form.classList.remove("open");document.getElementById("stage").classList.remove("chatting");input.blur()}
-let pressed=false,moved=false,long=false,x=0,y=0,timer=0;
+let pressed=false,moved=false,x=0,y=0,pressAt=0;
 hit.addEventListener("pointerdown",e=>{
  if(form.classList.contains("open"))return;
- pressed=true;moved=false;long=false;x=e.clientX;y=e.clientY;
- timer=setTimeout(()=>{if(pressed&&!moved){long=true;openChat()}},680);
+ pressed=true;moved=false;x=e.clientX;y=e.clientY;pressAt=performance.now();
+ // Do not open chat mid-hold: a full 5-second stationary hold is the exit gesture.
+ // Only decide between tap and chat once the finger has been released.
 });
-hit.addEventListener("pointermove",e=>{if(pressed&&Math.hypot(e.clientX-x,e.clientY-y)>12){moved=true;clearTimeout(timer)}});
-hit.addEventListener("pointerup",()=>{clearTimeout(timer);if(pressed&&!moved&&!long)tap();pressed=false});
-hit.addEventListener("pointercancel",()=>{pressed=false;clearTimeout(timer)});
+hit.addEventListener("pointermove",e=>{if(pressed&&Math.hypot(e.clientX-x,e.clientY-y)>12)moved=true});
+hit.addEventListener("pointerup",()=>{
+ const elapsed=performance.now()-pressAt;
+ if(pressed&&!moved){
+  if(elapsed<680)tap();
+  else if(elapsed<5000&&!form.classList.contains("open"))openChat();
+  // elapsed >= 5000: AutoJs6 native hold timer closes the overlay instead.
+ }
+ pressed=false;
+});
+hit.addEventListener("pointercancel",()=>{pressed=false});
 form.addEventListener("submit",e=>{
  e.preventDefault();if(!input.value.trim())return;
  input.value="";closeChat();talk("我听到啦！等接上糯米机就能认真回答～");
 });
 document.getElementById("cancel").addEventListener("click",closeChat);
 document.addEventListener("contextmenu",e=>e.preventDefault());
-let closeRequested=false;
-window.PetPreview=Object.freeze({openChat,closeChat,tap,requestClose:()=>{closeRequested=true;},get closeRequested(){return closeRequested;},version:"0.9"});
-document.getElementById("quit").addEventListener("click",()=>{window.PetPreview.requestClose();});
+window.PetPreview=Object.freeze({openChat,closeChat,tap,version:"0.10"});
 window.addEventListener("resize",resize);
 document.addEventListener("visibilitychange",()=>{if(document.hidden)cancelAnimationFrame(raf);else if(rig)raf=requestAnimationFrame(draw)});
 async function initialize(){
