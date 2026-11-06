@@ -43,6 +43,7 @@ var imeWasVisible = false;
 var imeHiddenChecks = 0;
 var focusAt = 0;
 var checking = false;
+var checkStartedAt = 0;
 var shuttingDown = false;
 var wm = null;
 
@@ -94,9 +95,10 @@ ui.run(function () {
 var resultCallback = new JavaAdapter(android.webkit.ValueCallback, {
   onReceiveValue: function (raw) {
     checking = false;
-    if (!focusHeld || shuttingDown) return;
+    if (shuttingDown) return;
     var opened = String(raw) === "true";
     chatOpen = opened;
+    if (!focusHeld) return;
     if (!opened) {
       releaseFocus();
       return;
@@ -152,8 +154,10 @@ win.pet.setOnTouchListener(function(v,e) {
 });
 
 setInterval(function () {
-  if (shuttingDown || !focusHeld || checking) return;
+  if (shuttingDown || (!focusHeld && !chatOpen)) return;
+  if (checking && Date.now() - checkStartedAt < 2000) return;
   checking = true;
+  checkStartedAt = Date.now();
   ui.run(function () {
     try {
       win.pet.evaluateJavascript(
