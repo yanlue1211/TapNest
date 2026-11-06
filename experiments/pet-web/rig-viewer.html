@@ -8,7 +8,7 @@
 *{box-sizing:border-box}
 html,body{margin:0;padding:0;width:100%;height:100%;background:transparent!important;overflow:hidden;font-family:system-ui,sans-serif}
 #stage{width:100%;height:100%;position:relative;overflow:hidden;touch-action:none}
-#petArea{position:absolute;left:0;right:0;top:70px;bottom:0;overflow:hidden;pointer-events:none}
+#petArea{position:absolute;left:50%;right:auto;width:var(--pet-size,100%);transform:translateX(-50%);top:70px;bottom:0;overflow:hidden;pointer-events:none}
 #canvas{width:100%;height:100%;display:block;pointer-events:none}
 #stage.chatting #petArea{top:116px}
 #bubble{position:absolute;top:2px;left:50%;width:max-content;max-width:calc(100% - 8px);transform:translateX(-50%);padding:5px 9px;border:1px solid #c9ebdb;border-radius:12px;box-shadow:0 4px 13px #278c633b;background:#fffffff0;color:#3c7463;font-weight:600;font-size:12px;line-height:1.35;white-space:normal;overflow-wrap:anywhere;word-break:break-word;opacity:0;transition:opacity .14s;pointer-events:none}
@@ -218,7 +218,7 @@ function validate(p){
  if(!p.assets||typeof p.assets!=="object")throw Error("缺少图层资源");
  return r;
 }
-let rig=null,assets=new Map(),names=new Map(),started=performance.now(),tapTime=-1e9,tapCount=0, raf=0,canvas2d=null,gl=null,prog=null;
+let rig=null,assets=new Map(),names=new Map(),started=performance.now(),tapTime=-1e9,tapCount=0,activeTapExpression=0,raf=0,canvas2d=null,gl=null,prog=null;
 let buffPos,buffUv,ibuffer,uSize,uTex,uAlpha,aPos,aUV,viewport={w:220,h:220};
 const dpr=Math.min(2,window.devicePixelRatio||1);
 function resize(){
@@ -322,7 +322,7 @@ function draw(time){
  gl&&gl.clear(gl.COLOR_BUFFER_BIT);
  if(canvas2d)canvas2d.clearRect(0,0,canvas.width,canvas.height);
  const faceType=rig.headMode==="BLANK_HEAD_WITH_FACE"?"face_":"head_";
- const expression=age<1800&&rig.tapExpression>=0?rig.tapExpression:rig.blinkExpression>=0&&blink(elapsed)&&age>1400?rig.blinkExpression:0;
+ const expression=age>=0&&age<1800?activeTapExpression:rig.blinkExpression>=0&&blink(elapsed)&&age>1400?rig.blinkExpression:0;
  const face=faceType+expression;
  const byId=new Map(rig.layers.map(l=>[l.id,l]));
  const currentFrames=chooseOwners(rig,elapsed,age);
@@ -374,6 +374,7 @@ function talk(message){
 }
 function tap(){
  tapTime=performance.now();tapCount++;
+ activeTapExpression=rig&&Number.isInteger(rig.tapExpression)&&rig.tapExpression>=0&&rig.tapExpression<=3?rig.tapExpression:((tapCount-1)%3)+1;
  talk(["嘿嘿！","我在呢～","被你戳到啦！","好痒～"][tapCount%4]);
 }
 function openChat(){form.classList.add("open");document.getElementById("stage").classList.add("chatting");resize();try{input.focus()}catch(_){}}
