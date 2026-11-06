@@ -3,19 +3,22 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>TapNest 网页模型引擎 V0.5</title>
+<title>TapNest 网页模型引擎 V0.7</title>
 <style>
 *{box-sizing:border-box}
 html,body{margin:0;padding:0;width:100%;height:100%;background:transparent!important;overflow:hidden;font-family:system-ui,sans-serif}
 #stage{width:100%;height:100%;position:relative;overflow:hidden;touch-action:none}
+#petArea{position:absolute;left:0;right:0;top:70px;bottom:0;overflow:hidden;pointer-events:none}
 #canvas{width:100%;height:100%;display:block;pointer-events:none}
-#bubble{position:absolute;top:2px;left:50%;max-width:96%;transform:translateX(-50%);padding:5px 10px;border:1px solid #c9ebdb;border-radius:12px;box-shadow:0 4px 13px #278c633b;background:#fffffff0;color:#3c7463;font-weight:600;font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:0;transition:opacity .14s;pointer-events:none}
+#stage.chatting #petArea{top:116px}
+#bubble{position:absolute;top:2px;left:50%;width:max-content;max-width:calc(100% - 8px);transform:translateX(-50%);padding:5px 9px;border:1px solid #c9ebdb;border-radius:12px;box-shadow:0 4px 13px #278c633b;background:#fffffff0;color:#3c7463;font-weight:600;font-size:12px;line-height:1.35;white-space:normal;overflow-wrap:anywhere;word-break:break-word;opacity:0;transition:opacity .14s;pointer-events:none}
 #bubble.show{opacity:1}
-#hit{position:absolute;inset:17% 8% 13%;touch-action:none;user-select:none;-webkit-user-select:none}
-#chat{display:none;position:absolute;inset:0;z-index:5;border:1px solid #b4e8d0;border-radius:15px;background:#f9fffcf2;padding:10px;justify-content:center;flex-direction:column;gap:8px}
+#hit{position:absolute;inset:12% 6% 10%;pointer-events:auto;touch-action:none;user-select:none;-webkit-user-select:none}
+#chat{display:none;position:absolute;top:0;left:0;right:0;height:112px;z-index:5;border:1px solid #b4e8d0;border-radius:13px;background:#f9fffcf2;padding:5px 7px;justify-content:center;flex-direction:column;gap:4px;touch-action:auto}
+#stage.chatting #bubble{opacity:0!important}
 #chat.open{display:flex}
 #chat label{font-size:13px;color:#35836b;text-align:center;font-weight:bold}
-#chat input{height:39px;border:1px solid #b7ddc6;border-radius:9px;padding:6px 8px;min-width:0;font-size:15px;background:white;color:#205442;outline-color:#4cc69b}
+#chat input{height:35px;border:1px solid #b7ddc6;border-radius:9px;padding:6px 8px;min-width:0;font-size:15px;background:white;color:#205442;outline-color:#4cc69b}
 #actions{display:flex;gap:6px}
 #actions button{flex:1;min-height:31px;border:0;border-radius:9px;background:#6bd9b0;color:#145944;font-weight:bold}
 #actions button:last-child{background:#e3f0e9}
@@ -27,9 +30,9 @@ html,body{margin:0;padding:0;width:100%;height:100%;background:transparent!impor
 </head>
 <body>
 <div id="stage">
-<canvas id="canvas"></canvas>
+<div id="petArea"><canvas id="canvas"></canvas>
 <div id="demo">🐶</div>
-<div id="hit" aria-label="桌宠，点击互动，长按聊天"></div>
+<div id="hit" aria-label="桌宠，点击互动，长按聊天"></div></div>
 <div id="bubble" aria-live="polite"></div>
 <form id="chat"><label>🐾 想对我说什么？</label><input id="message" maxlength="200" placeholder="和小狗说句话……"><div id="actions"><button type="submit">发送</button><button type="button" id="cancel">取消</button></div></form>
 <div id="status"></div>
@@ -161,20 +164,41 @@ function deformedVertices(layer,w,h,t,N,angles){
  }
  return out;
 }
+// Keep native TapNestPresets keyframes: NOD / BOUNCE / FLAP / TWITCH must not all become shakes.
+function presetPose(layer,elapsed){
+ const type=layer.tapMotion||"NOD",id=layer.id;
+ const pose=(atMs,p,easeToNext="SMOOTH")=>({atMs,pose:{...pose0(),...p},easeToNext});
+ let frames=[],dur=680;
+ if(type==="BOUNCE"){
+  dur=550;frames=[pose(0,{}),pose(100,{scaleX:1.07,scaleY:.92,y:5}),pose(240,{scaleX:.96,scaleY:1.05,y:-16}),pose(420,{scaleX:1.02,scaleY:.97,y:2}),pose(550,{})];
+ }else if(type==="FLAP"){
+  const sign=id.endsWith("left")?-1:1;
+  frames=[pose(0,{}),pose(160,{angle:15*sign}),pose(330,{angle:-7*sign}),pose(500,{angle:5*sign}),pose(680,{})];
+ }else if(type==="TWITCH"){
+  const sign=id.endsWith("right")?1:-1;
+  dur=420;frames=[pose(0,{}),pose(90,{angle:9*sign}),pose(205,{angle:-4*sign}),pose(420,{})];
+ }else{
+  frames=[pose(0,{}),pose(120,{angle:3,y:1}),pose(270,{angle:8,y:3}),pose(440,{angle:-2.5,y:-1}),pose(560,{angle:-1}),pose(680,{})];
+ }
+ return sample({durationMs:dur,tracks:[{layerId:id,frames}]},id,elapsed);
+}
 const getClipPose=(r,l,t,tapAge)=>{
  const clip=(r.clips||[]).find(c=>(c.tracks||[]).some(tr=>tr.layerId===l.id));
- if(clip)return sample(clip,l.id,clip.loop?t:tapAge);
+ if(clip)return sample(clip,l.id,clip.loop?t:Math.max(0,tapAge));
  let pose=pose0();
+ const touched=tapAge>=0&&tapAge<680;
  if(l.interactionConfigured){
-  const pulse=periodicElapsed(l,t), shake=(l.tapShake&&tapAge<650)||(l.periodicAction==="SHAKE"&&pulse!==null);
-  if(shake)pose.angle=(l.tapMotion==="FLAP"?20:10)*Math.sin((pulse??tapAge)/110);
- }else if(l.id.startsWith("head_")&&tapAge<680){
-  pose.angle=8*Math.sin(Math.PI*clamp(tapAge/680,0,1));
+  const pulse=periodicElapsed(l,t);
+  if(l.tapShake&&touched)pose=presetPose(l,tapAge);
+  else if(!touched&&l.periodicAction==="SHAKE"&&pulse!==null)pose=presetPose(l,pulse);
  }else if(l.id==="tail"&&!l.idleSwing){
-  pose.angle=12*Math.sin(t/270);
+  pose.angle=15*Math.sin(t/1000*2*Math.PI/0.8);
+ }else if((l.id.startsWith("head_")||l.id==="head_blank")&&touched){
+  pose=presetPose({...l,tapMotion:"NOD"},tapAge);
  }
  if(l.idleSwing&&(!l.bones||l.bones.length<2)){
-  pose.angle+=(l.idleAmplitude||10)*Math.sin(t/1000*2*Math.PI*clamp(l.idleSpeed??.7,.1,3));
+  const mirrored=l.mirrorX?-1:1;
+  pose.angle+=mirrored*clamp(l.idleAmplitude??10,0,40)*Math.sin(t/1000*2*Math.PI*clamp(l.idleSpeed??.7,.1,3));
  }
  return pose;
 };
@@ -198,7 +222,7 @@ let rig=null,assets=new Map(),names=new Map(),started=performance.now(),tapTime=
 let buffPos,buffUv,ibuffer,uSize,uTex,uAlpha,aPos,aUV,viewport={w:220,h:220};
 const dpr=Math.min(2,window.devicePixelRatio||1);
 function resize(){
- const width=Math.max(1,window.innerWidth),height=Math.max(1,window.innerHeight);
+ const width=Math.max(1,canvas.clientWidth),height=Math.max(1,canvas.clientHeight);
  viewport={w:width,h:height};
  canvas.width=Math.ceil(width*dpr);canvas.height=Math.ceil(height*dpr);
  if(gl)gl.viewport(0,0,canvas.width,canvas.height);
@@ -311,6 +335,14 @@ function draw(time){
  for(let layer of rig.layers.slice().sort((a,b)=>(a.zIndex||0)-(b.zIndex||0))){
   if(layer.frameOwner)continue;
   if(layer.id==="pickup_pose")continue;
+  if(layer.id==="wing_0"||layer.id==="wing_1"){
+   const wanted=(age>=0&&age<680&&assets.has("wing_1"))?"wing_1":"wing_0";
+   if(layer.id!==wanted)continue;
+  }
+  if(layer.id==="bow_0"||layer.id==="bow_1"){
+   const wanted=(age>=0&&age<680&&assets.has("bow_1"))?"bow_1":"bow_0";
+   if(layer.id!==wanted)continue;
+  }
   if(layer.id.startsWith("head_")&&layer.id!=="head_blank"){
    if(faceType!=="head_"||layer.id!==face&&!(!assets.has(face)&&layer.id==="head_0"))continue;
   }
@@ -344,8 +376,8 @@ function tap(){
  tapTime=performance.now();tapCount++;
  talk(["嘿嘿！","我在呢～","被你戳到啦！","好痒～"][tapCount%4]);
 }
-function openChat(){form.classList.add("open");try{input.focus()}catch(_){}}
-function closeChat(){form.classList.remove("open");input.blur()}
+function openChat(){form.classList.add("open");document.getElementById("stage").classList.add("chatting");resize();try{input.focus()}catch(_){}}
+function closeChat(){form.classList.remove("open");document.getElementById("stage").classList.remove("chatting");input.blur();resize()}
 let pressed=false,moved=false,long=false,x=0,y=0,timer=0;
 hit.addEventListener("pointerdown",e=>{
  if(form.classList.contains("open"))return;
@@ -361,7 +393,7 @@ form.addEventListener("submit",e=>{
 });
 document.getElementById("cancel").addEventListener("click",closeChat);
 document.addEventListener("contextmenu",e=>e.preventDefault());
-window.PetPreview=Object.freeze({openChat,closeChat,tap,version:"0.5"});
+window.PetPreview=Object.freeze({openChat,closeChat,tap,version:"0.7"});
 window.addEventListener("resize",resize);
 document.addEventListener("visibilitychange",()=>{if(document.hidden)cancelAnimationFrame(raf);else if(rig)raf=requestAnimationFrame(draw)});
 async function initialize(){
