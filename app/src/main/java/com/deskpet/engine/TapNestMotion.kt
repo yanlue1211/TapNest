@@ -14,7 +14,10 @@ data class TapNestRig(
     val templateId: String = "manual",
     val headMode: TapNestHeadMode = TapNestHeadMode.FULL_HEAD,
     /** -1 keeps current expression while stroking; 0..3 selects a dedicated face. */
-    val pettingExpression: Int = -1,
+    val pettingExpression: Int = -1, // legacy data: no longer exposed or triggered
+    /** Optional expression while held, -1 keeps the usual face. */
+    /** If true and the single uploaded PNG exists, use that one image while held. */
+    val pickupArtworkEnabled: Boolean = false,
     val blinkExpression: Int = -1,
     val tapExpression: Int = -1,
     /** Map frame index to a mood; no labels means preserve legacy default face. */
@@ -126,6 +129,16 @@ data class TapNestClip(
 )
 
 /** Platform-independent interpolation: the future mobile editor and overlay share this. */
+/** Deterministic wobble when lifting a layered companion, shared by overlay and preview. */
+object TapNestPickupMotion {
+    fun angle(heldForMs: Long, amplitude: Float, cyclesPerSecond: Float): Float {
+        val seconds = heldForMs.coerceAtLeast(0L) / 1000.0
+        return (kotlin.math.sin(seconds * 2.0 * kotlin.math.PI *
+            cyclesPerSecond.coerceIn(.4f, 2.5f)) *
+            amplitude.coerceIn(0f, 24f)).toFloat()
+    }
+}
+
 object TapNestMotion {
     fun sample(clip: TapNestClip, layerId: String, elapsedMs: Long): TapNestPose {
         val frames = clip.tracks.firstOrNull { it.layerId == layerId }?.frames

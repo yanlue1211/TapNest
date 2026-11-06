@@ -176,7 +176,9 @@ class AnimationController(
     fun isCodexPet() = loader is PetEngine.PetLoader.CodexPet
     fun isLayeredPet() = loader is PetEngine.PetLoader.Layered
     fun tapLayeredPet() { (loader as? PetEngine.PetLoader.Layered)?.player?.tap() }
-    fun petLayeredHead() { (loader as? PetEngine.PetLoader.Layered)?.player?.petHead() }
+    fun setLayeredPickedUp(held: Boolean) {
+        (loader as? PetEngine.PetLoader.Layered)?.player?.setPickedUp(held)
+    }
     fun interactCompanion(action: com.deskpet.data.CompanionAction) {
         (loader as? PetEngine.PetLoader.Layered)?.player?.interact(action)
     }

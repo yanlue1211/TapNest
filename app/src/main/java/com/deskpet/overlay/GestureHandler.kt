@@ -19,9 +19,7 @@ class GestureHandler(
     private val onDoubleTap: () -> Unit = {},
     private val onScale: (zoom: Float, focusX: Float, focusY: Float) -> Unit = { _, _, _ -> },
     private val onDragEnd: () -> Unit = {},
-    private val onStrokeHead: () -> Unit = {},
-    private val canStrokeHead: () -> Boolean = { false },
-    private val petHeightPx: () -> Int = { 0 }
+    private val onDragStart: () -> Unit = {}
 ) {
 
     /**
@@ -35,15 +33,8 @@ class GestureHandler(
     val modifier: Modifier
         get() = Modifier
             .pointerInput("longpress_drag") {
-                var stroking = false
-                var strokeDistance = 0f
-                var strokeTriggered = false
                 detectDragGesturesAfterLongPress(
-                    onDragStart = { offset ->
-                        stroking = canStrokeHead() && offset.y <= petHeightPx() * 0.42f
-                        strokeDistance = 0f
-                        strokeTriggered = false
-                    },
+                    onDragStart = { onDragStart() },
                     onDrag = { change, dragAmount ->
                         // 捏合已接管：忽略本次拖拽（但仍消费事件防止泄漏给下层）
                         if (pinching) {
@@ -51,16 +42,6 @@ class GestureHandler(
                             return@detectDragGesturesAfterLongPress
                         }
                         change.consume()
-                        if (stroking) {
-                            // A long horizontal move on the top 42% pets the head.
-                            // Once recognized, this gesture does not drag the entire character.
-                            strokeDistance += abs(dragAmount.x)
-                            if (!strokeTriggered && strokeDistance >= 32f * density) {
-                                strokeTriggered = true
-                                onStrokeHead()
-                            }
-                            return@detectDragGesturesAfterLongPress
-                        }
                         if (isCodexPet()) {
                             val direction = when {
                                 abs(dragAmount.x) > abs(dragAmount.y) && dragAmount.x > 0 -> DragDirection.RIGHT
@@ -73,8 +54,8 @@ class GestureHandler(
                             onDrag(dragAmount.x, dragAmount.y, DragDirection.RIGHT)
                         }
                     },
-                    onDragEnd = { if (!stroking) onDragEnd(); stroking = false },
-                    onDragCancel = { if (!stroking) onDragEnd(); stroking = false }
+                    onDragEnd = { onDragEnd() },
+                    onDragCancel = { onDragEnd() }
                 )
             }
             .pointerInput("pinch") {
@@ -102,7 +83,7 @@ class GestureHandler(
                             event.changes.forEach { it.consume() }
                         }
                     } while (event.changes.any { it.pressed })
-                    if (scaled) onDragEnd()
+                    if (scaled || pinching) onDragEnd()
                     // 无条件复位：即使两指接触但从未产生缩放，也要把标志还回去，
                     // 否则拖拽会被永久禁用
                     pinching = false
