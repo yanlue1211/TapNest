@@ -11,6 +11,18 @@ package com.deskpet.engine
  * do not silently overwrite the other side.
  */
 object TapNestSymmetry {
+    /**
+     * The original one-point wing animation contains a legacy _left / _right
+     * sign convention. A fully reflected copy already mirrors its motion in
+     * the canvas: using the destination _right sign would reverse it AGAIN.
+     * Reuse the source's local-space sign so both wings rise and fall together.
+     * Normal independently-uploaded wings keep their original behaviour.
+     */
+    fun idleSwingSign(layer: TapNestLayer): Float {
+        val motionId = layer.mirroredFromId ?: layer.id
+        return if (motionId.endsWith("_left") && motionId.contains("wing")) -1f else 1f
+    }
+
     fun mirroredGroup(
         source: TapNestLayer,
         frames: List<TapNestLayer>,

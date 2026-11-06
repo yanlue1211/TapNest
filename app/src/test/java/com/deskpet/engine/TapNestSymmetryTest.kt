@@ -30,6 +30,36 @@ class TapNestSymmetryTest {
         assertTrue(result[1].mirrorX)
     }
 
+    @Test fun copiedLeftWingSharesLocalPhaseBeforeCanvasReflection() {
+        val left = TapNestTemplates.newPart("wing_left", 5)
+        val right = TapNestSymmetry.mirroredGroup(
+            left, emptyList(), "wing_right", "右翅膀"
+        ).single()
+        assertEquals(-1f, TapNestSymmetry.idleSwingSign(left), 0f)
+        assertEquals(-1f, TapNestSymmetry.idleSwingSign(right), 0f)
+        assertTrue(right.mirrorX)
+        // Non-mirrored wings uploaded independently preserve legacy signs.
+        val separateRight = TapNestTemplates.newPart("wing_right", 5)
+        assertEquals(1f, TapNestSymmetry.idleSwingSign(separateRight), 0f)
+    }
+
+    @Test fun replacingCopiedArtworkDoesNotChangeBoneOrAnimationSettings() {
+        val left = TapNestLayer("wing_left", "", bones = listOf(
+            TapNestBonePoint(.24f, .31f),
+            TapNestBonePoint(.80f, .17f)
+        ), idleAmplitude = 26f, pivotX = .24f, tapSwitchFrame = true)
+        val right = TapNestSymmetry.mirroredGroup(
+            left, emptyList(), "wing_right", "右翅膀"
+        ).single()
+        // Editor's PNG picker updates the independent URI map, never the rig.
+        val withDifferentArt = right.copy(image = "different_right_wing.png")
+        assertEquals(right.bones, withDifferentArt.bones)
+        assertEquals(right.pivotX, withDifferentArt.pivotX, 0.0001f)
+        assertEquals(right.idleAmplitude, withDifferentArt.idleAmplitude, 0.0001f)
+        assertEquals(right.mirrorX, withDifferentArt.mirrorX)
+        assertEquals(right.tapSwitchFrame, withDifferentArt.tapSwitchFrame)
+    }
+
     @Test fun mirroringExistingMirroredSideRestoresOriginalOrientation() {
         val right = TapNestLayer("ear_right", "", mirrorX = true)
         assertFalse(TapNestSymmetry.mirroredGroup(right, emptyList(), "ear_left", "左耳朵")[0].mirrorX)

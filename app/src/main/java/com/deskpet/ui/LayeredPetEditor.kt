@@ -61,9 +61,9 @@ fun LayeredPetEditor(
     var previewMode by remember(editingPet?.id) { mutableStateOf(RigPreviewMode.POSITION) }
     var newLayerName by remember { mutableStateOf("") }
     val partPresets = listOf(
-        "左右对称翅膀（上传一张，自动镜像）", "左右翅膀（分别上传）", "尾巴",
-        "左右对称耳朵（上传一张，自动镜像）", "左右耳朵（分别上传）",
-        "头部", "自定义单图层", "自定义左右对称图层"
+        "单只翅膀（调好后可镜像复制）", "左右翅膀（分别上传）",
+        "单只耳朵（调好后可镜像复制）", "左右耳朵（分别上传）",
+        "尾巴", "头部", "自定义单图层"
     )
     var newPartPreset by remember { mutableStateOf(partPresets.first()) }
     var partPresetMenu by remember { mutableStateOf(false) }
@@ -260,7 +260,7 @@ fun LayeredPetEditor(
                                     }
                                 }
                             }
-                        }) { Text("↔ 镜像复制") }
+                        }) { Text("↔ 镜像复制（含动作与点位）") }
                     }
                 }
             }
@@ -268,7 +268,7 @@ fun LayeredPetEditor(
                 HorizontalDivider()
                 Text("＋ 自行添加默认部位", style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold)
-                Text("身体是唯一必需的默认帧。翅膀、耳朵、尾巴、头部都按需添加；对称模板只需上传左侧图片，就会自动生成中轴镜像的右侧图片和相同参数。",
+                Text("身体是唯一必需的默认帧。先添加并调好单只翅膀或耳朵，再点该部位的「↔ 镜像复制」，会一起复制图片、骨骼点位和动作参数；也可单独上传左右不同图片。",
                     style = MaterialTheme.typography.bodySmall)
                 Box {
                     OutlinedButton(onClick = { partPresetMenu = true }) {
@@ -303,8 +303,8 @@ fun LayeredPetEditor(
                     }
                     val spec = newPartPreset
                     val customLabel = newLayerName.trim()
-                    val paired = spec.contains("左右") || spec == "自定义左右对称图层"
-                    val sharedArt = spec.contains("对称")
+                    val paired = spec.contains("左右")
+                    val singleMirroringSource = spec.startsWith("单只")
                     val kind = when {
                         spec.contains("翅膀") -> "wing"
                         spec.contains("耳朵") -> "ear"
@@ -333,22 +333,21 @@ fun LayeredPetEditor(
                         }
                         val created = if (paired) {
                             val p = freePairPrefix(kind)
-                            val left = TapNestTemplates.newPart("${p}_left", z)
-                                .copy(displayName = "左$label")
-                            if (sharedArt) {
-                                TapNestSymmetry.mirroredGroup(left, emptyList(),
-                                    "${p}_right", "右$label").let { listOf(left) + it }
-                            } else {
-                                listOf(left, TapNestTemplates.newPart("${p}_right", z)
-                                    .copy(displayName = "右$label"))
-                            }
+                            listOf(
+                                TapNestTemplates.newPart("${p}_left", z)
+                                    .copy(displayName = "左$label"),
+                                TapNestTemplates.newPart("${p}_right", z)
+                                    .copy(displayName = "右$label")
+                            )
                         } else {
-                            val id = when (kind) {
-                                "head" -> "head_0"
-                                "tail" -> if (rig.layers.none { it.id == "tail" }) "tail" else freeId("tail")
+                            val id = when {
+                                kind == "head" -> "head_0"
+                                kind == "tail" && rig.layers.none { it.id == "tail" } -> "tail"
+                                singleMirroringSource -> "${freePairPrefix(kind)}_left"
                                 else -> freeId(kind)
                             }
-                            listOf(TapNestTemplates.newPart(id, z).copy(displayName = label))
+                            listOf(TapNestTemplates.newPart(id, z)
+                                .copy(displayName = if (singleMirroringSource) "左$label" else label))
                         }
                         if (rig.layers.size + created.size > 48) {
                             error = "图层已满（最多 48 层，包含动作帧）"
@@ -360,7 +359,7 @@ fun LayeredPetEditor(
                         }
                     }
                 }) { Text("＋ 添加选中的部位") }
-                Text("需要复制已经调好的整套参数？在现有部位下点「↔ 镜像复制」，动作帧和图片也会一起复制。",
+                Text("先完成一侧，再点「↔ 镜像复制」。复制后可以单独替换另一侧的 PNG，不会清除已设置的点位、锚点和动作参数。请保持两张 PNG 的透明画布尺寸与部位布局一致。",
                     style = MaterialTheme.typography.bodySmall)
             }
             val toRemove = pendingRemoveLayerId
