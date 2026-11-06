@@ -45,7 +45,7 @@ object TapNestTemplates {
         canvasWidth = 512, canvasHeight = 512, templateId = MANUAL,
         layers = listOf(
             TapNestLayer("body", "", zIndex = 10, pivotY = .65f,
-                tapShake = true, tapMotion = TapNestPartMotion.BOUNCE),
+                tapShake = true, tapMotion = TapNestPartMotion.BOUNCE, interactionConfigured = true),
             TapNestLayer("tail", "", parentId = "body", zIndex = 0,
                 pivotX = .75f, pivotY = .72f, idleSwing = true,
                 swingMode = TapNestSwingMode.SPRING,
@@ -55,7 +55,7 @@ object TapNestTemplates {
             TapNestLayer("wing_left", "", parentId = "body", zIndex = 5,
                 pivotX = .42f, pivotY = .5f, idleSwing = true,
                 idleAmplitude = 14f, idleSpeed = .75f,
-                tapShake = true, tapMotion = TapNestPartMotion.FLAP),
+                tapShake = true, tapMotion = TapNestPartMotion.FLAP, interactionConfigured = true),
             TapNestLayer("wing_right", "", parentId = "body", zIndex = 5,
                 pivotX = .58f, pivotY = .5f, idleSwing = true,
                 idleAmplitude = 14f, idleSpeed = .75f,
@@ -63,14 +63,14 @@ object TapNestTemplates {
             TapNestLayer("ear_left", "", parentId = "head_0", zIndex = 15,
                 pivotX = .40f, pivotY = .28f,
                 periodicEnabled = true, periodicIntervalSeconds = 8f,
-                tapMotion = TapNestPartMotion.TWITCH),
+                tapMotion = TapNestPartMotion.TWITCH, interactionConfigured = true),
             TapNestLayer("ear_right", "", parentId = "head_0", zIndex = 15,
                 pivotX = .60f, pivotY = .28f,
                 periodicEnabled = true, periodicIntervalSeconds = 9f,
                 tapMotion = TapNestPartMotion.TWITCH),
             TapNestLayer("head_0", "", parentId = "body", zIndex = 20,
                 pivotX = .5f, pivotY = .72f,
-                tapShake = true, tapMotion = TapNestPartMotion.NOD),
+                tapShake = true, tapMotion = TapNestPartMotion.NOD, interactionConfigured = true),
          )
     )
 
@@ -80,6 +80,48 @@ object TapNestTemplates {
         "wing_left" to "左翅膀 · 默认帧", "wing_right" to "右翅膀 · 默认帧",
         "ear_left" to "左耳朵 · 默认帧", "ear_right" to "右耳朵 · 默认帧"
     )
+
+    /**
+     * Make optional components without any bundled art. Symmetric creation
+     * mirrors only the initial anchor; each side has its own image and settings.
+     */
+    fun newPart(id: String, zIndex: Int): TapNestLayer {
+        val lower = id.lowercase()
+        val isWing = lower.contains("wing")
+        val isEar = lower.contains("ear")
+        val isTail = lower.contains("tail")
+        val isHead = lower.contains("head")
+        val isBody = lower == "body"
+        val isRight = lower.endsWith("_right")
+        val isPaired = lower.endsWith("_right") || lower.endsWith("_left")
+        val pivotX = when {
+            isPaired && isRight -> .60f
+            isPaired -> .40f
+            else -> .5f
+        }
+        val parent = if (isEar || lower.contains("eye")) "head_0" else if (!isBody) "body" else null
+        return TapNestLayer(id = id, image = "", parentId = parent, zIndex = zIndex,
+            pivotX = pivotX,
+            pivotY = when { isEar -> .28f; isWing -> .5f; isHead -> .72f; else -> .65f },
+            idleSwing = isWing || isTail,
+            idleAmplitude = if (isTail) 85f else if (isWing) 14f else 10f,
+            idleSpeed = if (isTail) .48f else .7f,
+            swingMode = if (isTail) TapNestSwingMode.SPRING else TapNestSwingMode.DELAY,
+            springSoftness = if (isTail) .85f else .72f,
+            springDamping = if (isTail) .45f else .40f,
+            shapePreservation = if (isTail) .30f else 0f,
+            tapShake = isWing || isHead || isBody,
+            tapMotion = when {
+                isWing -> TapNestPartMotion.FLAP
+                isEar -> TapNestPartMotion.TWITCH
+                isBody -> TapNestPartMotion.BOUNCE
+                else -> TapNestPartMotion.NOD
+            },
+            periodicEnabled = isEar,
+            periodicIntervalSeconds = if (isEar) (if (isRight) 9f else 8f) else 7f,
+            interactionConfigured = true
+        )
+    }
 
     /** Copy only positions, pivots, z ordering and animation definitions. All art stays local. */
     fun asReusableTemplate(rig: TapNestRig): TapNestRig = rig.copy(
