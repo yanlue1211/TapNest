@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>TapNest 网页模型引擎 V0.12</title>
+<title>TapNest 网页模型引擎 V0.13 · SullyOS 本地桥接</title>
 <style>
 *{box-sizing:border-box}
 html,body{margin:0;padding:0;width:100%;height:100%;background:transparent!important;overflow:hidden;font-family:system-ui,sans-serif}
@@ -507,9 +507,16 @@ hit.addEventListener("pointerup",e=>{
  pressed=false;
 });
 hit.addEventListener("pointercancel",()=>{pressed=false;clearTimeout(singleTapTimer);lastTap=0});
+const outgoingTexts=[];
 form.addEventListener("submit",e=>{
- e.preventDefault();if(!input.value.trim())return;
- input.value="";closeChat();talk("我听到啦！等接上糯米机就能认真回答～");
+ e.preventDefault();
+ const message=input.value.trim();
+ if(!message)return;
+ if(outgoingTexts.length>=10){talk("还有消息没发送出去，检查糯米机是否已连接～");return}
+ outgoingTexts.push(message.slice(0,300));
+ input.value="";
+ closeChat();
+ talk("收到！正在交给糯米机的 Char～");
 });
 document.getElementById("cancel").addEventListener("click",closeChat);
 document.addEventListener("contextmenu",e=>e.preventDefault());
@@ -524,6 +531,8 @@ window.PetPreview=Object.freeze({openChat,closeChat,tap,
   const extra=Math.max(76,Math.ceil(bubbleAnchorPx+required-viewport.h+8));
   return [open?1:0,Math.min(230,extra)].join("|");
  },
+ popOutgoing:()=>outgoingTexts.shift()||"",
+ speak:(text)=>{ if(typeof text==="string"&&text.trim())talk(text.slice(0,1000)); },
  setDragging:(isDragging)=>{
   const next=!!isDragging;
   if(next===draggingPet)return;
@@ -531,7 +540,7 @@ window.PetPreview=Object.freeze({openChat,closeChat,tap,
   if(next){pickedUpAt=performance.now();clearTimeout(singleTapTimer);lastTap=0;}
   else suppressTapUntil=performance.now()+220;
  },
- version:"0.12"});
+ version:"0.13"});
 window.addEventListener("resize",resize);
 document.addEventListener("visibilitychange",()=>{if(document.hidden)cancelAnimationFrame(raf);else if(rig)raf=requestAnimationFrame(draw)});
 async function initialize(){
