@@ -516,7 +516,10 @@ form.addEventListener("submit",e=>{
  outgoingTexts.push(message.slice(0,300));
  input.value="";
  closeChat();
- talk("收到！正在交给糯米机的 Char～");
+ // No canned "forwarding" reply: the pet is the Char's desktop incarnation.
+ // Only real assistant messages arriving from SullyOS are shown as speech.
+ clearTimeout(talk.timer);
+ box.classList.remove("show");
 });
 document.getElementById("cancel").addEventListener("click",closeChat);
 document.addEventListener("contextmenu",e=>e.preventDefault());
