@@ -32,6 +32,28 @@ class LayeredPetPlayerTest {
         return file
     }
 
+    @Test fun manualWingDefaultAndTapFrameBothShowWithoutLegacyWingHiding() {
+        png("body.png", Color.GREEN)
+        png("wing_left.png", Color.RED)
+        png("wing_left_f1.png", Color.BLUE)
+        val rig = TapNestRig(canvasWidth = 64, canvasHeight = 64,
+            templateId = TapNestTemplates.MANUAL, layers = listOf(
+                TapNestLayer("body", "body.png", zIndex = 0),
+                TapNestLayer("wing_left", "wing_left.png", zIndex = 1,
+                    interactionConfigured = true, tapSwitchFrame = true,
+                    tapFrame = 1),
+                TapNestLayer("wing_left_f1", "wing_left_f1.png", zIndex = 1,
+                    parentId = "wing_left", pivotX = 0f, pivotY = 0f,
+                    frameOwner = "wing_left", frameIndex = 1)
+            ))
+        val cfg = tmp.newFile("public_rig.json").apply { writeText(Json.encodeToString(rig)) }
+        val player = requireNotNull(LayeredPetPlayer.load(cfg))
+        assertEquals("manual wing should be visible", Color.RED, player.render().getPixel(32, 32))
+        player.tap()
+        assertEquals("tap selects separate uploaded wing frame",
+            Color.BLUE, player.render().getPixel(32, 32))
+    }
+
     @Test fun compositeIncludesFullHeadAndRetainsPreviousFrame() {
         png("body.png", Color.GREEN)
         png("head_0.png", Color.RED)
