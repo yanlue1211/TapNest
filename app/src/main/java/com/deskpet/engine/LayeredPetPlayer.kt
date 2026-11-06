@@ -129,7 +129,7 @@ class LayeredPetPlayer private constructor(
                     node.periodicAction == TapNestPeriodicAction.SHAKE) {
                     p = TapNestLayerActions.motionPose(node, periodic)
                 }
-            } else if (id == "tail" && !node.idleSwing) {
+            } else if (id == "tail" && !node.idleSwing && !node.interactionConfigured) {
                 p = TapNestMotion.sample(TapNestPresets.wag(id), id, now - launchedAtMs)
             } else if (id.startsWith("head_") || id == "head_blank") {
                 if (petting) p = TapNestMotion.sample(TapNestPresets.petHead(id), id, petElapsed)
@@ -142,7 +142,8 @@ class LayeredPetPlayer private constructor(
             if (node.idleSwing && node.bones.size < 2) {
                 val wave = sin(((now - launchedAtMs) / 1000.0 *
                     node.idleSpeed.coerceIn(0.1f, 3f) * 2 * PI)).toFloat()
-                p = p.copy(angle = p.angle + wave * node.idleAmplitude.coerceIn(0f, 40f))
+                val mirror = if (id.endsWith("_left") && id.contains("wing")) -1f else 1f
+                p = p.copy(angle = p.angle + wave * node.idleAmplitude.coerceIn(0f, 40f) * mirror)
             }
             return p
         }
