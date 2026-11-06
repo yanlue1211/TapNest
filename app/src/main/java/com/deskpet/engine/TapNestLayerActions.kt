@@ -13,6 +13,7 @@ object TapNestLayerActions {
             return null
         val intervalMs = (layer.periodicIntervalSeconds.coerceIn(1f, 120f) * 1000)
             .toLong().coerceAtLeast(PULSE_MS + 1L)
+        if (elapsedMs < intervalMs) return null
         val local = elapsedMs % intervalMs
         return local.takeIf { it < PULSE_MS }
     }
