@@ -246,7 +246,7 @@ function grid(N){
 }
 function drawWebGL(l,img,matrix,t,alpha){
  const canMesh=l.idleSwing&&Array.isArray(l.bones)&&l.bones.length>=2&&l.bones.length<=8;
- const N=canMesh?(l.swingMode==="SPRING"?32:16):1,G=grid(N),w=img.image.naturalWidth,h=img.image.naturalHeight;
+ const N=canMesh?(l.swingMode==="SPRING"?32:16):1,G=grid(N),w=img.logicalWidth,h=img.logicalHeight;
  let verts=canMesh?deformedVertices(l,w,h,t,N,l.swingMode==="SPRING"?springAngles(l,t):null):new Float32Array([0,0,w,0,0,h,w,h]);
  // 1x1 grid order is (0,0),(w,0),(0,h),(w,h)
  const pos=new Float32Array(verts.length);
@@ -271,7 +271,7 @@ function draw2D(l,img,matrix,t,alpha){
  ctx.save();ctx.translate(offX,offY);ctx.scale(scale,scale);
  ctx.transform(...matrix);ctx.globalAlpha=clamp(alpha,0,1);
  // Compatibility fallback: rigid rendering only when WebGL is unavailable.
- ctx.drawImage(img.image,0,0);ctx.restore();
+ ctx.drawImage(img.image,0,0,img.logicalWidth,img.logicalHeight);ctx.restore();
 }
 function chooseOwners(r,t,age){
  const firstByOwner=new Map();
@@ -324,7 +324,7 @@ function draw(time){
   let matrix=ID,alpha=1;
   if(layer.mirrorX)matrix=mul(matrix,mul(T(rig.canvasWidth,0),S(-1,1)));
   for(let l of chain){
-   let p=getPose(l),q=assets.get(currentFrames.get(l.id))||assets.get(l.id),w=q?.image.naturalWidth||rig.canvasWidth,h=q?.image.naturalHeight||rig.canvasHeight;
+   let p=getPose(l),q=assets.get(currentFrames.get(l.id))||assets.get(l.id),w=q?.logicalWidth||rig.canvasWidth,h=q?.logicalHeight||rig.canvasHeight;
    const pivotX=clamp(l.pivotX??.5,0,1)*w,pivotY=clamp(l.pivotY??.5,0,1)*h,scale=clamp(l.restScale??1,.1,4);
    matrix=mul(matrix,T((l.x||0)+(p.x||0)+pivotX*scale,(l.y||0)+(p.y||0)+pivotY*scale));
    matrix=mul(matrix,R(p.angle||0));
@@ -373,7 +373,8 @@ async function initialize(){
   await Promise.all(list.map(l=>new Promise((resolve,reject)=>{
    const pic=new Image();pic.onload=()=>{
     if(pic.naturalWidth>4096||pic.naturalHeight>4096){reject(Error("图层尺寸超出限制："+l.image));return}
-    assets.set(l.id,{image:pic,texture:null});resolve();
+    const original=pack.dimensions?.[l.image]||[pic.naturalWidth,pic.naturalHeight];
+    assets.set(l.id,{image:pic,texture:null,logicalWidth:original[0],logicalHeight:original[1]});resolve();
    };
    pic.onerror=()=>reject(Error("图片损坏："+l.image));
    pic.src=pack.assets[l.image];
