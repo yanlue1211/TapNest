@@ -75,7 +75,7 @@ function readPetZip(filepath){
        !Array.isArray(rig.layers)||rig.layers.length<1||rig.layers.length>48)
       throw Error("rig.json 内容或图层数量不合法");
     var prefix=rigEntryName.substring(0,rigEntryName.length-"rig.json".length);
-    var assets={},total=0,loaded=0;
+    var assets={},dimensions={},total=0,loaded=0;
     for(var i=0;i<rig.layers.length;i++){
       var layer=rig.layers[i],name=layer.image;
       if(!name)continue;
@@ -88,13 +88,37 @@ function readPetZip(filepath){
       if(arr.length<24 || (arr[0]&255)!==137 || (arr[1]&255)!==80 ||
          (arr[2]&255)!==78 || (arr[3]&255)!==71)
         throw Error(name+" 不是有效 PNG 文件");
+      // Preserve original coordinates while downsampling for a small floating window.
+      // Mirroring/pivots/bone coordinates stay based on the full PNG dimensions.
+      var bounds=new android.graphics.BitmapFactory.Options();
+      bounds.inJustDecodeBounds=true;
+      android.graphics.BitmapFactory.decodeByteArray(arr,0,arr.length,bounds);
+      var ow=bounds.outWidth,oh=bounds.outHeight;
+      if(ow<1||oh<1||ow>4096||oh>4096||ow*oh>16000000)
+        throw Error("图片尺寸无效或过大："+name);
+      dimensions[name]=[ow,oh];
+      var sample=1;
+      while(Math.max(ow,oh)/sample>768)sample*=2;
+      if(sample>1){
+        var opts=new android.graphics.BitmapFactory.Options();
+        opts.inSampleSize=sample;
+        opts.inPreferredConfig=android.graphics.Bitmap.Config.ARGB_8888;
+        var bmp=android.graphics.BitmapFactory.decodeByteArray(arr,0,arr.length,opts);
+        if(!bmp)throw Error("PNG 解码失败："+name);
+        var output=new java.io.ByteArrayOutputStream();
+        try{
+          if(!bmp.compress(android.graphics.Bitmap.CompressFormat.PNG,95,output))
+            throw Error("缩放图层失败："+name);
+          arr=output.toByteArray();
+        }finally{output.close();bmp.recycle();}
+      }
       total+=arr.length;
       if(total>MAX_TOTAL)throw Error("模型图片总大小超过 26 MB，暂时无法加载");
       assets[name]="data:image/png;base64,"+String(android.util.Base64.encodeToString(arr,android.util.Base64.NO_WRAP));
       loaded++;
     }
     if(!loaded)throw Error("rig.json 没有关联任何 PNG 图片");
-    return {rig:rig,assets:assets};
+    return {rig:rig,assets:assets,dimensions:dimensions};
   }finally{zip.close()}
 }
 
