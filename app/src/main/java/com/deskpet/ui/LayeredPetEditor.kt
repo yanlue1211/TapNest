@@ -164,7 +164,9 @@ fun LayeredPetEditor(
             Text("导入图片到对应图层", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Text("推荐所有 PNG 使用相同透明画布尺寸；也可选中图层调位置、缩放、旋转中心。带 ①② 的素材是两帧切换，不需要绘制中间帧。",
                 style = MaterialTheme.typography.bodySmall)
-            val slots = TapNestTemplates.slotsFor(rig)
+            val slots = TapNestTemplates.slotsFor(rig).filter { slot ->
+                rig.layers.firstOrNull { it.id == slot.id }?.frameOwner == null
+            }
             for (slot in slots) {
                 val required = TapNestTemplates.isRequired(slot.id, rig.headMode).let {
                     if (rig.templateId == TapNestTemplates.MANUAL) slot.id == "body" else it
@@ -187,30 +189,41 @@ fun LayeredPetEditor(
                     }) { Text(if (uri == null) "导入" else "已选 ✓") }
                     if (uri != null) TextButton(onClick = { images.remove(slot.id) }) { Text("清除") }
                 }
-                if (activeLayer != slot.id || uri != null) {
-                    TextButton(onClick = {
-                        activeLayer = slot.id
-                        previewMode = RigPreviewMode.POSITION
-                        scope.launch { delay(80); editorRequester.bringIntoView() }
-                    }) { Text("🦴 设置本部位的绑骨、大小与日常动作 ›") }
-                }
+                TextButton(onClick = {
+                    activeLayer = slot.id
+                    previewMode = RigPreviewMode.POSITION
+                    showSettings = true
+                }) { Text("⚙️ 设置本默认帧的动作／变帧 ›") }
             }
             if (rig.templateId == TapNestTemplates.MANUAL) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("对称建立两个独立图层", modifier = Modifier.weight(1f))
+                    Switch(checked = symmetricNewLayer,
+                        onCheckedChange = { symmetricNewLayer = it })
+                }
+                Text("例如输入 wing / ear / eye，勾选对称后自动创建 _left 和 _right；图片分别上传，参数也可以分别修改。",
+                    style = MaterialTheme.typography.bodySmall)
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     OutlinedTextField(value = newLayerName,
                         onValueChange = { newLayerName = it.take(35) },
                         label = { Text("新图层名称（如 left_ear）") },
                         modifier = Modifier.weight(1f))
                     TextButton(onClick = {
-                        val id = newLayerName.trim()
-                        if (id.matches(Regex("[a-zA-Z][a-zA-Z0-9_]{0,34}")) &&
-                            rig.layers.none { it.id == id } && rig.layers.size < 32) {
-                            rig = rig.copy(layers = rig.layers +
-                                TapNestLayer(id, "", zIndex = rig.layers.size + 10))
-                            activeLayer = id
+                        val base = newLayerName.trim()
+                            .removeSuffix("_left").removeSuffix("_right")
+                        val ids = if (symmetricNewLayer)
+                            listOf("${base}_left", "${base}_right")
+                            else listOf(newLayerName.trim())
+                        if (ids.all { it.matches(Regex("[a-zA-Z][a-zA-Z0-9_]{0,34}")) } &&
+                            ids.none { id -> rig.layers.any { it.id == id } } &&
+                            rig.layers.size + ids.size <= 32) {
+                            rig = rig.copy(layers = rig.layers + ids.mapIndexed { i, id ->
+                                TapNestTemplates.newPart(id, rig.layers.size + 10 + i)
+                            })
+                            activeLayer = ids.first()
                             newLayerName = ""
                             error = null
-                        } else error = "图层名请用英文字母、数字及下划线，且不能重复"
+                        } else error = "名称请用英文字母、数字或下划线且不可重复；对称图层需要预留 _left/_right 后缀"
                     }) { Text("＋添加") }
                 }
             }
@@ -223,7 +236,12 @@ fun LayeredPetEditor(
             val layer = rig.layers.firstOrNull { it.id == activeLayer }
             if (layer != null) {
                 Text("当前：${TapNestTemplates.slotsFor(rig).firstOrNull { it.id == activeLayer }?.label ?: activeLayer}")
-            Text("🖼️ 实时合成预览", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("🖼️ 实时合成预览", modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                Text("其他部位", style = MaterialTheme.typography.bodySmall)
+                Switch(checked = showOtherParts, onCheckedChange = { showOtherParts = it })
+            }
             Row(modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 FilterChip(
@@ -273,6 +291,7 @@ fun LayeredPetEditor(
                 selected = activeLayer,
                 mode = previewMode,
                 selectedBone = selectedBone,
+                showOtherParts = showOtherParts,
                 onSelectBone = { selectedBone = it },
                 onSetBone = { index, bx, by ->
                     rig = rig.copy(layers = rig.layers.map { layer ->
