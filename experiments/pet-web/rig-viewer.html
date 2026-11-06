@@ -480,7 +480,7 @@ function closeChat(){
  document.getElementById("stage").classList.remove("chatting");
  input.blur();
 }
-let pressed=false,moved=false,x=0,y=0,pressAt=0,lastTap=0,lastTapX=0,lastTapY=0,singleTapTimer=0;
+let pressed=false,moved=false,x=0,y=0,pressAt=0,lastTap=0,lastTapX=0,lastTapY=0,singleTapTimer=0,suppressTapUntil=0;
 hit.addEventListener("pointerdown",e=>{
  if(form.classList.contains("open"))return;
  pressed=true;moved=false;x=e.clientX;y=e.clientY;pressAt=performance.now();
@@ -488,7 +488,7 @@ hit.addEventListener("pointerdown",e=>{
 hit.addEventListener("pointermove",e=>{if(pressed&&Math.hypot(e.clientX-x,e.clientY-y)>12)moved=true});
 hit.addEventListener("pointerup",e=>{
  const now=performance.now(),duration=now-pressAt;
- if(pressed&&!moved&&duration<550&&!form.classList.contains("open")){
+ if(pressed&&!moved&&duration<550&&!form.classList.contains("open")&&!draggingPet&&now>=suppressTapUntil){
   // Delayed single-tap reaction prevents the first double-tap from playing an action.
   const isDouble=lastTap>0&&now-lastTap<=360&&Math.hypot(e.clientX-lastTapX,e.clientY-lastTapY)<40;
   if(isDouble){
@@ -528,7 +528,8 @@ window.PetPreview=Object.freeze({openChat,closeChat,tap,
   const next=!!isDragging;
   if(next===draggingPet)return;
   draggingPet=next;
-  if(next){pickedUpAt=performance.now();clearTimeout(singleTapTimer);lastTap=0}
+  if(next){pickedUpAt=performance.now();clearTimeout(singleTapTimer);lastTap=0;}
+  else suppressTapUntil=performance.now()+220;
  },
  version:"0.12"});
 window.addEventListener("resize",resize);
