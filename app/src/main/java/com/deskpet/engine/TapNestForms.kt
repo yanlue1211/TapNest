@@ -54,8 +54,9 @@ object TapNestForms {
         val selected = active.rig
         val choices = categories.mapNotNull { cat ->
             val sourceId = forms.overrides[cat] ?: return@mapNotNull null
-            val source = forms.forms.firstOrNull { it.id == sourceId } ?: return@mapNotNull null
-            cat to source.rig.layers.filter { category(it) == cat }
+            val source = forms.forms.firstOrNull { it.id == sourceId }
+            if (sourceId != "none" && source == null) return@mapNotNull null
+            cat to (source?.rig?.layers?.filter { category(it) == cat } ?: emptyList())
         }.toMap()
         if (choices.isEmpty()) return selected
         val replaced = selected.layers.filterNot { layer ->
@@ -79,7 +80,7 @@ object TapNestForms {
 
     fun choosePart(forms: TapNestFormCollection, category: String, sourceFormId: String?): TapNestFormCollection {
         if (category !in categories) return forms
-        if (sourceFormId != null && forms.forms.none { it.id == sourceFormId }) return forms
+        if (sourceFormId != null && sourceFormId != "none" && forms.forms.none { it.id == sourceFormId }) return forms
         val without = forms.overrides - category
         return forms.copy(overrides = if (sourceFormId == null || sourceFormId == forms.activeFormId)
             without else without + (category to sourceFormId))
