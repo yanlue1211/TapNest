@@ -107,6 +107,7 @@ class SinglePetArchiveRestorerTest {
     }
 
     @Test fun newSinglePetZipPreservesNameAndDialogueAndAllForms() = runBlocking {
+        try {
         val old = original()
         val home = File(old.petJsonPath!!).parentFile!!
         val repo = newRepo()
@@ -129,6 +130,10 @@ class SinglePetArchiveRestorerTest {
             zip.delete()
             home.deleteRecursively()
             repo.getAllPets().first().forEach { File(it.petJsonPath!!).parentFile?.deleteRecursively() }
+        }
+        } catch (t: Throwable) {
+            System.err.println("SINGLE_ARCHIVE_TEST_TRACE:\n" + t.stackTraceToString())
+            throw t
         }
     }
 
