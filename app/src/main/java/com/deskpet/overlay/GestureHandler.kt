@@ -131,7 +131,8 @@ class GestureHandler(
                 }
             }
             .pointerInput("tap") {
-                detectTapGestures(onTap = { onTap() }, onDoubleTap = { onDoubleTap() })
+                detectTapGestures(onTap = { onTap() }, onDoubleTap = { onDoubleTap() },
+                    onLongPress = { /* hold observer handles the release */ })
             }
 
     fun mapDirectionToState(direction: DragDirection): PetAnimationState = when (direction) {
