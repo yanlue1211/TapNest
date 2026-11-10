@@ -87,9 +87,10 @@ class SinglePetArchiveRestorerTest {
             "forms.json" to File(home, "forms.json").readBytes()
         )
         val repo = newRepo()
+        val beforeIds = repo.getAllPets().first().map { it.id }.toSet()
         try {
             manager.restoreFromBackup(Uri.fromFile(zip), repo)
-            val all = repo.getAllPets().first()
+            val all = repo.getAllPets().first().filterNot { it.id in beforeIds }
             assertEquals(1, all.size)
             val restored = all.single()
             assertEquals(PetType.LAYERED, restored.type)
@@ -102,7 +103,10 @@ class SinglePetArchiveRestorerTest {
         } finally {
             zip.delete()
             home.deleteRecursively()
-            repo.getAllPets().first().forEach { File(it.petJsonPath!!).parentFile?.deleteRecursively() }
+            repo.getAllPets().first().filterNot { it.id in beforeIds }.forEach {
+                repo.deletePet(it.id)
+                it.petJsonPath?.let { file -> File(file).parentFile?.deleteRecursively() }
+            }
         }
     }
 
@@ -111,6 +115,7 @@ class SinglePetArchiveRestorerTest {
         val old = original()
         val home = File(old.petJsonPath!!).parentFile!!
         val repo = newRepo()
+        val beforeIds = repo.getAllPets().first().map { it.id }.toSet()
         val zip = manager.exportPetToZip(old)!!
         try {
             ZipFile(zip).use {
@@ -119,7 +124,7 @@ class SinglePetArchiveRestorerTest {
                 assertNotNull(it.getEntry("body.png"))
             }
             manager.restoreFromBackup(Uri.fromFile(zip), repo)
-            val restored = repo.getAllPets().first().single()
+            val restored = repo.getAllPets().first().filterNot { it.id in beforeIds }.single()
             assertNotEquals(old.id, restored.id)
             assertEquals("之前的小猫", restored.displayName)
             assertEquals(old.tapDialogues, restored.tapDialogues)
@@ -142,13 +147,14 @@ class SinglePetArchiveRestorerTest {
         val home = File(original.petJsonPath!!).parentFile!!
         val before = File(home, "rig.json").readBytes()
         val repo = newRepo()
+        val beforeIds = repo.getAllPets().first().map { it.id }.toSet()
         val zip = legacyZip("some.txt" to "not a backup".toByteArray())
         try {
             val error = runCatching { manager.restoreFromBackup(Uri.fromFile(zip), repo) }.exceptionOrNull()
             assertTrue(error is ImportException.InvalidFormat)
             assertTrue(error!!.message!!.contains("pets.json"))
             assertArrayEquals(before, File(home, "rig.json").readBytes())
-            assertTrue(repo.getAllPets().first().isEmpty())
+            assertEquals(beforeIds, repo.getAllPets().first().map { it.id }.toSet())
         } finally {
             zip.delete()
             home.deleteRecursively()
