@@ -29,7 +29,8 @@ fun LayeredFormManager(
     onChanged: () -> Unit,
     onBack: () -> Unit
 ) {
-    val store = remember { TapNestFormStore(LocalContext.current) }
+    val context = LocalContext.current
+    val store = remember(context) { TapNestFormStore(context) }
     val scope = rememberCoroutineScope()
     var forms by remember(pet.id) {
         mutableStateOf(runCatching { store.load(pet) }.getOrNull())
