@@ -107,6 +107,24 @@ jobs:
           name: app-release
           path: app/build/outputs/apk/release/app-release*.apk
 
+      # Debug certificates are ephemeral across hosted CI runners. A separate
+      # application ID lets the user test recovery without uninstalling an
+      # existing package whose signer is different (and losing its private data).
+      - name: Build side-by-side safe recovery APK
+        if: github.ref_type != 'tag'
+        run: |
+          ./gradlew assembleDebug -Ptapnest.parallelRestore=true
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"
+          "$AAPT" dump badging app/build/outputs/apk/debug/app-debug.apk | grep -Fq "package: name='com.tapnest.pet.recovery'"
+          mkdir -p app/build/outputs/apk/recovery
+          cp app/build/outputs/apk/debug/app-debug.apk "app/build/outputs/apk/recovery/Tap Nest 安全恢复.apk"
+
+      - name: Upload safe recovery APK
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v4
+        with:
+          name: Tap-Nest-Safe-Recovery
+          path: app/build/outputs/apk/recovery/Tap Nest 安全恢复.apk
       - name: Pick APK to release
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
