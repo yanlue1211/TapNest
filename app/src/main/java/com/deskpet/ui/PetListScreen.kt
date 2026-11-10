@@ -194,26 +194,25 @@ fun PetListScreen(
     // 竖屏不会双重留白）：横屏时挖孔在左右两侧，只有 statusBarsPadding
     // 挡不住——右缘的收纳坞和网格卡片都会钻进刘海底下（触摸也会被吃掉）
     Box(
-        Modifier.fillMaxSize().windowInsetsPadding(
+        Modifier.fillMaxSize().background(MaterialTheme.colorScheme.background).windowInsetsPadding(
             WindowInsets.safeDrawing.only(WindowInsetsSides.Top + WindowInsetsSides.Horizontal)
         )
     ) {
-        Column(Modifier.fillMaxSize().padding(horizontal = 12.dp, vertical = 12.dp)) {
+        Column(Modifier.fillMaxSize().padding(horizontal = 16.dp, vertical = 12.dp)) {
             // 顶栏（M3 规范："app bar 最多 1-2 个操作，能不用溢出菜单就不用，
             // 操作多就放进 toolbar"）：本页所有操作都在底部收纳坞，顶栏零图标
             // 注意头部不能用 weight：weight 子项在无权重子项之后测量，而下方
             // 空态 Box(fillMaxSize) 会先吃掉全部高度，头部被压成 0（标题曾因此
             // 在所有设备上不可见）。剩余空间改由内容区用 weight(1f) 主动认领。
-            Column {
-                Text("桌面伙伴", style = MaterialTheme.typography.headlineSmall, fontWeight = FontWeight.Bold)
-                if (!isLoading && petList.isNotEmpty()) {
-                    Text(
-                        "${petList.size} 位伙伴 · " + if (isOverlayRunning) "运行中" else "未开启",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
+            NestHero(
+                title = "桌面伙伴",
+                subtitle = if (isLoading) "正在整理你的小小伙伴们…" else if (petList.isEmpty())
+                    "把喜欢的角色带到手机桌面" else
+                    "${petList.size} 位伙伴 · " + if (isOverlayRunning) "正在陪伴" else "等待唤醒",
+                emoji = "🐾",
+                tag = if (isOverlayRunning) "● 正在运行" else "○ 休息中",
+                compact = isLandscape
+            )
             Spacer(Modifier.height(8.dp))
 
         if (isLoading) {
@@ -222,7 +221,8 @@ fun PetListScreen(
             Box(Modifier.fillMaxWidth().weight(1f), contentAlignment = Alignment.Center) {
                 Surface(
                     shape = RoundedCornerShape(24.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerLow
+                    color = MaterialTheme.colorScheme.surface,
+                    border = androidx.compose.foundation.BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
                 ) {
                     Column(
                         Modifier.padding(horizontal = 36.dp, vertical = 30.dp),
@@ -385,8 +385,10 @@ private fun PetDock(
         Surface(
             modifier = Modifier.animateContentSize(motion),
             shape = RoundedCornerShape(corner),
-            color = MaterialTheme.colorScheme.surfaceContainer,
-            shadowElevation = 6.dp
+            color = MaterialTheme.colorScheme.surface,
+            border = androidx.compose.foundation.BorderStroke(1.dp,
+                MaterialTheme.colorScheme.outlineVariant),
+            shadowElevation = 8.dp
         ) {
             Box(contentAlignment = Alignment.Center) {
                 // —— 收纳态内容：56dp 圆钮（箭头 + 边缘状态点）。
@@ -821,17 +823,17 @@ private fun PetGridCard(
             onClick = onClick,
             onLongClick = onLongClick
         ),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(24.dp),
         // M3 Expressive：深度用色调差而不是阴影，选中用 primaryContainer 实色
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (isActive) MaterialTheme.colorScheme.primaryContainer
-            else MaterialTheme.colorScheme.surfaceContainerLow
+            else MaterialTheme.colorScheme.surface
         ),
-        border = if (isActive) null
-        else androidx.compose.foundation.BorderStroke(
-            width = 1.dp,
-            color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+        border = androidx.compose.foundation.BorderStroke(
+            width = if (isActive) 1.6.dp else 1.dp,
+            color = if (isActive) MaterialTheme.colorScheme.primary.copy(alpha = 0.45f)
+                else MaterialTheme.colorScheme.outlineVariant
         )
     ) {
         Box(Modifier.fillMaxSize()) {
