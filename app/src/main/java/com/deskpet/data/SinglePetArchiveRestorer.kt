@@ -162,11 +162,12 @@ internal class SinglePetArchiveRestorer(private val context: Context) {
                 if (type == PetType.LAYERED || type == PetType.CODEX_PET)
                     File(petFolder, "companion").deleteRecursively()
             }
-            val name = saved?.displayName?.take(60)?.ifBlank { null }
-                ?: if (type == PetType.CODEX_PET && targetCodex != null) {
-                    runCatching { json.decodeFromString<CodexPetConfig>(targetCodex.readText()).displayName }
-                        .getOrNull()?.take(60)?.ifBlank { null }
-                } else null ?: nameFromArchive(archiveName, type)
+            val codexName = if (type == PetType.CODEX_PET && targetCodex != null) {
+                runCatching { json.decodeFromString<CodexPetConfig>(targetCodex.readText()).displayName }
+                    .getOrNull()?.take(60)?.takeIf { it.isNotBlank() }
+            } else null
+            val name = saved?.displayName?.take(60)?.takeIf { it.isNotBlank() }
+                ?: codexName ?: nameFromArchive(archiveName, type)
             val restored = saved?.copy(
                 id = id,
                 petJsonPath = targetRig?.absolutePath ?: targetCodex?.absolutePath,
