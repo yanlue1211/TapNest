@@ -7,6 +7,10 @@ import androidx.compose.foundation.gestures.calculateZoom
 import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.Modifier
+import android.os.SystemClock
+import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import androidx.compose.ui.input.pointer.pointerInput
 import com.deskpet.data.model.DragDirection
 import com.deskpet.data.model.PetAnimationState
@@ -19,7 +23,9 @@ class GestureHandler(
     private val onDoubleTap: () -> Unit = {},
     private val onScale: (zoom: Float, focusX: Float, focusY: Float) -> Unit = { _, _, _ -> },
     private val onDragEnd: () -> Unit = {},
-    private val onDragStart: () -> Unit = {}
+    private val onDragStart: () -> Unit = {},
+    private val onHoldMenu: () -> Unit = {},
+    private val onHoldClose: () -> Unit = {}
 ) {
 
     /**
@@ -89,8 +95,45 @@ class GestureHandler(
                     pinching = false
                 }
             }
+            .pointerInput("hold_menu_or_close") {
+                // Put the timer's CoroutineScope outside AwaitPointerEventScope: pointer
+                // event scopes restrict suspending calls, but can use a captured launch.
+                coroutineScope {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        val start = down.position
+                        val began = down.uptimeMillis
+                        var moved = false
+                        var multiTouch = false
+                        var pressed = true
+                        var closed = false
+                        val closeTimer = launch {
+                            delay(5000L)
+                            if (pressed && !moved && !multiTouch && !pinching) {
+                                closed = true
+                                onHoldClose()
+                            }
+                        }
+                        try {
+                            do {
+                                val event = awaitPointerEvent()
+                                if (event.changes.count { it.pressed } > 1 || pinching)
+                                    multiTouch = true
+                                if (event.changes.any {
+                                    (it.position - start).getDistance() > viewConfiguration.touchSlop
+                                }) moved = true
+                                pressed = event.changes.any { it.pressed }
+                            } while (pressed && !closed)
+                        } finally { closeTimer.cancel() }
+                        val action = HoldGesturePolicy.action(
+                            SystemClock.uptimeMillis() - began, moved, multiTouch || pinching)
+                        if (!closed && action == HoldGesturePolicy.Action.MENU) onHoldMenu()
+                    }
+                }
+            }
             .pointerInput("tap") {
-                detectTapGestures(onTap = { onTap() }, onDoubleTap = { onDoubleTap() })
+                detectTapGestures(onTap = { onTap() }, onDoubleTap = { onDoubleTap() },
+                    onLongPress = { /* hold observer handles the release */ })
             }
 
     fun mapDirectionToState(direction: DragDirection): PetAnimationState = when (direction) {

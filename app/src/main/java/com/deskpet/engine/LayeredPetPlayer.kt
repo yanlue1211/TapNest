@@ -253,7 +253,11 @@ class LayeredPetPlayer private constructor(
     companion object {
         fun load(configFile: File): LayeredPetPlayer? = runCatching {
             if (!configFile.isFile || configFile.length() > 1024 * 1024) return null
-            val rig = Json { ignoreUnknownKeys = true }.decodeFromString<TapNestRig>(configFile.readText())
+            val legacy = Json { ignoreUnknownKeys = true }.decodeFromString<TapNestRig>(configFile.readText())
+            val formsFile = File(configFile.parentFile, "forms.json")
+            // An invalid forms file must not silently replace the player's current choice.
+            val rig = if (formsFile.exists()) TapNestForms.parse(formsFile)?.let(TapNestForms::resolve)
+                ?: return null else legacy
             if (rig.canvasWidth !in 1..4096 || rig.canvasHeight !in 1..4096 || rig.layers.size > 48) return null
             val dir = configFile.parentFile ?: return null
             val entries = mutableMapOf<String, Bitmap>()

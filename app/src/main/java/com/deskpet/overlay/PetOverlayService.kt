@@ -54,6 +54,8 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
     private lateinit var companionStore: com.deskpet.data.CompanionStore
     private var reminderJob: Job? = null
     private var floatingPanel: CompanionFloatingPanel? = null
+    private var formPanel: FormFloatingPanel? = null
+    private var formSwitchJob: Job? = null
     private var currentPet: PetInfo? = null
     private var touchLineIndex = 0
     private var petId: String? = null
@@ -146,9 +148,59 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         }
     }
 
+    private fun onHoldClose() {
+        // Closing is an explicit user action; disable auto-resume just like notification Stop.
+        formPanel?.dismiss()
+        formPanel = null
+        repo.setOverlayAutoResumeAsync(false)
+        stopSelf()
+    }
+
+    private fun onHoldMenu() {
+        val pet = currentPet ?: return
+        if (!anim.isLayeredPet()) return
+        runCatching {
+            val forms = com.deskpet.data.TapNestFormStore(this).load(pet)
+            floatingPanel?.dismiss()
+            floatingPanel = null
+            formPanel?.dismiss()
+            formPanel = FormFloatingPanel(this, wm, this, this, this).also { panel ->
+                panel.show(forms, wx, wy, anim.petWidth.value, anim.petHeight.value, safeBounds(),
+                    onForm = { formId -> switchForm(pet, formId, null, null) },
+                    onPart = { category, formId -> switchForm(pet, null, category, formId) },
+                    onClose = { panel.dismiss(); if (formPanel === panel) formPanel = null })
+            }
+        }.onFailure { Log.w(TAG, "outfit menu failed", it) }
+    }
+
+    private fun switchForm(pet: PetInfo, formId: String?, category: String?, source: String?) {
+        formSwitchJob?.cancel()
+        formSwitchJob = sc.launch {
+            try {
+                // Preserve the precise on-screen location before reloading the new rig.
+                repo.savePosition(pet.id, wx, wy, savedScale)
+                withContext(Dispatchers.IO) {
+                    val store = com.deskpet.data.TapNestFormStore(this@PetOverlayService)
+                    if (formId != null) store.setActive(pet, formId)
+                    else if (category != null) store.setPart(pet, category, source)
+                }
+                formPanel?.dismiss()
+                formPanel = null
+                if (petId == pet.id) show(pet.id)
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
+                Log.w(TAG, "form switch failed", e)
+                Toast.makeText(this@PetOverlayService,
+                    e.message ?: "形态切换失败", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     private fun onDoubleTap() {
         val id = petId ?: return
         val person = currentPet ?: return
+        formPanel?.dismiss()
+        formPanel = null
         floatingPanel?.dismiss()
         floatingPanel = CompanionFloatingPanel(
             this, wm, this, this, this, companionStore,
@@ -259,6 +311,8 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
             onDrag = ::onDrag,
             onTap = ::onTap,
             onDoubleTap = ::onDoubleTap,
+            onHoldMenu = ::onHoldMenu,
+            onHoldClose = ::onHoldClose,
             isCodexPet = anim::isCodexPet,
             onScale = ::onScale,
             onDragStart = {
@@ -393,6 +447,9 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         persistPositionAsync()
         OverlayState.setRunning(null)
         scaleJob?.cancel()
+        formSwitchJob?.cancel()
+        formPanel?.dismiss()
+        formPanel = null
         removeOverlayView()
         if (::anim.isInitialized) anim.stop()
         auto?.stop()
@@ -400,6 +457,8 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         reminderJob?.cancel()
         floatingPanel?.dismiss()
         floatingPanel = null
+        formPanel?.dismiss()
+        formPanel = null
         speechBubble?.dismiss()
         speechBubble = null
         currentPet = null

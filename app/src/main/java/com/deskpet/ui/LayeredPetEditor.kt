@@ -39,39 +39,46 @@ fun LayeredPetEditor(
     petRepository: PetRepository,
     onCreated: (PetInfo) -> Unit,
     onBack: () -> Unit,
-    editingPet: PetInfo? = null
+    editingPet: PetInfo? = null,
+    formId: String? = null
 ) {
     val ctx = LocalContext.current
     val store = remember { TapNestLayeredStore(ctx) }
+    val formStore = remember { com.deskpet.data.TapNestFormStore(ctx) }
+    val formForEdit = remember(editingPet?.id, formId) {
+        if (editingPet != null && formId != null)
+            formStore.load(editingPet).forms.firstOrNull { it.id == formId }
+        else null
+    }
     val scope = rememberCoroutineScope()
     val templates = remember { store.savedTemplates() }
-    val originalRig = remember(editingPet?.id) {
-        editingPet?.let(store::loadRig) ?: TapNestTemplates.manual()
+    val originalRig = remember(editingPet?.id, formId) {
+        formForEdit?.rig ?: editingPet?.let(store::loadRig) ?: TapNestTemplates.manual()
     }
-    var rig by remember(editingPet?.id) { mutableStateOf(originalRig) }
-    var templateChoice by remember(editingPet?.id) {
+    var rig by remember(editingPet?.id, formId) { mutableStateOf(originalRig) }
+    var templateChoice by remember(editingPet?.id, formId) {
         mutableStateOf(if (editingPet == null) TapNestTemplates.MANUAL else originalRig.templateId)
     }
-    var name by remember(editingPet?.id) { mutableStateOf(editingPet?.displayName ?: "我的小伙伴") }
-    var saveTemplate by remember(editingPet?.id) { mutableStateOf(editingPet == null) }
+    var name by remember(editingPet?.id, formId) { mutableStateOf(formForEdit?.name ?: editingPet?.displayName ?: "我的小伙伴") }
+    var saveTemplate by remember(editingPet?.id, formId) { mutableStateOf(editingPet == null) }
     var busy by remember { mutableStateOf(false) }
     var activeLayer by remember { mutableStateOf("body") }
     var selectedBone by remember(activeLayer) { mutableIntStateOf(0) }
     val editorRequester = remember { BringIntoViewRequester() }
-    var previewMode by remember(editingPet?.id) { mutableStateOf(RigPreviewMode.POSITION) }
+    var previewMode by remember(editingPet?.id, formId) { mutableStateOf(RigPreviewMode.POSITION) }
     var newLayerName by remember { mutableStateOf("") }
     val partPresets = listOf("左翅膀", "右翅膀", "左耳朵", "右耳朵", "尾巴", "头部", "自定义图层")
     var newPartPreset by remember { mutableStateOf(partPresets.first()) }
     var partPresetMenu by remember { mutableStateOf(false) }
     var pendingRemoveLayerId by remember { mutableStateOf<String?>(null) }
     var pickupSettingsOpen by remember { mutableStateOf(false) }
-    var showSettings by remember(editingPet?.id) { mutableStateOf(false) }
+    var showSettings by remember(editingPet?.id, formId) { mutableStateOf(false) }
     var showOtherParts by remember { mutableStateOf(true) }
     var showBonesHelp by remember { mutableStateOf(false) }
     val pageScroll = rememberScrollState()
     LaunchedEffect(showSettings, activeLayer) { pageScroll.scrollTo(0) }
     var error by remember { mutableStateOf<String?>(null) }
-    val images = remember(editingPet?.id) {
+    val images = remember(editingPet?.id, formId) {
         mutableStateMapOf<String, Uri>().apply {
             val dir = editingPet?.petJsonPath?.let { java.io.File(it).parentFile }
             if (dir != null) originalRig.layers.forEach { layer ->
@@ -131,7 +138,7 @@ fun LayeredPetEditor(
     BackHandler(!busy) { if (showSettings) showSettings = false else onBack() }
     Scaffold(topBar = {
         TopAppBar(title = { Text(if (showSettings) "⚙️ 当前部位 · 动作帧" else
-                if (editingPet == null) "🌱 制作桌面伙伴" else "🦴 重新编辑 · ${editingPet.displayName}") },
+                if (editingPet == null) "🌱 创建第一形态" else if (formForEdit != null) "🦴 编辑形态 · ${formForEdit.name}" else "🦴 重新编辑 · ${editingPet.displayName}") },
             navigationIcon = { TextButton(onClick = {
                 if (showSettings) showSettings = false else onBack()
             }, enabled = !busy) { Text(if (showSettings) "返回素材" else "返回") } })
@@ -172,7 +179,7 @@ fun LayeredPetEditor(
                 }
             }
             OutlinedTextField(value = name, onValueChange = { name = it.take(60) },
-                label = { Text("这只桌宠的名字") }, modifier = Modifier.fillMaxWidth())
+                label = { Text(if (formForEdit != null) "当前形态的名字" else "这只桌宠的名字") }, modifier = Modifier.fillMaxWidth())
             Text("导入图片到对应图层", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
             Text("推荐所有 PNG 使用相同透明画布尺寸；也可选中图层调位置、缩放、旋转中心。带 ①② 的素材是两帧切换，不需要绘制中间帧。",
                 style = MaterialTheme.typography.bodySmall)
@@ -1054,6 +1061,8 @@ fun LayeredPetEditor(
                         try {
                             val resultPet = withContext(Dispatchers.IO) {
                                 if (editingPet == null) store.createPet(name, rig, images.toMap(), saveTemplate)
+                                else if (formForEdit != null) formStore.saveForm(editingPet, formForEdit.id,
+                                    name, rig, images.toMap())
                                 else store.updatePet(editingPet, name, rig, images.toMap(), saveTemplate)
                             }
                             if (editingPet == null) petRepository.addPetDirect(resultPet)
@@ -1069,7 +1078,7 @@ fun LayeredPetEditor(
                 enabled = !busy,
                 modifier = Modifier.fillMaxWidth()
             ) {
-                Text(if (busy) "正在保存…" else if (editingPet != null) "保存当前角色的修改"
+                Text(if (busy) "正在保存…" else if (formForEdit != null) "保存当前形态" else if (editingPet != null) "保存当前角色的修改"
                     else "创建桌宠并保存模板")
             }
             } // Base page save button
