@@ -19,6 +19,8 @@ import java.util.UUID
 
 /** Multi-form companion data live next to rig.json, so legacy pets and backups still work. */
 class TapNestFormStore(private val context: Context) {
+    // Shared across the UI and overlay service: prevents lost update/read while committing.
+    private companion object { val writeLock = Any() }
     private val json = Json { ignoreUnknownKeys = true }
 
     private fun dir(pet: PetInfo): File {
@@ -29,7 +31,7 @@ class TapNestFormStore(private val context: Context) {
         return path
     }
 
-    fun load(pet: PetInfo): TapNestFormCollection {
+    fun load(pet: PetInfo): TapNestFormCollection = synchronized(writeLock) {
         val home = dir(pet)
         val formsFile = File(home, "forms.json")
         if (formsFile.exists()) return TapNestForms.parse(formsFile)
@@ -54,7 +56,7 @@ class TapNestFormStore(private val context: Context) {
         }
     }
 
-    fun add(pet: PetInfo, sourceFormId: String?, label: String): TapNestForm {
+    fun add(pet: PetInfo, sourceFormId: String?, label: String): TapNestForm = synchronized(writeLock) {
         val current = load(pet)
         require(current.forms.size < 24) { "每只桌宠最多24种形态" }
         val from = current.forms.firstOrNull { it.id == sourceFormId }
@@ -67,7 +69,7 @@ class TapNestFormStore(private val context: Context) {
         return form
     }
 
-    fun remove(pet: PetInfo, id: String) {
+    fun remove(pet: PetInfo, id: String) = synchronized(writeLock) {
         val forms = load(pet)
         require(forms.forms.size > 1) { "至少保留一种形态" }
         require(forms.forms.any { it.id == id })
@@ -80,7 +82,7 @@ class TapNestFormStore(private val context: Context) {
         // Deliberately retain referenced PNGs. Asset cleanup must be a separate safe operation.
     }
 
-    fun setActive(pet: PetInfo, id: String): TapNestFormCollection {
+    fun setActive(pet: PetInfo, id: String): TapNestFormCollection = synchronized(writeLock) {
         val forms = load(pet)
         require(TapNestForms.eligible(forms, id, dir(pet))) { "该形态还没有身体图片，请先完成绑骨" }
         val changed = TapNestForms.choose(forms, id)
@@ -88,7 +90,7 @@ class TapNestFormStore(private val context: Context) {
         return changed
     }
 
-    fun setPart(pet: PetInfo, category: String, sourceFormId: String?): TapNestFormCollection {
+    fun setPart(pet: PetInfo, category: String, sourceFormId: String?): TapNestFormCollection = synchronized(writeLock) {
         val forms = load(pet)
         val changed = TapNestForms.choosePart(forms, category, sourceFormId)
         if (sourceFormId != null && sourceFormId != "none") {
@@ -99,7 +101,7 @@ class TapNestFormStore(private val context: Context) {
     }
 
     fun saveForm(pet: PetInfo, id: String, label: String, rig: TapNestRig,
-                 inputs: Map<String, Uri>): PetInfo {
+                 inputs: Map<String, Uri>): PetInfo = synchronized(writeLock) {
         val forms = load(pet)
         val previous = forms.forms.firstOrNull { it.id == id } ?: error("形态不存在")
         require(rig.layers.size <= 48)
