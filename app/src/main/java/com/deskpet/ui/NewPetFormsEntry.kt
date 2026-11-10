@@ -15,14 +15,17 @@ import androidx.compose.ui.unit.dp
 fun NewPetFormsEntry(onCreateFirst: () -> Unit, onBack: () -> Unit) {
     Scaffold(topBar = {
         TopAppBar(title = { Text("🌱 创建桌面伙伴") },
-            navigationIcon = { TextButton(onClick = onBack) { Text("‹ 返回") } })
+            navigationIcon = { TextButton(onClick = onBack) { Text("‹ 返回") } },
+            colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background))
     }) { insets ->
         Column(Modifier.fillMaxSize().padding(insets).padding(18.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text("先创建第一种形态", fontWeight = FontWeight.SemiBold,
-                style = MaterialTheme.typography.titleLarge)
-            Text("形态是桌宠的一套完整外观。完成第一种形态后，可以复制它，换耳朵、尾巴和翅膀，保留原来的绑骨设置。",
-                style = MaterialTheme.typography.bodyMedium)
+            NestHero(
+                title = "它的第一种模样",
+                subtitle = "先做好基础形态，再复制、换装，慢慢收集更多模样",
+                emoji = "🐾"
+            )
+            NestSection("开始制作", "先绑定身体，再按需添加头部、耳朵、尾巴或翅膀")
             ElevatedCard(shape = RoundedCornerShape(22.dp),
                 colors = CardDefaults.elevatedCardColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer)) {
@@ -37,8 +40,7 @@ fun NewPetFormsEntry(onCreateFirst: () -> Unit, onBack: () -> Unit) {
                     }
                 }
             }
-            Text("💡 完成后回到「形态管理」，可以一键复制成形态 2、形态 3……",
-                style = MaterialTheme.typography.bodySmall)
+            NestNote("完成第一种形态之后，形态管理里可以复制、重命名和继续编辑更多形态。")
         }
     }
 }
