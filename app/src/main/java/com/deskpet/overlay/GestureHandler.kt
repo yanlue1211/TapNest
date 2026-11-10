@@ -96,16 +96,17 @@ class GestureHandler(
                 }
             }
             .pointerInput("hold_menu_or_close") {
-                awaitEachGesture {
-                    val down = awaitFirstDown(requireUnconsumed = false)
-                    val start = down.position
-                    val began = down.uptimeMillis
-                    var moved = false
-                    var multiTouch = false
-                    var pressed = true
-                    var closed = false
-                    // Timeout is necessary: stationary fingers don't send move events.
-                    coroutineScope {
+                // Put the timer's CoroutineScope outside AwaitPointerEventScope: pointer
+                // event scopes restrict suspending calls, but can use a captured launch.
+                coroutineScope {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        val start = down.position
+                        val began = down.uptimeMillis
+                        var moved = false
+                        var multiTouch = false
+                        var pressed = true
+                        var closed = false
                         val closeTimer = launch {
                             delay(5000L)
                             if (pressed && !moved && !multiTouch && !pinching) {
@@ -124,10 +125,10 @@ class GestureHandler(
                                 pressed = event.changes.any { it.pressed }
                             } while (pressed && !closed)
                         } finally { closeTimer.cancel() }
+                        val action = HoldGesturePolicy.action(
+                            SystemClock.uptimeMillis() - began, moved, multiTouch || pinching)
+                        if (!closed && action == HoldGesturePolicy.Action.MENU) onHoldMenu()
                     }
-                    val action = HoldGesturePolicy.action(
-                        SystemClock.uptimeMillis() - began, moved, multiTouch || pinching)
-                    if (!closed && action == HoldGesturePolicy.Action.MENU) onHoldMenu()
                 }
             }
             .pointerInput("tap") {
