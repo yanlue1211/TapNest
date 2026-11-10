@@ -113,14 +113,20 @@ internal class SinglePetArchiveRestorer(private val context: Context) {
         val loneTarget = File(pets, id + if (type == PetType.GIF) ".gif" else ".png")
         val profileFolder = File(context.filesDir, "companion_profiles/$id")
         var registered = false
+        var ownsPetFolder = false
+        var ownsLoneTarget = false
+        var ownsProfileFolder = false
         try {
             val targetArt: File
             val targetRig: File?
             val targetCodex: File?
             if (type == PetType.LAYERED || type == PetType.CODEX_PET) {
-                if (petFolder.exists() || !sourceDir.copyRecursively(petFolder, false)) {
+                if (petFolder.exists()) throw ImportException.InvalidFormat("目标角色目录已存在")
+                ownsPetFolder = true
+                if (!sourceDir.copyRecursively(petFolder, false)) {
                     throw ImportException.InvalidFormat("复制角色素材失败，请检查存储空间")
                 }
+                File(petFolder, "tapnest-pet.json").delete()
                 targetRig = File(petFolder, "rig.json")
                 targetCodex = File(petFolder, "pet.json")
                 targetArt = File(petFolder, art.name)
@@ -139,6 +145,7 @@ internal class SinglePetArchiveRestorer(private val context: Context) {
                 targetRig = null
                 targetCodex = null
                 if (loneTarget.exists()) throw ImportException.InvalidFormat("目标素材已存在")
+                ownsLoneTarget = true
                 art.copyTo(loneTarget, overwrite = false)
                 targetArt = loneTarget
                 val valid = if (type == PetType.PNG) {
@@ -157,7 +164,9 @@ internal class SinglePetArchiveRestorer(private val context: Context) {
             // Staging profile before registering prevents a half-restored record in DataStore.
             val profileSrc = File(sourceDir, "companion")
             if (profileSrc.isDirectory) {
-                if (profileFolder.exists() || !profileSrc.copyRecursively(profileFolder, false))
+                if (profileFolder.exists()) throw ImportException.InvalidFormat("目标伙伴档案已存在")
+                ownsProfileFolder = true
+                if (!profileSrc.copyRecursively(profileFolder, false))
                     throw ImportException.InvalidFormat("互动档案复制失败")
                 if (type == PetType.LAYERED || type == PetType.CODEX_PET)
                     File(petFolder, "companion").deleteRecursively()
@@ -191,9 +200,9 @@ internal class SinglePetArchiveRestorer(private val context: Context) {
             // Only clean up newly generated paths. Never modify the source archive
             // or any other pet. If DataStore registration succeeded, retain the files.
             if (!registered) {
-                petFolder.deleteRecursively()
-                if (type == PetType.GIF || type == PetType.PNG) loneTarget.delete()
-                profileFolder.deleteRecursively()
+                if (ownsPetFolder) petFolder.deleteRecursively()
+                if (ownsLoneTarget) loneTarget.delete()
+                if (ownsProfileFolder) profileFolder.deleteRecursively()
             }
             Log.w("SinglePetRestore", "single-pet restore failed", e)
             throw e
