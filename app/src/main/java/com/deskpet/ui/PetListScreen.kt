@@ -205,7 +205,7 @@ fun PetListScreen(
             // 空态 Box(fillMaxSize) 会先吃掉全部高度，头部被压成 0（标题曾因此
             // 在所有设备上不可见）。剩余空间改由内容区用 weight(1f) 主动认领。
             NestHero(
-                title = "我的小伙伴",
+                title = "桌面伙伴",
                 subtitle = if (isLoading) "正在整理你的小小伙伴们…" else if (petList.isEmpty())
                     "把喜欢的角色带到手机桌面" else
                     "${petList.size} 位伙伴 · " + if (isOverlayRunning) "正在陪伴" else "等待唤醒",
@@ -230,7 +230,7 @@ fun PetListScreen(
                     ) {
                         Text("🐾", style = MaterialTheme.typography.headlineLarge)
                         Spacer(Modifier.height(10.dp))
-                        Text("这里还空着一个位置", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                        Text("还没有小伙伴", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                         Spacer(Modifier.height(4.dp))
                         Text(
                             "从手机导入自己画的角色\n长按卡片可重新编辑或删除",
