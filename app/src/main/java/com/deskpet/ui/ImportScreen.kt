@@ -5,6 +5,8 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -156,24 +158,24 @@ fun ImportScreen(
     Scaffold(snackbarHost = { SnackbarHost(snackbarHostState) }) { padding ->
         Column(
             // Scaffold 的 padding 已含状态栏 inset，再叠 statusBarsPadding 会双重留白
-            Modifier.fillMaxSize().padding(padding).padding(24.dp),
-            verticalArrangement = Arrangement.Center,
+            Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 18.dp),
+            verticalArrangement = Arrangement.Top,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Text("导入宠物", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.SemiBold)
-            Spacer(Modifier.height(8.dp))
-            Text(
-                "从手机导入你自己画的宠物",
-                style = MaterialTheme.typography.bodyMedium,
-                textAlign = TextAlign.Center,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+            NestHero(
+                title = "为桌面添个小伙伴",
+                subtitle = "创建、导入，或者从备份里接它回家",
+                emoji = "🪴"
             )
-            Spacer(Modifier.height(28.dp))
+            Spacer(Modifier.height(20.dp))
+            NestSection("选择开始方式", "素材只会保存在你的设备上，无需上传到服务器")
+            Spacer(Modifier.height(12.dp))
 
             ImportOption(
                 icon = "🦋",
-                title = "创建分层／绑骨桌宠",
-                subtitle = "内置模板、我的模板或完全手动绑骨",
+                title = "创建多形态绑骨桌宠",
+                subtitle = "自由上传 PNG · 绑骨动画 · 复制形态换装",
                 filled = true,
                 enabled = !isImporting
             ) { onCreateLayered() }
@@ -245,16 +247,19 @@ private fun ImportOption(
     Card(
         onClick = onClick,
         enabled = enabled,
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(20.dp),
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(22.dp),
         colors = CardDefaults.cardColors(
             containerColor = if (filled) MaterialTheme.colorScheme.primaryContainer
-            else MaterialTheme.colorScheme.surfaceContainerLow
+            else MaterialTheme.colorScheme.surface
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp),
+        border = androidx.compose.foundation.BorderStroke(
+            1.dp, if (filled) MaterialTheme.colorScheme.primary.copy(alpha = 0.20f)
+                else MaterialTheme.colorScheme.outlineVariant),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
-            Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
+            Modifier.padding(horizontal = 16.dp, vertical = 16.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Surface(
