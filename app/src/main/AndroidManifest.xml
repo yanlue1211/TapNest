@@ -14,7 +14,7 @@
         android:dataExtractionRules="@xml/data_extraction_rules"
         android:fullBackupContent="@xml/backup_rules"
         android:hardwareAccelerated="true"
-        android:label="@string/app_name"
+        android:label="${tapNestLabel}"
         android:supportsRtl="true"
         android:theme="@style/Theme.DeskPet"
         android:icon="@drawable/ic_tapnest">
