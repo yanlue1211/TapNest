@@ -7,6 +7,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
@@ -141,7 +142,8 @@ fun LayeredPetEditor(
                 if (editingPet == null) "🌱 创建第一形态" else if (formForEdit != null) "🦴 编辑形态 · ${formForEdit.name}" else "🦴 重新编辑 · ${editingPet.displayName}") },
             navigationIcon = { TextButton(onClick = {
                 if (showSettings) showSettings = false else onBack()
-            }, enabled = !busy) { Text(if (showSettings) "返回素材" else "返回") } })
+            }, enabled = !busy) { Text(if (showSettings) "返回素材" else "返回") } },
+            colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background))
     }) { padding ->
         Column(
             Modifier.fillMaxSize().padding(padding)
@@ -149,9 +151,13 @@ fun LayeredPetEditor(
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             if (!showSettings) {
-            Text("选择创建方式", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Text("可直接套用模板，也可以完全手动制作；只读取你从手机选择的 PNG。",
-                style = MaterialTheme.typography.bodySmall)
+            NestHero(
+                title = if (formForEdit != null) "编辑「${formForEdit.name}」"
+                    else if (editingPet == null) "从第一种形态开始" else "重新编辑绑骨",
+                subtitle = "按部位上传素材，位置、动作和骨骼都能慢慢调整",
+                emoji = "🦴", compact = true
+            )
+            NestSection("选择创建方式", "可以使用已保存的模板，也可以从空白开始制作")
             FilterChip(
                 selected = templateChoice == TapNestTemplates.MANUAL,
                 onClick = { select(TapNestTemplates.MANUAL) },
@@ -180,9 +186,8 @@ fun LayeredPetEditor(
             }
             OutlinedTextField(value = name, onValueChange = { name = it.take(60) },
                 label = { Text(if (formForEdit != null) "当前形态的名字" else "这只桌宠的名字") }, modifier = Modifier.fillMaxWidth())
-            Text("导入图片到对应图层", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-            Text("推荐所有 PNG 使用相同透明画布尺寸；也可选中图层调位置、缩放、旋转中心。带 ①② 的素材是两帧切换，不需要绘制中间帧。",
-                style = MaterialTheme.typography.bodySmall)
+            NestSection("图层与素材",
+                "每个部位可以独立上传和调整。推荐所有 PNG 使用相同透明画布尺寸。")
             val slots = TapNestTemplates.slotsFor(rig).filter { slot ->
                 slot.id != "pickup_pose" &&
                     rig.layers.firstOrNull { it.id == slot.id }?.frameOwner == null
@@ -198,6 +203,7 @@ fun LayeredPetEditor(
                 }
                 if (!relevant) continue
                 val uri = images[slot.id]
+                NestPanel {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text((if (required) "★ " else "") + slot.label,
                         modifier = Modifier.weight(1f).clickable { activeLayer = slot.id },
@@ -268,13 +274,12 @@ fun LayeredPetEditor(
                         }) { Text("↔ 镜像复制（含动作与点位）") }
                     }
                 }
+                } // 当前部位卡片
             }
             if (rig.templateId == TapNestTemplates.MANUAL) {
                 HorizontalDivider()
-                Text("＋ 自行添加默认部位", style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold)
-                Text("身体是唯一必需的默认帧。翅膀、耳朵直接选左边或右边创建；先设置好一侧，再点「↔ 镜像复制」即可自动创建另一侧并复制点位与参数。",
-                    style = MaterialTheme.typography.bodySmall)
+                NestSection("添加新部位",
+                    "身体是唯一必需素材。耳朵和翅膀可以先绑一侧，再镜像复制另一侧。")
                 Box {
                     OutlinedButton(onClick = { partPresetMenu = true }) {
                         Text(newPartPreset + " ▾")
@@ -446,10 +451,12 @@ fun LayeredPetEditor(
             )
             } // Basic default-frame upload page
             if (showSettings) {
+            NestHero(title = "细调动作与骨骼",
+                subtitle = "展开下面的卡片，按自己的节奏逐项调整",
+                emoji = "🎐", compact = true)
             TextButton(onClick = { showSettings = false }) { Text("← 返回默认帧素材列表") }
-            HorizontalDivider()
-            Text("🦴 当前部位绑骨编辑", modifier = Modifier.bringIntoViewRequester(editorRequester),
-                style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+            NestSection("当前部位的绑骨编辑", "只调整当前图层的动作和骨骼")
+            Spacer(Modifier.bringIntoViewRequester(editorRequester).height(1.dp))
             val layer = rig.layers.firstOrNull { it.id == activeLayer }
             if (layer != null) {
                 var foldPreview by remember(activeLayer) { mutableStateOf(false) }
@@ -1100,18 +1107,31 @@ private fun BindingSlider(label: String, value: Float, min: Float, max: Float, o
 
 @Composable
 private fun FoldHeader(title: String, expanded: Boolean, onToggle: () -> Unit) {
+    val colors = MaterialTheme.colorScheme
     Surface(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onToggle),
-        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp),
-        color = MaterialTheme.colorScheme.surfaceContainerLow
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(18.dp),
+        color = if (expanded) colors.primaryContainer else colors.surface,
+        border = BorderStroke(1.dp,
+            if (expanded) colors.primary.copy(alpha = 0.32f) else colors.outlineVariant)
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 12.dp),
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 15.dp, vertical = 15.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(title, modifier = Modifier.weight(1f), fontWeight = FontWeight.SemiBold)
-            Text(if (expanded) "收起 ▲" else "展开 ▼",
-                style = MaterialTheme.typography.bodySmall)
+            Text(title, modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.titleSmall,
+                color = if (expanded) colors.onPrimaryContainer else colors.onSurface,
+                fontWeight = FontWeight.SemiBold)
+            Surface(
+                color = if (expanded) colors.surface.copy(alpha = 0.78f)
+                    else colors.surfaceContainerLow,
+                shape = androidx.compose.foundation.shape.RoundedCornerShape(9.dp)
+            ) {
+                Text(if (expanded) "收起  −" else "展开  ＋",
+                    modifier = Modifier.padding(horizontal = 9.dp, vertical = 5.dp),
+                    color = colors.primary, style = MaterialTheme.typography.labelSmall)
+            }
         }
     }
 }
