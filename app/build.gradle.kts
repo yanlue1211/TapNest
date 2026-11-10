@@ -70,6 +70,10 @@ android {
             all {
                 it.systemProperty("robolectric.dependency.repo.url", "https://repo.maven.apache.org/maven2")
                 it.systemProperty("robolectric.dependency.repo.id", "mavenCentral")
+                it.testLogging {
+                    exceptionFormat = org.gradle.api.tasks.testing.logging.TestExceptionFormat.FULL
+                    events(org.gradle.api.tasks.testing.logging.TestLogEvent.FAILED)
+                }
             }
         }
     }

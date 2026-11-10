@@ -297,7 +297,19 @@ class FileManager(private val context: Context) {
         return try {
             FileOutputStream(zipFile).use { fos ->
                 BufferedOutputStream(fos).use { bos ->
-                    ZipOutputStream(bos).use { z -> addPetFilesToZip(z, petInfo, "") }
+                    ZipOutputStream(bos).use { z ->
+                        // Older per-pet archives contain only rig.json + PNG files and
+                        // cannot be distinguished from full pets.json backups.
+                        // This optional manifest makes new single exports lossless.
+                        val safePet = petInfo.copy(
+                            petJsonPath = petInfo.petJsonPath?.let { File(it).name },
+                            spritesheetPath = File(petInfo.spritesheetPath).name
+                        )
+                        z.putNextEntry(ZipEntry("tapnest-pet.json"))
+                        z.write(json.encodeToString(PetInfo.serializer(), safePet).toByteArray())
+                        z.closeEntry()
+                        addPetFilesToZip(z, petInfo, "")
+                    }
                 }
             }
             zipFile
@@ -411,32 +423,13 @@ class FileManager(private val context: Context) {
                         }
                     }
                 } else {
-                    val petJsonFile = findPetJson(tmpDir)
-                    if (petJsonFile == null) {
-                        // 之前这里静默返回，用户会看到"恢复完成"但其实什么都没做
-                        throw ImportException.InvalidFormat("不是有效的备份文件（缺少 pets.json）")
-                    }
-                    if (!ZipExtractor.isPetJsonSizeOk(petJsonFile)) throw ImportException.InvalidFormat("pet.json 文件过大")
-                    val id = java.util.UUID.randomUUID().toString()
-                    val destDir = File(context.filesDir, "pets/$id").also { it.mkdirs() }
-                    // 与多宠物路径同标准：copyRecursively 静默跳过失败项，
-                    // 磁盘满会"恢复成功"但文件缺失，必须检查返回值
-                    if (!tmpDir.copyRecursively(destDir, true)) {
-                        destDir.deleteRecursively()
-                        throw ImportException.ExtractionFailed(RuntimeException("恢复文件时失败（存储空间不足？）"))
-                    }
-                    val spritesheetFile = findSpritesheet(destDir)
-                        ?: throw ImportException.InvalidFormat("备份中缺少 spritesheet")
-                    val config: CodexPetConfig = try {
-                        json.decodeFromString(petJsonFile.readText())
-                    } catch (e: Exception) {
-                        throw ImportException.InvalidFormat("pet.json 解析失败：${e.message}")
-                    }
-                    petRepository.addPetDirect(PetInfo(id = id, type = PetType.CODEX_PET,
-                        displayName = config.displayName,
-                        petJsonPath = petJsonFile.copyTo(File(destDir, "pet.json"), true).absolutePath,
-                        spritesheetPath = spritesheetFile.absolutePath,
-                        sourceId = config.id))
+                    // Old "导出角色" ZIPs have no pets.json. Preserve the existing
+                    // complete-backup pathway, and recognize per-pet rigs, Codex,
+                    // PNG or GIF archives through a separate validated importer.
+                    SinglePetArchiveRestorer(context).restore(
+                        tmpDir, petRepository,
+                        queryDisplayName(uri) ?: uri.lastPathSegment
+                    )
                 }
             } finally { tmpDir.deleteRecursively() }
         } ?: throw ImportException.FileNotFound("无法打开文件")
