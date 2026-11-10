@@ -78,6 +78,7 @@ class MainActivity : ComponentActivity() {
         var showLayeredEditor by remember { mutableStateOf(false) }
         var editingPetId by remember { mutableStateOf<String?>(null) }
         var editingFormId by remember { mutableStateOf<String?>(null) }
+        var creatingFirstForm by remember { mutableStateOf(false) }
         var pendingStart by remember { mutableStateOf(false) }
         var showHelp by remember { mutableStateOf(false) }
         val petList by repo.getAllPets().collectAsStateWithLifecycle(emptyList())
@@ -190,7 +191,15 @@ class MainActivity : ComponentActivity() {
             )
         } else if (showLayeredEditor) {
             val editingPet = petList.firstOrNull { it.id == editingPetId }
-            if (editingPet != null && editingFormId == null) {
+            if (editingPet == null && !creatingFirstForm) {
+                com.deskpet.ui.NewPetFormsEntry(
+                    onCreateFirst = { creatingFirstForm = true },
+                    onBack = {
+                        showLayeredEditor = false
+                        showImport = true
+                    }
+                )
+            } else if (editingPet != null && editingFormId == null) {
                 com.deskpet.ui.LayeredFormManager(
                     pet = editingPet,
                     onEdit = { editingFormId = it },
@@ -212,6 +221,7 @@ class MainActivity : ComponentActivity() {
                         val wasEdit = editingPetId != null
                         sc.launch {
                             if (!wasEdit) repo.setActivePet(pet.id)
+                            creatingFirstForm = false
                             showImport = false
                             // New pets land on the form manager; existing pets return to it.
                             editingPetId = pet.id
@@ -221,6 +231,7 @@ class MainActivity : ComponentActivity() {
                     },
                     onBack = {
                         if (editingFormId != null) editingFormId = null
+                        else if (editingPet == null) creatingFirstForm = false
                         else {
                             showLayeredEditor = false
                             showImport = editingPetId == null
@@ -234,7 +245,7 @@ class MainActivity : ComponentActivity() {
                 repo,
                 { showImport = false },
                 { showImport = false },
-                onCreateLayered = { showImport = false; showLayeredEditor = true }
+                onCreateLayered = { showImport = false; creatingFirstForm = false; showLayeredEditor = true }
             )
         } else {
             PetListScreen(
