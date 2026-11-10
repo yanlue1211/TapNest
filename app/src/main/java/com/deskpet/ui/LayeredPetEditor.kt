@@ -52,33 +52,33 @@ fun LayeredPetEditor(
     }
     val scope = rememberCoroutineScope()
     val templates = remember { store.savedTemplates() }
-    val originalRig = remember(editingPet?.id) {
+    val originalRig = remember(editingPet?.id, formId) {
         formForEdit?.rig ?: editingPet?.let(store::loadRig) ?: TapNestTemplates.manual()
     }
-    var rig by remember(editingPet?.id) { mutableStateOf(originalRig) }
-    var templateChoice by remember(editingPet?.id) {
+    var rig by remember(editingPet?.id, formId) { mutableStateOf(originalRig) }
+    var templateChoice by remember(editingPet?.id, formId) {
         mutableStateOf(if (editingPet == null) TapNestTemplates.MANUAL else originalRig.templateId)
     }
-    var name by remember(editingPet?.id) { mutableStateOf(formForEdit?.name ?: editingPet?.displayName ?: "我的小伙伴") }
-    var saveTemplate by remember(editingPet?.id) { mutableStateOf(editingPet == null) }
+    var name by remember(editingPet?.id, formId) { mutableStateOf(formForEdit?.name ?: editingPet?.displayName ?: "我的小伙伴") }
+    var saveTemplate by remember(editingPet?.id, formId) { mutableStateOf(editingPet == null) }
     var busy by remember { mutableStateOf(false) }
     var activeLayer by remember { mutableStateOf("body") }
     var selectedBone by remember(activeLayer) { mutableIntStateOf(0) }
     val editorRequester = remember { BringIntoViewRequester() }
-    var previewMode by remember(editingPet?.id) { mutableStateOf(RigPreviewMode.POSITION) }
+    var previewMode by remember(editingPet?.id, formId) { mutableStateOf(RigPreviewMode.POSITION) }
     var newLayerName by remember { mutableStateOf("") }
     val partPresets = listOf("左翅膀", "右翅膀", "左耳朵", "右耳朵", "尾巴", "头部", "自定义图层")
     var newPartPreset by remember { mutableStateOf(partPresets.first()) }
     var partPresetMenu by remember { mutableStateOf(false) }
     var pendingRemoveLayerId by remember { mutableStateOf<String?>(null) }
     var pickupSettingsOpen by remember { mutableStateOf(false) }
-    var showSettings by remember(editingPet?.id) { mutableStateOf(false) }
+    var showSettings by remember(editingPet?.id, formId) { mutableStateOf(false) }
     var showOtherParts by remember { mutableStateOf(true) }
     var showBonesHelp by remember { mutableStateOf(false) }
     val pageScroll = rememberScrollState()
     LaunchedEffect(showSettings, activeLayer) { pageScroll.scrollTo(0) }
     var error by remember { mutableStateOf<String?>(null) }
-    val images = remember(editingPet?.id) {
+    val images = remember(editingPet?.id, formId) {
         mutableStateMapOf<String, Uri>().apply {
             val dir = editingPet?.petJsonPath?.let { java.io.File(it).parentFile }
             if (dir != null) originalRig.layers.forEach { layer ->
