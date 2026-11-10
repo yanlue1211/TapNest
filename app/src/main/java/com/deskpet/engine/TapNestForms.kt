@@ -53,11 +53,11 @@ object TapNestForms {
         val active = forms.forms.firstOrNull { it.id == forms.activeFormId }
             ?: forms.forms.first()
         val selected = active.rig
-        val choices = categories.mapNotNull { cat ->
+        val choices: Map<String, List<TapNestLayer>> = categories.mapNotNull { cat ->
             val sourceId = forms.overrides[cat] ?: return@mapNotNull null
             val source = forms.forms.firstOrNull { it.id == sourceId }
             if (sourceId != "none" && source == null) return@mapNotNull null
-            cat to (source?.rig?.layers?.filter { category(it) == cat } ?: emptyList())
+            cat to (source?.rig?.layers?.filter { category(it) == cat } ?: emptyList<TapNestLayer>())
         }.toMap()
         if (choices.isEmpty()) return selected
         val replaced = selected.layers.filterNot { layer ->
