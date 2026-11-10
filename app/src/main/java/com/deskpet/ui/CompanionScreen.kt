@@ -7,6 +7,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -91,20 +92,38 @@ fun CompanionScreen(pet: PetInfo, onBack: () -> Unit) {
     BackHandler { finish() }
     Scaffold(topBar = {
         TopAppBar(title = { Text("💚 ${pet.displayName} · 伙伴小屋") },
-            navigationIcon = { TextButton(onClick = { finish() }) { Text("返回") } })
+            navigationIcon = { TextButton(onClick = { finish() }) { Text("返回") } },
+            colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background))
     }) { pad ->
         Column(
             Modifier.fillMaxSize().padding(pad).verticalScroll(rememberScrollState())
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text("好感度 ${currentAffection}/100  ♡", style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold)
-            LinearProgressIndicator(progress = { currentAffection / 100f }, modifier = Modifier.fillMaxWidth())
-            Text("好感度会随未互动的天数缓慢下降；温柔性格下降更慢，傲娇性格下降更快。互动可以提升好感度。",
-                style = MaterialTheme.typography.bodySmall)
-            Text("伙伴性格", style = MaterialTheme.typography.titleSmall)
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            NestHero(
+                title = pet.displayName + "的小小日常",
+                subtitle = "陪它玩、收集专属道具，记下想提醒的事",
+                emoji = "💚",
+                compact = true
+            )
+            NestPanel {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("亲密指数", style = MaterialTheme.typography.titleSmall,
+                        modifier = Modifier.weight(1f))
+                    Text("${currentAffection} / 100 ♡",
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.SemiBold)
+                }
+                LinearProgressIndicator(progress = { currentAffection / 100f },
+                    modifier = Modifier.fillMaxWidth().height(8.dp),
+                    trackColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+                Text("离线天数会缓慢影响好感度，互动可以增加。不同性格的变化速度不同。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            NestSection("伙伴性格", "选择你喜欢的相处节奏")
+            Row(Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 for (temperament in CompanionTemperament.entries) {
                     FilterChip(
                         selected = profile.temperament == temperament,
@@ -116,13 +135,15 @@ fun CompanionScreen(pet: PetInfo, onBack: () -> Unit) {
                     )
                 }
             }
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 FilterChip(selected = tab == 0, onClick = { tab = 0 }, label = { Text("🍪 互动") })
                 FilterChip(selected = tab == 1, onClick = { tab = 1 }, label = { Text("⏰ 备忘录") })
             }
             if (tab == 0) {
-                Text("选择互动", style = MaterialTheme.typography.titleMedium)
-                Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                NestSection("选择互动", "点击道具，和小伙伴一起玩")
+                Row(Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                     listOf(
                         CompanionAction.FEED to "🍪 喂食",
                         CompanionAction.BATH to "🫧 洗澡",
@@ -155,7 +176,9 @@ fun CompanionScreen(pet: PetInfo, onBack: () -> Unit) {
                 }
                 for (item in profile.items.filter { it.action == action }) {
                     key(item.id) {
-                        ElevatedCard(shape = RoundedCornerShape(16.dp),
+                        ElevatedCard(shape = RoundedCornerShape(20.dp),
+                            colors = CardDefaults.elevatedCardColors(
+                                containerColor = MaterialTheme.colorScheme.surface),
                             modifier = Modifier.fillMaxWidth()) {
                             Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -221,7 +244,7 @@ fun CompanionScreen(pet: PetInfo, onBack: () -> Unit) {
                     }
                 }
                 HorizontalDivider()
-                Text("＋ 添加自定义道具", style = MaterialTheme.typography.titleMedium)
+                NestSection("添加自定义道具", "名字、图片和小台词都能自己设置")
                 OutlinedTextField(value = itemName, onValueChange = { itemName = it.take(35) },
                     label = { Text("道具名称") }, modifier = Modifier.fillMaxWidth(), singleLine = true)
                 OutlinedTextField(value = itemEmoji, onValueChange = { itemEmoji = it.take(8) },
@@ -237,7 +260,7 @@ fun CompanionScreen(pet: PetInfo, onBack: () -> Unit) {
                     Text("添加到${when(action) { CompanionAction.FEED -> "喂食"; CompanionAction.BATH -> "洗澡"; CompanionAction.PLAY -> "玩耍" }}")
                 }
             } else {
-                Text("⏰ 定时备忘录", style = MaterialTheme.typography.titleMedium)
+                NestSection("定时备忘录", "把想起的小事写在这里")
                 Text("悬浮伙伴正在运行时，到点自动弹出提醒气泡。未运行期间错过的提醒，会在下次启动悬浮伙伴时显示。",
                     style = MaterialTheme.typography.bodySmall)
                 OutlinedTextField(value = noteText, onValueChange = { noteText = it.take(120) },
