@@ -5,6 +5,8 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+val parallelRestoreBuild = providers.gradleProperty("tapnest.parallelRestore").orNull == "true"
+
 android {
     namespace = "com.deskpet"
     compileSdk = 35
@@ -23,7 +25,8 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.tapnest.pet"
+        applicationId = if (parallelRestoreBuild) "com.tapnest.pet.recovery" else "com.tapnest.pet"
+        manifestPlaceholders["tapNestLabel"] = if (parallelRestoreBuild) "Tap Nest · 安全恢复" else "@string/app_name"
         minSdk = 26
         targetSdk = 35
         versionCode = 1
