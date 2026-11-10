@@ -77,6 +77,7 @@ class MainActivity : ComponentActivity() {
         var showImport by remember { mutableStateOf(false) }
         var showLayeredEditor by remember { mutableStateOf(false) }
         var editingPetId by remember { mutableStateOf<String?>(null) }
+        var editingFormId by remember { mutableStateOf<String?>(null) }
         var pendingStart by remember { mutableStateOf(false) }
         var showHelp by remember { mutableStateOf(false) }
         val petList by repo.getAllPets().collectAsStateWithLifecycle(emptyList())
@@ -188,25 +189,46 @@ class MainActivity : ComponentActivity() {
                 onBack = { OverlayState.closeCompanion() }
             )
         } else if (showLayeredEditor) {
-            com.deskpet.ui.LayeredPetEditor(
-                petRepository = repo,
-                editingPet = petList.firstOrNull { it.id == editingPetId },
-                onCreated = { pet ->
-                    val wasEdit = editingPetId != null
-                    sc.launch {
-                        if (!wasEdit) repo.setActivePet(pet.id)
+            val editingPet = petList.firstOrNull { it.id == editingPetId }
+            if (editingPet != null && editingFormId == null) {
+                com.deskpet.ui.LayeredFormManager(
+                    pet = editingPet,
+                    onEdit = { editingFormId = it },
+                    onChanged = {
+                        if (OverlayState.petId.value == editingPet.id) startOverlay(editingPet.id)
+                    },
+                    onBack = {
                         showLayeredEditor = false
-                        showImport = false
                         editingPetId = null
-                        if (wasEdit && OverlayState.petId.value == pet.id) startOverlay(pet.id)
+                        editingFormId = null
                     }
-                },
-                onBack = {
-                    showLayeredEditor = false
-                    showImport = editingPetId == null
-                    editingPetId = null
-                }
-            )
+                )
+            } else {
+                com.deskpet.ui.LayeredPetEditor(
+                    petRepository = repo,
+                    editingPet = editingPet,
+                    formId = editingFormId,
+                    onCreated = { pet ->
+                        val wasEdit = editingPetId != null
+                        sc.launch {
+                            if (!wasEdit) repo.setActivePet(pet.id)
+                            showImport = false
+                            // New pets land on the form manager; existing pets return to it.
+                            editingPetId = pet.id
+                            editingFormId = null
+                            if (wasEdit && OverlayState.petId.value == pet.id) startOverlay(pet.id)
+                        }
+                    },
+                    onBack = {
+                        if (editingFormId != null) editingFormId = null
+                        else {
+                            showLayeredEditor = false
+                            showImport = editingPetId == null
+                            editingPetId = null
+                        }
+                    }
+                )
+            }
         } else if (showImport) {
             ImportScreen(
                 repo,
@@ -245,6 +267,7 @@ class MainActivity : ComponentActivity() {
                 onImportClick = { showImport = true },
                 onEditLayered = { pet ->
                     editingPetId = pet.id
+                    editingFormId = null
                     showImport = false
                     showLayeredEditor = true
                 },
