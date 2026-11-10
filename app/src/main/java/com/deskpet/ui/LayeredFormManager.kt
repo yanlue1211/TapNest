@@ -71,14 +71,18 @@ fun LayeredFormManager(
 
     Scaffold(topBar = {
         TopAppBar(title = { Text("🌱 " + pet.displayName + " · 形态管理") },
-            navigationIcon = { TextButton(onClick = onBack) { Text("‹ 返回") } })
+            navigationIcon = { TextButton(onClick = onBack) { Text("‹ 返回") } },
+            colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background))
     }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())
             .padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
-            Text("一只小伙伴，多种模样", style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold)
-            Text("点「编辑绑骨」进入原来的骨骼编辑器。复制形态会保留全部图层、动作和图片，修改副本互不影响。",
-                style = MaterialTheme.typography.bodySmall)
+            NestHero(
+                title = "一只小伙伴，多种模样",
+                subtitle = "复制已有形态，换上不同的耳朵、尾巴和翅膀",
+                emoji = "🎀",
+                compact = true
+            )
+            NestSection("我的形态", "编辑进入熟悉的绑骨页面 · 复制不会覆盖原形态")
             if (forms == null) {
                 Text(error ?: "形态配置读取失败，原始资料不会被覆盖",
                     color = MaterialTheme.colorScheme.error)
@@ -88,12 +92,12 @@ fun LayeredFormManager(
                     val selected = snapshot.activeFormId == form.id
                     val dir = pet.petJsonPath?.let { java.io.File(it).parentFile }
                     val complete = dir != null && TapNestForms.eligible(snapshot, form.id, dir)
-                    ElevatedCard(shape = RoundedCornerShape(18.dp),
+                    ElevatedCard(shape = RoundedCornerShape(22.dp),
                         colors = CardDefaults.elevatedCardColors(
                             containerColor = if (selected) MaterialTheme.colorScheme.primaryContainer
-                            else MaterialTheme.colorScheme.surfaceContainerLow
+                            else MaterialTheme.colorScheme.surface
                         )) {
-                        Column(Modifier.fillMaxWidth().padding(14.dp),
+                        Column(Modifier.fillMaxWidth().padding(16.dp),
                             verticalArrangement = Arrangement.spacedBy(8.dp)) {
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Text(if (selected) "🌿 " else "🐾 ", style = MaterialTheme.typography.titleLarge)
@@ -109,18 +113,40 @@ fun LayeredFormManager(
                                 .joinToString(" · ") { it.second }
                             Text(parts.ifBlank { "身体与基础动作" },
                                 style = MaterialTheme.typography.bodySmall)
-                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                                Button(onClick = { onEdit(form.id) }, enabled = !busy) { Text("编辑绑骨") }
-                                TextButton(onClick = {
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                verticalAlignment = Alignment.CenterVertically) {
+                                Button(onClick = { onEdit(form.id) },
+                                    modifier = Modifier.weight(1f), enabled = !busy) {
+                                    Text("编辑绑骨")
+                                }
+                                OutlinedButton(onClick = {
                                     update { store.add(pet, form.id, form.name + "·副本") }
-                                }, enabled = !busy && snapshot.forms.size < 24) { Text("复制") }
-                                if (!selected) TextButton(onClick = {
-                                    update { store.setActive(pet, form.id) }
-                                }, enabled = !busy && complete) { Text("使用") }
-                                if (snapshot.forms.size > 1)
-                                    TextButton(onClick = { deleteTarget = form }, enabled = !busy) {
-                                        Text("删除", color = MaterialTheme.colorScheme.error)
+                                }, modifier = Modifier.weight(1f),
+                                    enabled = !busy && snapshot.forms.size < 24) {
+                                    Text("复制形态")
+                                }
+                            }
+                            if (!selected || snapshot.forms.size > 1) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically) {
+                                    if (!selected) {
+                                        FilledTonalButton(onClick = {
+                                            update { store.setActive(pet, form.id) }
+                                        }, enabled = !busy && complete,
+                                            modifier = Modifier.weight(1f)) {
+                                            Text("设为当前形态")
+                                        }
+                                    } else {
+                                        Text("✓ 当前使用", color = MaterialTheme.colorScheme.primary,
+                                            style = MaterialTheme.typography.labelSmall,
+                                            modifier = Modifier.weight(1f))
                                     }
+                                    if (snapshot.forms.size > 1) {
+                                        TextButton(onClick = { deleteTarget = form }, enabled = !busy) {
+                                            Text("删除", color = MaterialTheme.colorScheme.error)
+                                        }
+                                    }
+                                }
                             }
                         }
                     }
@@ -130,8 +156,7 @@ fun LayeredFormManager(
                     modifier = Modifier.fillMaxWidth().height(52.dp),
                     enabled = !busy && snapshot.forms.size < 24
                 ) { Text("＋ 创建空白形态") }
-                Text("💡 点击「复制」会立即创建一个独立副本，随后点新卡片的「编辑绑骨」替换配件即可。",
-                    style = MaterialTheme.typography.bodySmall)
+                NestNote("复制形态会保留当前图层和动作。打开新卡片的「编辑绑骨」，就能分别换配件啦。")
             }
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
         }
