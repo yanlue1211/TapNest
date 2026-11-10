@@ -31,7 +31,9 @@ class TapNestFormStore(private val context: Context) {
 
     fun load(pet: PetInfo): TapNestFormCollection {
         val home = dir(pet)
-        TapNestForms.parse(File(home, "forms.json"))?.let { return it }
+        val formsFile = File(home, "forms.json")
+        if (formsFile.exists()) return TapNestForms.parse(formsFile)
+            ?: error("形态存档损坏，已保留原始文件，请先恢复备份")
         val rigFile = File(home, "rig.json")
         val rig = json.decodeFromString<TapNestRig>(rigFile.readText())
         return TapNestForms.starting(rig)
