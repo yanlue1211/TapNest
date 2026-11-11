@@ -89,7 +89,7 @@ internal class LifeInteractionAnimation(
                 effect(item, w*.5f, cy, shrink)
             }
             1 -> if (action == CompanionAction.PLAY) {
-                effect(item, w*(.5f+.29f*sin(p*4*PI).toFloat()), h*(.3f+.12f*abs(sin(p*6*PI)).toFloat()))
+                effect(item, w*(.5f+.29f*sin(p*4*PI).toFloat()), headY + h*(.12f+.09f*abs(sin(p*6*PI)).toFloat()))
             } else if (action == CompanionAction.BATH) {
                 repeat(3) { i ->
                     val drift = (p * 2f + i / 3f) % 1f
@@ -97,7 +97,7 @@ internal class LifeInteractionAnimation(
                 }
             }
             else -> {
-                if (action == CompanionAction.PLAY) effect(item, w*.5f, h*.25f, 1f-p, 1f-p)
+                if (action == CompanionAction.PLAY) effect(item, w*.5f, headY + h*.12f, 1f-p, 1f-p)
                 if (action == CompanionAction.BATH) repeat(3) { i ->
                     effect("💦", w*(.25f+i*.25f), h*(.3f+p*.18f), .7f, 1f-p)
                 }
