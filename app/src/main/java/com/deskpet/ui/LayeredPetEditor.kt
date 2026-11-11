@@ -760,7 +760,6 @@ fun LayeredPetEditor(
                                                 TapNestPartMotion.FLAP -> "扇动"
                                                 TapNestPartMotion.TWITCH -> "抖动"
                                                 TapNestPartMotion.HAT_POP -> "帽帽弹起"
-                                        TapNestPartMotion.HAT_POP -> "帽帽弹起"
                                             }) }
                                         )
                                     }
