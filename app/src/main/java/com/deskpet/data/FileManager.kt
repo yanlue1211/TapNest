@@ -281,15 +281,22 @@ class FileManager(private val context: Context) {
             context.contentResolver.openInputStream(uri)?.use { zipExtractor.extract(it, destDir) }
                 ?: throw ImportException.FileNotFound("无法打开 Live2D ZIP")
             val model = Live2DModelFiles.findAndValidate(destDir)
+            // Dedupe the COMPLETE model, not just model3.json. Two versions
+            // may share a manifest while having different .moc3/texture bytes.
             val digest = java.security.MessageDigest.getInstance("SHA-256")
-            model.manifest.inputStream().use { input ->
-                val buffer = ByteArray(16 * 1024)
-                while (true) {
-                    val n = input.read(buffer)
-                    if (n < 0) break
-                    digest.update(buffer, 0, n)
+            model.root.walkTopDown().filter(File::isFile)
+                .sortedBy { it.relativeTo(model.root).invariantSeparatorsPath }
+                .forEach { file ->
+                    digest.update(file.relativeTo(model.root).invariantSeparatorsPath.toByteArray())
+                    file.inputStream().use { input ->
+                        val buffer = ByteArray(64 * 1024)
+                        while (true) {
+                            val n = input.read(buffer)
+                            if (n < 0) break
+                            digest.update(buffer, 0, n)
+                        }
+                    }
                 }
-            }
             val hash = digest.digest().joinToString("") { "%02x".format(it.toInt() and 0xff) }
             PetInfo(
                 id = id, type = PetType.LIVE2D, displayName = model.title,
@@ -537,7 +544,7 @@ class FileManager(private val context: Context) {
             dir.walkTopDown().forEach { file ->
                 if (file == dir) return@forEach
                 // 缩略图缓存只在列表页用，不打包进导出/备份 zip（体积浪费）
-                if (file.name.startsWith("thumb")) return@forEach
+                if (pet.type != PetType.LIVE2D && file.name.startsWith("thumb")) return@forEach
                 // 转码/写入中途进程被杀会留下 .tmp 孤儿文件，不该混进导出包
                 if (file.name.endsWith(".tmp")) return@forEach
                 val entryName = (prefix + dir.toPath().relativize(file.toPath()).toString())
