@@ -44,6 +44,7 @@ object TapNestForms {
             id.startsWith("tail") || id.contains("_tail") -> "tail"
             id.startsWith("wing") || id.contains("_wing") -> "wing"
             id.startsWith("bow") || id.contains("_bow") -> "bow"
+            id.startsWith("hat") || id.contains("_hat") -> "hat"
             id.startsWith("part_") -> "custom_$root"
             else -> null
         }
@@ -62,6 +63,7 @@ object TapNestForms {
                     "tail" -> "尾巴"
                     "wing" -> "翅膀"
                     "bow" -> "蝴蝶结"
+                    "hat" -> "帽子"
                     else -> layer.displayName.trim()
                         .removePrefix("左").removePrefix("右")
                         .removeSuffix("（镜像）")
