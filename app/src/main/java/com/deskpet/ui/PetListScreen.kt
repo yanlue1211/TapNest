@@ -908,12 +908,17 @@ private fun PetPreview(pet: PetInfo) {
                     }
                 }
                 PetType.LAYERED -> loadLayeredThumb(pet)
+                PetType.LIVE2D -> null // WebGL-only; do not decode a .moc3 as PNG.
                 PetType.GIF -> null
             }
         }
     }
     if (thumb != null) Image(thumb!!.asImageBitmap(), pet.displayName, Modifier.fillMaxSize(0.75f), contentScale = ContentScale.Fit)
-    else Text(if (pet.type == PetType.CODEX_PET) "🎨" else "📷", style = MaterialTheme.typography.headlineMedium)
+    else Text(when (pet.type) {
+        PetType.LIVE2D -> "🌸"
+        PetType.CODEX_PET -> "🎨"
+        else -> "📷"
+    }, style = MaterialTheme.typography.headlineMedium)
 }
 
 private fun loadOrCreateThumb(pet: PetInfo): Bitmap? {
