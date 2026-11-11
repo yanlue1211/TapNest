@@ -13,6 +13,7 @@ import android.provider.Settings
 import android.util.Log
 import android.view.Gravity
 import android.view.WindowManager
+import android.view.View
 import android.widget.Toast
 import androidx.compose.ui.platform.ComposeView
 import androidx.core.app.NotificationCompat
@@ -42,7 +43,7 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
     override val savedStateRegistry = SavedStateRegistryController.create(this).also { it.performRestore(null) }.savedStateRegistry
 
     private lateinit var wm: WindowManager
-    private var cv: ComposeView? = null
+    private var cv: View? = null
     private lateinit var repo: PetRepository
     private lateinit var engine: PetEngine
     private lateinit var anim: AnimationController
@@ -98,6 +99,7 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
                     screenOn = false
                     anim.setLayeredPickedUp(false)
                     anim.stop()
+                    (cv as? Live2DOverlayView)?.pauseRenderer()
                     auto?.stop()
                     speechJob?.cancel()
                     speechBubble?.dismiss()
@@ -105,6 +107,7 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
                 Intent.ACTION_SCREEN_ON -> {
                     screenOn = true
                     anim.start()
+                    (cv as? Live2DOverlayView)?.resumeRenderer()
                     // 省电模式下自主乱跑属于"非必要活动"，不开
                     if (!pm.isPowerSaveMode) auto?.start()
                 }
@@ -248,6 +251,7 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         // 先更新尺寸（petWidth 状态同步生效），后续 clampPosition 才能用新尺寸
         // 把放大后的窗口夹回屏幕内，而不是放行一帧溢出
         anim.setScale(ns)
+        (cv as? Live2DOverlayView)?.resize(anim.petWidth.value, anim.petHeight.value)
         // 捏合缩放同步回 DataStore（防抖落盘，捏合过程中不写）：否则列表页
         // 滑块还显示旧值，之后任意一次滑块微调会让宠物从捏合后的大小"瞬移"
         // 回滑块值。observeScale 收到回写后差值≈0 不会回环
@@ -582,7 +586,8 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         }
         observeScale(id)
         auto?.stop()
-        auto = if (anim.isLayeredPet()) null else AutonomousBehavior(anim, sc)
+        auto = if (anim.isLayeredPet() || anim.isLive2DPet()) null
+            else AutonomousBehavior(anim, sc)
         // 亮屏且非省电才启动自主行为；灭屏/省电场景由广播负责恢复
         if (screenOn && !anim.powerSaveMode) auto?.start()
         OverlayState.setRunning(id)
@@ -604,6 +609,7 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
                 if (abs(info.scale - savedScale) > 0.001f) {
                     savedScale = info.scale
                     anim.setScale(info.scale)
+                    (cv as? Live2DOverlayView)?.resize(anim.petWidth.value, anim.petHeight.value)
                     updatePosition() // bubble and pet stay anchored after toolbar scaling
                 }
             }
@@ -622,7 +628,31 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         speechJob?.cancel()
         speechBubble?.dismiss()
         removeOverlayView()
-        cv = ComposeView(this).apply {
+        cv = if (anim.isLive2DPet()) {
+            val manifest = currentPet?.petJsonPath?.let(::java.io.File)
+                ?: return false
+            try {
+                Live2DOverlayView(
+                    context = this,
+                    manifest = manifest,
+                    width = anim.petWidth.value, height = anim.petHeight.value,
+                    onTap = ::onTap,
+                    onDoubleTap = ::onDoubleTap,
+                    onDrag = { dx, dy ->
+                        onDrag(dx, dy, if (dx >= 0) DragDirection.RIGHT else DragDirection.LEFT)
+                    },
+                    onDragStart = { auto?.onUserTouch() },
+                    onDragEnd = ::persistPositionSoon,
+                    onScale = ::onScale,
+                    onHoldMenu = ::onHoldMenu,
+                    onHoldClose = ::onHoldClose
+                ).also { if (!screenOn) it.pauseRenderer() }
+            } catch (e: Exception) {
+                Log.e(TAG, "Live2D overlay initialization failed", e)
+                Toast.makeText(this, "Live2D 启动失败：${e.message}", Toast.LENGTH_LONG).show()
+                return false
+            }
+        } else ComposeView(this).apply {
             setViewTreeLifecycleOwner(this@PetOverlayService)
             setViewTreeViewModelStoreOwner(this@PetOverlayService)
             setViewTreeSavedStateRegistryOwner(this@PetOverlayService)
@@ -649,6 +679,7 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
             true
         } catch (e: Exception) {
             Log.e(TAG, "addView", e)
+            (cv as? Live2DOverlayView)?.dispose()
             cv = null
             Toast.makeText(this, "悬浮窗添加失败: ${e.message}", Toast.LENGTH_LONG).show()
             false
@@ -656,11 +687,13 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
     }
 
     private fun removeOverlayView() {
-        cv?.let {
+        cv?.let { view ->
             try {
-                wm.removeView(it)
+                wm.removeView(view)
             } catch (e: Exception) {
                 Log.w(TAG, "Failed to remove overlay view", e)
+            } finally {
+                (view as? Live2DOverlayView)?.dispose()
             }
         }
         cv = null
@@ -672,6 +705,10 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
             (v.layoutParams as? WindowManager.LayoutParams)?.let { p ->
                 p.x = wx.toInt()
                 p.y = (wy + bounceOffset).toInt()
+                if (v is Live2DOverlayView) {
+                    p.width = anim.petWidth.value
+                    p.height = anim.petHeight.value
+                }
                 try {
                     wm.updateViewLayout(v, p)
                 } catch (e: Exception) {
