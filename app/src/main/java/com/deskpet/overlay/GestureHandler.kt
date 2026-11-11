@@ -132,8 +132,16 @@ class GestureHandler(
                 }
             }
             .pointerInput("tap") {
-                detectTapGestures(onTap = { onTap() }, onDoubleTap = { onDoubleTap() },
-                    onLongPress = { /* hold observer handles the release */ })
+                // IMPORTANT: Do NOT set a no-op onLongPress here.
+                // detectTapGestures consumes all pointer changes after firing
+                // onLongPress, even when its callback is empty. The parallel
+                // detectDragGesturesAfterLongPress then loses the movement,
+                // making pets appear impossible to drag. Long-hold actions
+                // are handled by the independent, non-consuming observer above.
+                detectTapGestures(
+                    onTap = { onTap() },
+                    onDoubleTap = { onDoubleTap() }
+                )
             }
 
     fun mapDirectionToState(direction: DragDirection): PetAnimationState = when (direction) {
