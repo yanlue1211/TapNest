@@ -100,6 +100,7 @@ object TapNestLayerActions {
             TapNestPartMotion.BOUNCE -> TapNestPresets.bounce(motionId)
             TapNestPartMotion.FLAP -> TapNestPresets.flap(motionId)
             TapNestPartMotion.TWITCH -> TapNestPresets.twitch(motionId)
+            TapNestPartMotion.HAT_POP -> TapNestPresets.hatPop(motionId)
         }
         return TapNestMotion.sample(clip, motionId, motionAgeMs)
     }
