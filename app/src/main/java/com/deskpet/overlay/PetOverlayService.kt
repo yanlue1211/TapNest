@@ -161,6 +161,10 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         if (!anim.isLayeredPet()) return
         runCatching {
             val forms = com.deskpet.data.TapNestFormStore(this).load(pet)
+            // Don't raise a meaningless wardrobe panel if the pet has only
+            // one form and no uploaded accessory at all.
+            if (forms.forms.size <= 1 &&
+                com.deskpet.engine.TapNestForms.availableParts(forms).isEmpty()) return
             floatingPanel?.dismiss()
             floatingPanel = null
             formPanel?.dismiss()
