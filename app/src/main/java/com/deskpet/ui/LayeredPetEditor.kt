@@ -454,7 +454,7 @@ fun LayeredPetEditor(
                             if (it.id == "pickup_pose") it.copy(restScale = value) else it
                         })
                     }
-                    Text("单图只保留顶部固定锚点和默认摇晃。上传 PNG 不开启其他图层、骨骼或动作设置；请优先使用与身体一样大小的透明画布。",
+                    Text("拎起图片可以比普通画布更长！会保持头部大小和顶部锚点不变，画布自动向下延长，让尾巴和衣摆垂下来。推荐与普通形态保持相同宽度、头部对齐的透明 PNG。",
                         style = MaterialTheme.typography.bodySmall)
                 }
                 Text("🪁 拎起效果实时预览", fontWeight = FontWeight.SemiBold)
