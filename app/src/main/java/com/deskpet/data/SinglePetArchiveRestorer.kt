@@ -52,6 +52,7 @@ internal class SinglePetArchiveRestorer(private val context: Context) {
         return friendly?.takeIf { it.isNotBlank() && it != "TapNest_backup" }
             ?: when (type) {
                 PetType.LAYERED -> "恢复的绑骨桌宠"
+                PetType.LIVE2D -> "恢复的 Live2D 桌宠"
                 PetType.CODEX_PET -> "恢复的素材包桌宠"
                 PetType.GIF -> "恢复的 GIF 桌宠"
                 PetType.PNG -> "恢复的 PNG 桌宠"
