@@ -214,6 +214,7 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
                 formPanel = null
                 if (petId == pet.id) {
                     if (!anim.replaceLayered(pet)) error("形态素材加载失败")
+                    if (!screenOn) anim.stop()
                     val profile = withContext(Dispatchers.IO) { companionStore.load(pet.id) }
                     anim.setAffection(com.deskpet.data.CompanionAffection.at(profile, System.currentTimeMillis()))
                 }

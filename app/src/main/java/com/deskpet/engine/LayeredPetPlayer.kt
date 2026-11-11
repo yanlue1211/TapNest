@@ -85,6 +85,15 @@ class LayeredPetPlayer private constructor(
         pickedUp = held
     }
 
+    /** Warm both buffer sets off the UI thread, before the first long-press resize. */
+    internal fun preparePickupFrames() {
+        if (rig.pickupArtworkEnabled && pictures.containsKey("pickup_pose")) {
+            setPickedUp(true)
+            repeat(3) { render().prepareToDraw() }
+            setPickedUp(false)
+        }
+    }
+
     /** Triple-buffered render target. The UI never observes a bitmap being cleared. */
     @Synchronized fun render(): Bitmap {
         frameIndex = (frameIndex + 1) % frames.size
@@ -336,7 +345,7 @@ class LayeredPetPlayer private constructor(
             if (!entries.containsKey("body")) return null
             val dim = min(320f / max(rig.canvasWidth, rig.canvasHeight), 1f)
             LayeredPetPlayer(rig, max(32, (rig.canvasWidth * dim).toInt()),
-                max(32, (rig.canvasHeight * dim).toInt()), entries, sourceSizes)
+                max(32, (rig.canvasHeight * dim).toInt()), entries, sourceSizes).also { it.preparePickupFrames() }
         }.getOrNull()
     }
 }
