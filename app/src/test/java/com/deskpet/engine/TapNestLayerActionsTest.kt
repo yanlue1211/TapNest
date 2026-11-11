@@ -88,4 +88,20 @@ class TapNestLayerActionsTest {
             left, frames, 5010L, 1800L, assets))
     }
 
+    @Test fun invisibleHeadCannotLeakBlinkOrScheduledActionFrame() {
+        assertFalse(TapNestLayerActions.ownerVisible(
+            "head_0", "head_2", TapNestHeadMode.FULL_HEAD))
+        assertTrue(TapNestLayerActions.ownerVisible(
+            "head_2", "head_2", TapNestHeadMode.FULL_HEAD))
+        assertFalse(TapNestLayerActions.ownerVisible(
+            "head_0", "face_2", TapNestHeadMode.BLANK_HEAD_WITH_FACE))
+        assertFalse(TapNestLayerActions.ownerVisible(
+            "face_0", "face_3", TapNestHeadMode.BLANK_HEAD_WITH_FACE))
+        assertTrue(TapNestLayerActions.ownerVisible(
+            "face_3", "face_3", TapNestHeadMode.BLANK_HEAD_WITH_FACE))
+        // Ears/wings/bows are not facial expressions and stay drawable.
+        assertTrue(TapNestLayerActions.ownerVisible(
+            "part_1", "head_3", TapNestHeadMode.FULL_HEAD))
+    }
+
 }
