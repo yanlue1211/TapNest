@@ -63,12 +63,22 @@ jobs:
       - name: Build debug APK
         run: ./gradlew assembleDebug
 
-      # Only trusted branch/tag builds can access encrypted release signing secrets.
-      # Never use a fresh CI debug keystore for APKs advertised as upgrades.
-      - name: Decode persistent signing keystore
+      # Test the deterministic signing tool with a PUBLIC dummy seed.
+      # Production seed is a private GitHub Actions encrypted repository secret.
+      - name: Check reproducible signing logic
+        run: |
+          python3 -m venv "$RUNNER_TEMP/tapnest-py"
+          "$RUNNER_TEMP/tapnest-py/bin/pip" install --quiet 'cryptography==46.0.4'
+          "$RUNNER_TEMP/tapnest-py/bin/python" scripts/signing_from_seed.py --self-test
+
+      # Normal releases use either a pre-existing PRIVATE keystore secret (legacy
+      # four-secret setup) or just ONE high-entropy signing seed. Never use the
+      # test seed above for a real APK, nor publish any private key artifact.
+      - name: Configure persistent signing identity
         if: github.event_name != 'pull_request'
         env:
           KEYSTORE_B64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+          SIGNING_SEED: ${{ secrets.TAPNEST_SIGNING_SEED }}
           STORE_PASS: ${{ secrets.SIGNING_STORE_PASSWORD }}
           KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
           KEY_PASS: ${{ secrets.SIGNING_KEY_PASSWORD }}
@@ -80,17 +90,33 @@ jobs:
             fi
             printf '%s' "$KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/tapnest.keystore"
             chmod 600 "$RUNNER_TEMP/tapnest.keystore"
+            echo "::add-mask::$STORE_PASS"
+            echo "::add-mask::$KEY_PASS"
             echo "SIGNING_STORE_FILE=$RUNNER_TEMP/tapnest.keystore" >> "$GITHUB_ENV"
+            echo "SIGNING_STORE_PASSWORD=$STORE_PASS" >> "$GITHUB_ENV"
+            echo "SIGNING_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
+            echo "SIGNING_KEY_PASSWORD=$KEY_PASS" >> "$GITHUB_ENV"
+            echo "STABLE_SIGNING_CONFIGURED=true" >> "$GITHUB_ENV"
+          elif [ -n "$SIGNING_SEED" ]; then
+            TAPNEST_SIGNING_SEED="$SIGNING_SEED" "$RUNNER_TEMP/tapnest-py/bin/python" \
+              scripts/signing_from_seed.py \
+              --out "$RUNNER_TEMP/tapnest.p12" \
+              --password-file "$RUNNER_TEMP/tapnest.pass"
+            STORE_PASS="$(cat "$RUNNER_TEMP/tapnest.pass")"
+            echo "::add-mask::$STORE_PASS"
+            echo "SIGNING_STORE_FILE=$RUNNER_TEMP/tapnest.p12" >> "$GITHUB_ENV"
+            echo "SIGNING_STORE_TYPE=pkcs12" >> "$GITHUB_ENV"
+            echo "SIGNING_STORE_PASSWORD=$STORE_PASS" >> "$GITHUB_ENV"
+            echo "SIGNING_KEY_ALIAS=tapnest" >> "$GITHUB_ENV"
+            echo "SIGNING_KEY_PASSWORD=$STORE_PASS" >> "$GITHUB_ENV"
             echo "STABLE_SIGNING_CONFIGURED=true" >> "$GITHUB_ENV"
           else
-            echo "::notice::尚未配置持久 APK 签名：只有临时调试包，不生成可覆盖升级的 Tap Nest.apk"
+            echo "::notice::尚未配置固定签名，只生成临时调试包；不会冒充可覆盖升级的正式 APK"
           fi
 
       - name: Build release APK (R8)
-        env:
-          SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}
-          SIGNING_KEY_ALIAS: ${{ secrets.SIGNING_KEY_ALIAS }}
-          SIGNING_KEY_PASSWORD: ${{ secrets.SIGNING_KEY_PASSWORD }}
+        # SIGNING_STORE_* and SIGNING_KEY_* are inherited from GITHUB_ENV
+        # only after a successful identity configuration.
         run: ./gradlew assembleRelease
 
       # A stable, reusable release certificate is required for upgrade installs.
@@ -129,21 +155,22 @@ jobs:
       # Debug certificates are ephemeral across hosted CI runners. A separate
       # application ID lets the user test recovery without uninstalling an
       # existing package whose signer is different (and losing its private data).
-      - name: Build side-by-side safe recovery APK
+      - name: Build optional isolated test APK
         if: github.ref_type != 'tag'
         run: |
           ./gradlew assembleDebug -Ptapnest.parallelRestore=true
           AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"
           "$AAPT" dump badging app/build/outputs/apk/debug/app-debug.apk | grep -Fq "package: name='com.tapnest.pet.recovery'"
           mkdir -p app/build/outputs/apk/recovery
-          cp app/build/outputs/apk/debug/app-debug.apk "app/build/outputs/apk/recovery/Tap Nest 安全恢复.apk"
+          cp app/build/outputs/apk/debug/app-debug.apk "app/build/outputs/apk/recovery/Tap Nest 独立测试版.apk"
 
-      - name: Upload safe recovery APK
+      - name: Upload isolated test APK
         if: github.ref_type != 'tag'
         uses: actions/upload-artifact@v4
         with:
-          name: Tap-Nest-Safe-Recovery
-          path: app/build/outputs/apk/recovery/Tap Nest 安全恢复.apk
+          name: Tap-Nest-Isolated-Test
+          path: app/build/outputs/apk/recovery/Tap Nest 独立测试版.apk
+
       - name: Pick APK to release
         if: startsWith(github.ref, 'refs/tags/v')
         run: |

@@ -17,6 +17,7 @@ android {
             val storeFileEnv = System.getenv("SIGNING_STORE_FILE")
             if (storeFileEnv != null) {
                 storeFile = file(storeFileEnv)
+                storeType = System.getenv("SIGNING_STORE_TYPE") ?: "pkcs12"
                 storePassword = System.getenv("SIGNING_STORE_PASSWORD")
                 keyAlias = System.getenv("SIGNING_KEY_ALIAS")
                 keyPassword = System.getenv("SIGNING_KEY_PASSWORD")
@@ -26,7 +27,7 @@ android {
 
     defaultConfig {
         applicationId = if (parallelRestoreBuild) "com.tapnest.pet.recovery" else "com.tapnest.pet"
-        manifestPlaceholders["tapNestLabel"] = if (parallelRestoreBuild) "Tap Nest · 安全恢复" else "@string/app_name"
+        manifestPlaceholders["tapNestLabel"] = if (parallelRestoreBuild) "点点栖 · 独立测试版" else "@string/app_name"
         minSdk = 26
         targetSdk = 35
         // GitHub Actions run numbers increase on every build. Signed updates must

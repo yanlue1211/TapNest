@@ -1,37 +1,35 @@
-# TapNest 覆盖安装与签名
+# 点点栖 · 覆盖安装与固定签名
 
-## 为什么旧版每次都要求卸载？
+## 为什么之前要每次卸载？
 
-Android 同时检查应用包名、签名证书以及版本号。原来的 GitHub Actions 使用每次新生成的临时 debug 签名，导致两次构建虽然同为 `com.tapnest.pet`，但签名不同，系统拒绝覆盖安装。**不能通过提高版本号或修改代码绕过 Android 的签名校验。**
+Android 只允许**包名、签名证书一致**，且新版本号不低于旧版本号的 APK 覆盖安装。以前 GitHub Actions 每轮都生成不同的临时 debug 证书。即使 APK 文件名相同，安卓也会拒绝覆盖；靠改代码或修改版本号无法绕过。
 
-旧调试包的私钥没有在仓库保存，无法从旧 APK 里恢复私钥。因此，改为稳定签名后，旧调试包**仍需一次性迁移**。迁移前在旧 App 使用「备份全部」，确认 ZIP 保存到手机；不要直接卸载，更不要在没有有效备份时清除数据。新签名首次安装后，使用「恢复备份」重新导入。已经安装新的稳定签名版本后，后续下载同一签名的 APK 可以直接覆盖更新，角色数据留在 App 私有存储中。
+当前正式版仍叫 **「点点栖」**，包名为 `com.tapnest.pet`，APK 文件名为 `Tap Nest.apk`。
+仓库里另有**可选独立测试版**，包名 `com.tapnest.pet.recovery`、显示名「点点栖 · 独立测试版」，不会覆盖正式版，也不会共享正式版数据。请不要把它当作正式升级包。
 
-## 生成并保管持久签名（一次性配置）
+## 手机操作：只配置一个 GitHub 私密密钥
 
-使用信任的本地设备生成**自己独有**的 release keystore（不要放入 GitHub 公共仓库或发到聊天）：
+1. 用你自己设备上的密码管理器生成一串**全新、随机、至少 48 字符**的密码，建议 64 个随机英文字母和数字。不要使用常用密码、仓库名、名字、日期或容易猜的短语。
+2. **一定在安全地方备份这串随机密码**，例如密码管理器的专用条目并做好自己的离线备份。以后绝不能更换或丢失：它等同于 Android 应用签名私钥。也**不要**发到聊天、截图、公开代码、GitHub issue、提交记录、PR 或工作流参数里。
+3. 打开 GitHub 仓库 `yanlue1211/TapNest` → **Settings → Secrets and variables → Actions → New repository secret**。
+4. Name 填写 `TAPNEST_SIGNING_SEED`；Secret 粘贴随机密码；点击 **Add secret**。
+5. 到 Actions → TapNest Android CI → Run workflow，选择 `main` 运行。该工作流只有在你配置密钥后，才会生成**固定签名**的 `Tap-Nest-APK` 产物（解压后是 `Tap Nest.apk`）。
 
-```sh
-keytool -genkeypair -v -keystore tapnest-release.jks -alias tapnest -keyalg RSA -keysize 3072 -validity 10000
-```
+此方案通过 HKDF 从高熵随机密钥确定性地派生 P-256 签名身份；每次构建生成**相同的私钥与自签名证书**。GitHub Actions 每次临时生成用于 Gradle 的 PKCS#12 文件，用完即丢弃，不会上传私钥到仓库/构建产物。只有公开的证书指纹可能出现在日志里，用来确认未来没有意外换签。
 
-将 keystore 的二进制文件安全备份。若丢失密钥，将来再次无法覆盖更新；因此，至少保存一份离线备份。
+旧版的四密钥方案（`SIGNING_KEYSTORE_BASE64` 等）也继续兼容；当两套同时存在时，优先使用原有 keystore，避免突然更换已经部署过的签名。
 
-在 GitHub 仓库的 Settings → Secrets and variables → Actions → New repository secret，创建四个仓库密钥：
+## 旧版本→固定签名：仅首次迁移
 
-- `SIGNING_KEYSTORE_BASE64`：本地用 `base64` 编码后的整份 keystore，**保持单行**
-- `SIGNING_STORE_PASSWORD`：生成 keystore 时的口令
-- `SIGNING_KEY_ALIAS`：这里使用 `tapnest`
-- `SIGNING_KEY_PASSWORD`：签名私钥口令
+- **目前手机上安装的旧调试版不能直接无损覆盖成固定签名版。** 旧调试签名私钥无法从 APK 里恢复。
+- **先在旧 App 使用「备份全部」**，确认 ZIP 已保存到手机并且包含有效角色配置及图片等素材，保留至少两份副本。
+- 第一次换签时，需要先确认备份可恢复，再卸载旧同包名版本、安装新的固定签名正式版、通过「恢复备份」导回。切忌先卸载再想起备份；也不要把独立测试版的数据库当成正式版的数据库。
+- 自此之后，只要 `TAPNEST_SIGNING_SEED` **保持不变**，GitHub CI 每次产生的 `Tap Nest.apk` 都能覆盖升级并保留 App 本地数据（前提是安装包包名未变且新版本号递增）。
+- 如果未来密钥丢失/更换，则再也无法用不同签名无损覆盖旧版；所以务必长期备份种子。
 
-这是 GitHub Actions 加密密钥，不是公开代码。**不要**将 `.jks`、密码、Base64 内容提交或上传到公共仓库。
+## 发布检查
 
-配置完成后，push 到 main / 手动运行 TapNest Android CI，会验证签名有效后才生成工作流产物 `Tap-Nest-APK`，压缩包内部文件名 `Tap Nest.apk`。
-
-如果没有配置签名，工作流仍能编译、测试并上传 `app-debug` 调试包，但**不会**把临时签名调试包命名为可升级的 `Tap Nest.apk`。调试包只适合首次安装、测试或作为与原版并存的隔离版本。
-
-## 安全性
-
-- Android 不支持不同签名的同包名 APK 无损覆盖安装。
-- 备份应在原 App 内导出且导出后验证其文件存在，再考虑迁移。
-- 包名不同的「安全恢复版」可与原版并排安装，但两个 App 的内部角色数据不会自动共享。
-- 发布/分享 APK 前确认许可证约束以及签名密钥保护；不同证书不能互相升级。
+- `Tap-Nest-APK`：固定签名、正式应用包名和正式显示名。
+- `app-debug`：临时 debug 签名，**不保证**覆盖更新；不能冒充正式版。
+- `Tap-Nest-Isolated-Test`：独立安装的测试包，**不共享**正式数据；不能用于正式升级。
+- 构建测试通过 ≠ 手机真机验收。首次迁移请先验证本地恢复的角色素材和互动状态，再清理旧备份。
