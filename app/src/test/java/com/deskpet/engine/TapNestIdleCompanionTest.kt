@@ -79,6 +79,25 @@ class TapNestIdleCompanionTest {
         assertEquals(replaced, TapNestSymmetry.independentArtwork(replaced))
     }
 
+    @Test fun freshHatHasTapPopButNoSpontaneousMovementByDefault() {
+        val hat = TapNestTemplates.newPart("hat_1", 25)
+        assertEquals("head_0", hat.parentId)
+        assertEquals(TapNestPartMotion.HAT_POP, hat.tapMotion)
+        assertTrue(hat.tapShake)
+        assertTrue(hat.interactionConfigured)
+        assertFalse(hat.periodicEnabled)
+        assertFalse(hat.idleSwing)
+        assertTrue(TapNestLayerActions.motionPose(hat, 195L).y < -20f)
+        assertTrue(TapNestLayerActions.motionPose(hat, 525L).y > 0f)
+        assertEquals(TapNestPose(), TapNestLayerActions.motionPose(hat, 680L))
+        val option = hat.copy(periodicMotion = TapNestPartMotion.TWITCH)
+        assertEquals(TapNestMotion.sample(TapNestPresets.twitch("hat_1"),
+            "hat_1", 160L), TapNestLayerActions.motionPose(option, 160L, periodic = true))
+        val stored = Json.decodeFromString(TapNestLayer.serializer(),
+            Json.encodeToString(TapNestLayer.serializer(), option))
+        assertEquals(option, stored)
+    }
+
     @Test fun breathingIsOptionalSubtleAndSavesWithOldRigs() {
         val older = """{"canvasWidth":512,"canvasHeight":512,"layers":[]}"""
         val oldRig = Json.decodeFromString(TapNestRig.serializer(), older)
