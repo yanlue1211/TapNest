@@ -218,8 +218,22 @@ internal fun LayeredRigPreview(
             )
         } else Modifier
 
+    // Keep the ORIGINAL preview scale and top anchor. A longer pickup PNG
+    // increases the preview's height instead of shrinking/cropping the head.
+    val pickupAsset = if (pickupPreview && rig.pickupArtworkEnabled)
+        assets["pickup_pose"] else null
+    val previewCanvasHeight = if (pickupAsset != null) {
+        val sc = rig.layers.firstOrNull { it.id == "pickup_pose" }
+            ?.restScale?.coerceIn(.3f, 3f) ?: 1f
+        TapNestPickupCanvas.requiredHeight(rig.canvasWidth, rig.canvasHeight,
+            pickupAsset.width, pickupAsset.height, sc)
+    } else rig.canvasHeight
+    val previewHeight = if (pickupAsset != null)
+        (270f * previewCanvasHeight / rig.canvasHeight.coerceAtLeast(1)).dp
+    else 270.dp
+
     Canvas(
-        Modifier.fillMaxWidth().height(270.dp).clip(RoundedCornerShape(18.dp))
+        Modifier.fillMaxWidth().height(previewHeight).clip(RoundedCornerShape(18.dp))
             .background(Color(0xFFE9F8EF))
             .onSizeChanged { viewport = it }
             .then(dragModifier)
@@ -291,9 +305,10 @@ internal fun LayeredRigPreview(
                 )
             }
     ) {
+        val baselineHeightPx = 270.dp.toPx()
         val factor = min(
             size.width / rig.canvasWidth.coerceAtLeast(1),
-            size.height / rig.canvasHeight.coerceAtLeast(1)
+            baselineHeightPx / rig.canvasHeight.coerceAtLeast(1)
         )
         val native = drawContext.canvas.nativeCanvas
         val now = if (mode == RigPreviewMode.TEST) clock else -10000L
@@ -361,7 +376,7 @@ internal fun LayeredRigPreview(
         }
         native.save()
         native.translate((size.width - rig.canvasWidth * factor) / 2f,
-            (size.height - rig.canvasHeight * factor) / 2f)
+            (baselineHeightPx - rig.canvasHeight * factor) / 2f)
         native.scale(factor, factor)
         if (mode == RigPreviewMode.TEST && !pickupPreview && rig.idleBreathingEnabled &&
             touchElapsed >= 1800L) {
