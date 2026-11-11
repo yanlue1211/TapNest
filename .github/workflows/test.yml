@@ -48,6 +48,20 @@ jobs:
         run: |
           sed -i 's|^distributionUrl=.*|distributionUrl=https\\://services.gradle.org/distributions/gradle-8.13-bin.zip|' gradle/wrapper/gradle-wrapper.properties
 
+      # Bundle the MIT PixiJS/Live2D adapter as LOCAL JS for the WebView.
+      # No proprietary Cubism Core is ever checked in or included in the APK.
+      - name: Setup Node for portable Live2D renderer
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Build Live2D WebView assets
+        working-directory: live2d-web
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
+          test -s ../app/src/main/assets/live2d/engine.js
+
       - name: Run unit tests
         run: chmod +x gradlew && ./gradlew testDebugUnitTest
 
