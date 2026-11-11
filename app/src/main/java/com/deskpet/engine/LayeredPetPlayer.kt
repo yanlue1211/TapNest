@@ -183,7 +183,8 @@ class LayeredPetPlayer private constructor(
             val visible = when {
                 id == "pickup_pose" -> false // Dedicated art is visible only while held.
                 layer.frameOwner != null ->
-                    selectedFrameByOwner[layer.frameOwner] == id
+                    selectedFrameByOwner[layer.frameOwner] == id &&
+                    TapNestLayerActions.ownerVisible(layer.frameOwner, shown, rig.headMode)
                 selectedFrameByOwner[id] != null && selectedFrameByOwner[id] != id -> false
                 id.startsWith("head_") && id != "head_blank" ->
                     rig.headMode == TapNestHeadMode.FULL_HEAD && id == shown
