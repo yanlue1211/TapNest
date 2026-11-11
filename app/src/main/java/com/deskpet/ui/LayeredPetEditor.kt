@@ -279,7 +279,7 @@ fun LayeredPetEditor(
             if (rig.templateId == TapNestTemplates.MANUAL) {
                 HorizontalDivider()
                 NestSection("添加新部位",
-                    "身体是唯一必需素材。耳朵和翅膀可以先绑一侧，再镜像复制另一侧。")
+                    "身体是唯一必需素材。可添加任何自定义配件（如蝴蝶结）；上传图片后会自动出现在长按换装菜单里。")
                 Box {
                     OutlinedButton(onClick = { partPresetMenu = true }) {
                         Text(newPartPreset + " ▾")
@@ -355,7 +355,19 @@ fun LayeredPetEditor(
                             "right" -> "右$label"
                             else -> label
                         }
-                        val created = listOf(TapNestTemplates.newPart(id, z).copy(displayName = labelName))
+                        // Custom items are real wardrobe categories: each named
+                        // accessory exists only after its user-uploaded PNG is saved.
+                        // Category follows mirrored clones, survives renames, and can
+                        // be hidden/reattached without deleting any artwork.
+                        val wardrobeCategory = when (kind) {
+                            "ear", "tail", "wing" -> kind
+                            "part" -> "custom_$id"
+                            else -> ""
+                        }
+                        val created = listOf(TapNestTemplates.newPart(id, z).copy(
+                            displayName = labelName,
+                            wardrobeCategory = wardrobeCategory
+                        ))
                         if (rig.layers.size + created.size > 48) {
                             error = "图层已满（最多 48 层，包含动作帧）"
                         } else {
