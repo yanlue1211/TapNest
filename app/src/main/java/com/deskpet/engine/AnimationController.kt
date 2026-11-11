@@ -70,16 +70,36 @@ class AnimationController(
     private var baseW = PetEngine.DEFAULT_PET_WIDTH
     private var baseH = PetEngine.DEFAULT_PET_HEIGHT
 
+    /** Fraction of the canvas ABOVE the first painted pixel, measured once at load.
+     * Read by overlay position clamping; remains valid at any zoom level. */
+    var transparentTopFraction: Float = 0f
+        private set
+
     /** 加载宠物；会按当前缩放比例重新计算窗口尺寸。文件读取发生在线程池中，调用方需自行切 IO。 */
     fun load(p: PetInfo): Boolean {
         // 先清掉上一只的帧再创建新 loader：createLoader 内部会释放旧引擎资源
         // （如 GIF 双缓冲位图），必须保证渲染端不再引用它们
         _frame.value = null
         actionVisual = null
-        loader = petEngine.createLoader(p) ?: return false
-        val (w, h) = petEngine.getPetSize(loader!!)
+        loader = petEngine.createLoader(p) ?: run {
+            transparentTopFraction = 0f
+            return false
+        }
+        val active = loader!!
+        val (w, h) = petEngine.getPetSize(active)
         baseW = w
         baseH = h
+        // PNG originals and layered rigs often have substantial transparent
+        // canvas above the character. The WindowManager window may need to move
+        // further than safeBounds.top to get the DRAWN HEAD up to the top.
+        // Do this a single time on the existing IO reload path, never per frame.
+        transparentTopFraction = when (active) {
+            is PetEngine.PetLoader.Png ->
+                PetVisibleBounds.transparentTopFraction(active.bitmap)
+            is PetEngine.PetLoader.Layered ->
+                PetVisibleBounds.transparentTopFraction(active.player.render())
+            else -> 0f
+        }
         frameSeq = 0
         applyScale()
         reset()

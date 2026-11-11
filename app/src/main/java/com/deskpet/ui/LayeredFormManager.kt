@@ -78,7 +78,7 @@ fun LayeredFormManager(
             .padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
             NestHero(
                 title = "一只小伙伴，多种模样",
-                subtitle = "复制已有形态，换上不同的耳朵、尾巴和翅膀",
+                subtitle = "复制已有形态，自由添加或隐藏蝴蝶结等任意配件",
                 emoji = "🎀",
                 compact = true
             )
@@ -108,9 +108,9 @@ fun LayeredFormManager(
                                 }
                                 if (selected) Text("✓", color = MaterialTheme.colorScheme.primary)
                             }
-                            val parts = listOf("ear" to "耳朵", "tail" to "尾巴", "wing" to "翅膀")
-                                .filter { (kind, _) -> form.rig.layers.any { TapNestForms.category(it) == kind } }
-                                .joinToString(" · ") { it.second }
+                            val parts = TapNestForms.availableParts(
+                                snapshot.copy(forms = listOf(form), activeFormId = form.id)
+                            ).joinToString(" · ") { it.label }
                             Text(parts.ifBlank { "身体与基础动作" },
                                 style = MaterialTheme.typography.bodySmall)
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp),

@@ -61,4 +61,47 @@ class TapNestLayerActionsTest {
             old, frames, 5010L, 100L, assets))
         assertNull(TapNestLayerActions.periodicElapsed(old, 5000L))
     }
+    @Test fun periodicActionWinsWhenBlinkWindowOverlaps() {
+        val overlapping = (5000L..120_000L step 10L).first {
+            TapNestBlink.isBlinking(it) &&
+                TapNestLayerActions.periodicElapsed(left, it) != null
+        }
+        // Even during a blink interval, the explicitly scheduled expression
+        // must be shown as one complete frame, not mixed with a blink frame.
+        assertEquals("wing_left_f3", TapNestLayerActions.currentFrame(
+            left, frames, overlapping, 3000L, assets))
+    }
+
+    @Test fun sceneWideBlinkSuppressionIsHonoredByOtherLayers() {
+        val blinking = (1L..30_000L).first(TapNestBlink::isBlinking)
+        val local = left.copy(periodicEnabled = false)
+        assertEquals("wing_left_f2", TapNestLayerActions.currentFrame(
+            local, frames, blinking, 3000L, assets))
+        assertEquals("wing_left", TapNestLayerActions.currentFrame(
+            local, frames, blinking, 3000L, assets, allowIdleBlink = false))
+    }
+
+    @Test fun scheduledExpressionDoesNotInterruptRecentTapExpression() {
+        assertEquals("wing_left", TapNestLayerActions.currentFrame(
+            left, frames, 5010L, 1700L, assets))
+        assertEquals("wing_left_f3", TapNestLayerActions.currentFrame(
+            left, frames, 5010L, 1800L, assets))
+    }
+
+    @Test fun invisibleHeadCannotLeakBlinkOrScheduledActionFrame() {
+        assertFalse(TapNestLayerActions.ownerVisible(
+            "head_0", "head_2", TapNestHeadMode.FULL_HEAD))
+        assertTrue(TapNestLayerActions.ownerVisible(
+            "head_2", "head_2", TapNestHeadMode.FULL_HEAD))
+        assertFalse(TapNestLayerActions.ownerVisible(
+            "head_0", "face_2", TapNestHeadMode.BLANK_HEAD_WITH_FACE))
+        assertFalse(TapNestLayerActions.ownerVisible(
+            "face_0", "face_3", TapNestHeadMode.BLANK_HEAD_WITH_FACE))
+        assertTrue(TapNestLayerActions.ownerVisible(
+            "face_3", "face_3", TapNestHeadMode.BLANK_HEAD_WITH_FACE))
+        // Ears/wings/bows are not facial expressions and stay drawable.
+        assertTrue(TapNestLayerActions.ownerVisible(
+            "part_1", "head_3", TapNestHeadMode.FULL_HEAD))
+    }
+
 }

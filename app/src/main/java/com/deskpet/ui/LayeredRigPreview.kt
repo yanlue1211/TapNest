@@ -78,7 +78,9 @@ private fun visibleLayer(
 ): Boolean {
     val id = layer.id
     return when {
-    layer.frameOwner != null -> selectedFrames[layer.frameOwner] == id
+    layer.frameOwner != null ->
+        selectedFrames[layer.frameOwner] == id &&
+            TapNestLayerActions.ownerVisible(layer.frameOwner, face, headMode)
     selectedFrames[id] != null && selectedFrames[id] != id -> false
     id.startsWith("head_") && id != "head_blank" ->
         headMode == TapNestHeadMode.FULL_HEAD && id == face
@@ -297,10 +299,18 @@ internal fun LayeredRigPreview(
         val now = if (mode == RigPreviewMode.TEST) clock else -10000L
         val touchElapsed = now - tappedAt
         val touched = mode == RigPreviewMode.TEST && touchElapsed in 0..679L
+        val sceneElapsed = (clock - previewStartedAt).coerceAtLeast(0L)
+        val periodicScene = mode == RigPreviewMode.TEST && touchElapsed >= 1800L &&
+            rig.layers.any { layer ->
+                layer.frameOwner == null && assets.containsKey(layer.id) &&
+                    TapNestLayerActions.periodicElapsed(layer, sceneElapsed) != null
+            }
+        val idleBlinking = mode == RigPreviewMode.TEST && !periodicScene &&
+            TapNestBlink.isBlinking(sceneElapsed)
         val expressionIndex = when {
             mode == RigPreviewMode.TEST && touchElapsed in 0..1799L -> expression
             mode == RigPreviewMode.TEST && rig.blinkExpression in 0..3 &&
-                TapNestBlink.isBlinking(clock - previewStartedAt) -> rig.blinkExpression
+                idleBlinking -> rig.blinkExpression
             else -> 0
         }
         val facePrefix = if (rig.headMode == TapNestHeadMode.FULL_HEAD) "head_" else "face_"
@@ -310,7 +320,7 @@ internal fun LayeredRigPreview(
         val selectedFrames = rig.layers.filter { it.frameOwner == null }.associate { owner ->
             owner.id to if (mode == RigPreviewMode.TEST)
                 TapNestLayerActions.currentFrame(owner, rig.layers,
-                    (clock - previewStartedAt).coerceAtLeast(0L), touchElapsed, assets.keys)
+                    sceneElapsed, touchElapsed, assets.keys, allowIdleBlink = !periodicScene)
                 else owner.id
         }
         fun poseFor(id: String): TapNestPose {
@@ -324,7 +334,7 @@ internal fun LayeredRigPreview(
                     layer, (clock - previewStartedAt).coerceAtLeast(0L))
                 if (touched && layer.tapShake) {
                     pose = TapNestLayerActions.motionPose(layer, touchElapsed)
-                } else if (periodic != null && !touched &&
+                } else if (periodic != null && !touched && touchElapsed >= 1800L &&
                     layer.periodicAction == TapNestPeriodicAction.SHAKE) {
                     pose = TapNestLayerActions.motionPose(layer, periodic)
                 }

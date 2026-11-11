@@ -100,14 +100,25 @@ class LayeredPetPlayer private constructor(
         val actionElapsed = (now - actionAtMs).coerceAtLeast(0)
         val reacting = actionElapsed < 950
         val touched = !held && elapsed < 680
+        val sceneElapsed = now - launchedAtMs
+        // Scene-wide arbitration: if any scheduled facial/part animation is
+        // active, suppress the spontaneous blink across all owners AND the
+        // legacy rig.blinkExpression. Otherwise two asynchronous expression
+        // systems can show mismatched partial face frames at the same time.
+        val periodicScene = !held && !reacting && elapsed >= 1800 &&
+            rig.layers.any { layer ->
+                layer.frameOwner == null && pictures.containsKey(layer.id) &&
+                    TapNestLayerActions.periodicElapsed(layer, sceneElapsed) != null
+            }
+        val idleBlinking = !periodicScene && !held && !reacting &&
+            TapNestBlink.isBlinking(sceneElapsed)
         val activeExpression = when {
             held -> naturalExpression() // No additional expression/animation controls while lifted.
             reacting -> rig.expressionEmotions.entries.firstOrNull {
                 it.value == TapNestEmotion.HAPPY && it.key in 0..3
             }?.key ?: naturalExpression()
             elapsed < 1800 -> expression.coerceIn(0, 3)
-            rig.blinkExpression in 0..3 &&
-                TapNestBlink.isBlinking(now - launchedAtMs) -> rig.blinkExpression
+            rig.blinkExpression in 0..3 && idleBlinking -> rig.blinkExpression
             else -> naturalExpression()
         }
         val shown = when (rig.headMode) {
@@ -124,7 +135,8 @@ class LayeredPetPlayer private constructor(
         val selectedFrameByOwner = rig.layers.filter { it.frameOwner == null }
             .associate { owner ->
                 owner.id to if (held) owner.id else TapNestLayerActions.currentFrame(
-                    owner, rig.layers, now - launchedAtMs, elapsed, pictures.keys
+                    owner, rig.layers, sceneElapsed, elapsed, pictures.keys,
+                    allowIdleBlink = !periodicScene
                 )
             }
 
@@ -145,6 +157,7 @@ class LayeredPetPlayer private constructor(
                 if (node.tapShake && touched) {
                     p = TapNestLayerActions.motionPose(node, elapsed)
                 } else if (periodic != null && !held && !touched &&
+                    elapsed >= 1800 && !reacting &&
                     node.periodicAction == TapNestPeriodicAction.SHAKE) {
                     p = TapNestLayerActions.motionPose(node, periodic)
                 }
@@ -170,7 +183,8 @@ class LayeredPetPlayer private constructor(
             val visible = when {
                 id == "pickup_pose" -> false // Dedicated art is visible only while held.
                 layer.frameOwner != null ->
-                    selectedFrameByOwner[layer.frameOwner] == id
+                    selectedFrameByOwner[layer.frameOwner] == id &&
+                    TapNestLayerActions.ownerVisible(layer.frameOwner, shown, rig.headMode)
                 selectedFrameByOwner[id] != null && selectedFrameByOwner[id] != id -> false
                 id.startsWith("head_") && id != "head_blank" ->
                     rig.headMode == TapNestHeadMode.FULL_HEAD && id == shown

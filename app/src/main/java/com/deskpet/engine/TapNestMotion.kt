@@ -57,6 +57,12 @@ data class TapNestLayer(
     val mirrorX: Boolean = false,
     /** Original part used when one-tap cloning; independent after creation. */
     val mirroredFromId: String? = null,
+    /**
+     * Optional stable accessory group (e.g. custom_part_1). Only actual image
+     * groups appear in the long-hold wardrobe. Empty in old saved rigs; those
+     * are recognized by legacy ear/wing/tail/bow names without migrations.
+     */
+    val wardrobeCategory: String = "",
     val parentId: String? = null,
     val zIndex: Int = 0,
     val pivotX: Float = 0.5f,

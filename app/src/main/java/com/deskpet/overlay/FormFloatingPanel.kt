@@ -27,7 +27,7 @@ import androidx.savedstate.setViewTreeSavedStateRegistryOwner
 import com.deskpet.engine.TapNestFormCollection
 import com.deskpet.engine.TapNestForms
 
-/** Small no-keyboard overlay for changing full outfits or just ears/tail/wings. */
+/** Small no-keyboard overlay: accessory list follows each pet's actual added PNG layers. */
 internal class FormFloatingPanel(
     private val context: Context,
     private val wm: WindowManager,
@@ -124,30 +124,38 @@ private fun FormMenu(
                     }
                 }
             }
-            HorizontalDivider()
-            Text("自由搭配", style = MaterialTheme.typography.labelMedium)
-            for ((cat, label) in listOf("ear" to "🐱 耳朵", "tail" to "🎀 尾巴", "wing" to "🪽 翅膀")) {
+            // Nothing is hardcoded: an accessory appears only when its
+            // owner has actual image content in at least one saved form.
+            val accessories = remember(forms) { TapNestForms.availableParts(forms) }
+            if (accessories.isNotEmpty()) {
+                HorizontalDivider()
+                Text("我的配件", style = MaterialTheme.typography.labelMedium)
+            }
+            for (part in accessories) {
+                val cat = part.id
                 val selected = forms.overrides[cat] ?: active.id
                 var expanded by remember(cat) { mutableStateOf(false) }
                 val choiceName = when (selected) {
-                    "none" -> "隐藏"
+                    "none" -> "不佩戴"
                     else -> forms.forms.firstOrNull { it.id == selected }?.name ?: active.name
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(label, modifier = Modifier.weight(1f),
+                    Text("🎀 " + part.label, modifier = Modifier.weight(1f),
                         style = MaterialTheme.typography.bodySmall)
                     Box {
                         OutlinedButton(onClick = { expanded = true }) {
                             Text(choiceName + " ▾", style = MaterialTheme.typography.labelMedium)
                         }
                         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-                            DropdownMenuItem(text = { Text("不显示") }, onClick = {
+                            DropdownMenuItem(text = { Text("不佩戴 / 隐藏") }, onClick = {
                                 expanded = false; onPart(cat, "none")
                             })
                             for (form in forms.forms) {
-                                // Source form's owner and action frames are swapped together.
-                                if (form.rig.layers.none { TapNestForms.category(it) == cat }) continue
-                                DropdownMenuItem(text = { Text(form.name) }, onClick = {
+                                if (form.rig.layers.none {
+                                    it.frameOwner == null && it.image.isNotBlank() &&
+                                        TapNestForms.category(it) == cat
+                                }) continue
+                                DropdownMenuItem(text = { Text("佩戴 · " + form.name) }, onClick = {
                                     expanded = false; onPart(cat, form.id)
                                 })
                             }
