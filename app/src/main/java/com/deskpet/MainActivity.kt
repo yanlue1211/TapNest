@@ -408,7 +408,7 @@ class MainActivity : ComponentActivity() {
                     // 提示
                     Text("💡 小提示", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                     Spacer(Modifier.height(4.dp))
-                    Text("• 每位伙伴的位置和大小独立保存\n• 长按角色卡片可重新编辑或删除\n• 分层角色的上半部按住并左右划动，可以摸摸头\n• 点开底部控制区可调大小、导入和备份\n• 划掉本应用不影响悬浮显示，关闭请用通知栏或控制区\n• 不联网、不调用 AI；数据留在手机本地")
+                    Text("• 每位伙伴的位置和大小独立保存\n• 长按角色卡片可重新编辑或删除\n• 分层角色长按拖动时会进入拎起状态，顶部固定点轻轻左右摇晃\n• 点开底部控制区可调大小、导入和备份\n• 划掉本应用不影响悬浮显示，关闭请用通知栏或控制区\n• 不联网、不调用 AI；数据留在手机本地")
 
                     Spacer(Modifier.height(8.dp))
 
