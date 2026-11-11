@@ -674,7 +674,10 @@ fun LayeredPetEditor(
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 row.forEach { type ->
                                     FilterChip(selected = layer.tapMotion == type, onClick = {
-                                        update(layer.copy(tapMotion = type))
+                                        update(layer.copy(
+                                            tapMotion = type,
+                                            periodicMotion = layer.periodicMotion ?: layer.tapMotion
+                                        ))
                                     }, label = { Text(when (type) {
                                         TapNestPartMotion.NOD -> "摇头"
                                         TapNestPartMotion.BOUNCE -> "弹跳"
