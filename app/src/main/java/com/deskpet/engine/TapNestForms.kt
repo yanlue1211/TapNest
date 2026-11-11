@@ -6,7 +6,11 @@ import kotlinx.serialization.json.Json
 
 /** Optional, versioned addition to a legacy rig.json. Older pets stay readable unchanged. */
 @Serializable
-data class TapNestForm(val id: String, val name: String, val rig: TapNestRig)
+data class TapNestForm(
+    val id: String, val name: String, val rig: TapNestRig,
+    /** null inherits character-wide speech; an empty list deliberately stays quiet. */
+    val tapDialogues: List<String>? = null
+)
 
 @Serializable
 data class TapNestFormCollection(
@@ -72,6 +76,11 @@ object TapNestForms {
                 }
                 TapNestWardrobePart(id, label)
             }.distinctBy { it.id }.toList()
+    }
+
+    fun dialogueLines(forms: TapNestFormCollection, common: List<String>): List<String> {
+        val active = forms.forms.firstOrNull { it.id == forms.activeFormId } ?: forms.forms.firstOrNull()
+        return com.deskpet.data.model.TapDialogue.sanitize(active?.tapDialogues ?: common)
     }
 
     fun starting(rig: TapNestRig): TapNestFormCollection =

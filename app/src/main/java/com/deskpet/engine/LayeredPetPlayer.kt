@@ -19,7 +19,8 @@ class LayeredPetPlayer private constructor(
     val width: Int,
     val height: Int,
     private val pictures: Map<String, Bitmap>,
-    private val sourceSizes: Map<String, Pair<Int, Int>>
+    private val sourceSizes: Map<String, Pair<Int, Int>>,
+    val formDialogues: List<String>? = null
 ) {
     /**
      * Extended artwork uses a separate buffer height; NEVER squeeze it into
@@ -311,8 +312,11 @@ class LayeredPetPlayer private constructor(
             val legacy = Json { ignoreUnknownKeys = true }.decodeFromString<TapNestRig>(configFile.readText())
             val formsFile = File(configFile.parentFile, "forms.json")
             // An invalid forms file must not silently replace the player's current choice.
-            val rig = if (formsFile.exists()) TapNestForms.parse(formsFile)?.let(TapNestForms::resolve)
-                ?: return null else legacy
+            val forms = if (formsFile.exists()) TapNestForms.parse(formsFile) ?: return null else null
+            val rig = forms?.let(TapNestForms::resolve) ?: legacy
+            val formDialogues = forms?.let { collection ->
+                (collection.forms.firstOrNull { it.id == collection.activeFormId } ?: collection.forms.first()).tapDialogues
+            }?.let(com.deskpet.data.model.TapDialogue::sanitize)
             if (rig.canvasWidth !in 1..4096 || rig.canvasHeight !in 1..4096 || rig.layers.size > 48) return null
             val dir = configFile.parentFile ?: return null
             val entries = mutableMapOf<String, Bitmap>()
@@ -345,7 +349,7 @@ class LayeredPetPlayer private constructor(
             if (!entries.containsKey("body")) return null
             val dim = min(320f / max(rig.canvasWidth, rig.canvasHeight), 1f)
             LayeredPetPlayer(rig, max(32, (rig.canvasWidth * dim).toInt()),
-                max(32, (rig.canvasHeight * dim).toInt()), entries, sourceSizes).also { it.preparePickupFrames() }
+                max(32, (rig.canvasHeight * dim).toInt()), entries, sourceSizes, formDialogues).also { it.preparePickupFrames() }
         }.getOrNull()
     }
 }

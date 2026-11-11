@@ -139,7 +139,7 @@ fun PetListScreen(
         var draft by remember(pet.id) { mutableStateOf(pet.tapDialogues.joinToString("\n")) }
         AlertDialog(
             onDismissRequest = { dialogueTarget = null },
-            title = { Text("💬 ${pet.displayName} 的点击台词") },
+            title = { Text("💬 ${pet.displayName} 的通用点击台词") },
             text = {
                 Column {
                     Row(verticalAlignment = Alignment.CenterVertically) {
@@ -159,7 +159,7 @@ fun PetListScreen(
                         modifier = Modifier.fillMaxWidth()
                     )
                     Spacer(Modifier.height(6.dp))
-                    Text("全部清空也可以让小人不说话；文字只存在手机里。", style = MaterialTheme.typography.bodySmall)
+                    Text("未设置独立台词的形态会使用这里的内容；总开关控制所有形态的点击气泡。", style = MaterialTheme.typography.bodySmall)
                 }
             },
             confirmButton = {
