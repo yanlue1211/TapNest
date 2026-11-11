@@ -8,14 +8,27 @@ package com.deskpet.engine
 object TapNestLayerActions {
     private const val PULSE_MS = 700L
 
+    /**
+     * Hats require their whole flight to land, while ordinary shakes retain
+     * their historical 680ms / 700ms touch and idle windows.
+     */
+    fun tapMotionDuration(layer: TapNestLayer): Long =
+        if (layer.tapMotion == TapNestPartMotion.HAT_POP) 960L else 680L
+
+    private fun periodicPulseDuration(layer: TapNestLayer): Long =
+        if (layer.periodicAction == TapNestPeriodicAction.SHAKE &&
+            (layer.periodicMotion ?: layer.tapMotion) == TapNestPartMotion.HAT_POP) 960L
+        else PULSE_MS
+
     fun periodicElapsed(layer: TapNestLayer, elapsedMs: Long): Long? {
         if (!layer.interactionConfigured || !layer.periodicEnabled || elapsedMs < 0L)
             return null
+        val pulseMs = periodicPulseDuration(layer)
         val intervalMs = (layer.periodicIntervalSeconds.coerceIn(1f, 120f) * 1000)
-            .toLong().coerceAtLeast(PULSE_MS + 1L)
+            .toLong().coerceAtLeast(pulseMs + 1L)
         if (elapsedMs < intervalMs) return null
         val local = elapsedMs % intervalMs
-        return local.takeIf { it < PULSE_MS }
+        return local.takeIf { it < pulseMs }
     }
 
     /**
@@ -90,7 +103,8 @@ object TapNestLayerActions {
             else -> true
         }
 
-    fun motionPose(layer: TapNestLayer, motionAgeMs: Long, periodic: Boolean = false): TapNestPose {
+    fun motionPose(layer: TapNestLayer, motionAgeMs: Long,
+                   periodic: Boolean = false, canvasHeight: Int = 512): TapNestPose {
         val selected = if (periodic) layer.periodicMotion ?: layer.tapMotion else layer.tapMotion
         // A mirrored clone already reverses the canvas. Use the source-side
         // clip sign to prevent reflecting left/right flap directions twice.
@@ -100,7 +114,8 @@ object TapNestLayerActions {
             TapNestPartMotion.BOUNCE -> TapNestPresets.bounce(motionId)
             TapNestPartMotion.FLAP -> TapNestPresets.flap(motionId)
             TapNestPartMotion.TWITCH -> TapNestPresets.twitch(motionId)
-            TapNestPartMotion.HAT_POP -> TapNestPresets.hatPop(motionId)
+            TapNestPartMotion.HAT_POP -> TapNestPresets.hatPop(
+                motionId, canvasHeight.toFloat(), layer.hatFlightHeight)
         }
         return TapNestMotion.sample(clip, motionId, motionAgeMs)
     }
