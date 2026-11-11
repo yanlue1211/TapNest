@@ -63,6 +63,24 @@ object TapNestPresets {
         ))
     ))
 
+    /**
+     * Short tap reaction for hats, bows, hair clips and other head accessories.
+     * They lift off gently, hang for a beat, land with a tiny rebound, then rest.
+     * All displacement is local to the part: the body/head keep their own motion.
+     */
+    fun hatPop(id: String) = TapNestClip("hat_pop", 680, tracks = listOf(
+        TapNestTrack(id, listOf(
+            frame(0, TapNestPose()),
+            frame(85, TapNestPose(y = -9f, angle = -2f)),
+            frame(195, TapNestPose(y = -26f, angle = 2f)),
+            frame(285, TapNestPose(y = -29f, angle = 3f)),
+            frame(445, TapNestPose(y = -6f, angle = -1.5f)),
+            frame(525, TapNestPose(y = 3f, scaleY = 0.98f)),
+            frame(595, TapNestPose(y = -2.5f)),
+            frame(680, TapNestPose())
+        ))
+    ))
+
     fun earTwitch(left: String, right: String) = TapNestClip(
         "ears", 460, tracks = listOf(
             TapNestTrack(left, listOf(
