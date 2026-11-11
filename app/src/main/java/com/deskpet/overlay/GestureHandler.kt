@@ -138,9 +138,18 @@ class GestureHandler(
                 // detectDragGesturesAfterLongPress then loses the movement,
                 // making pets appear impossible to drag. Long-hold actions
                 // are handled by the independent, non-consuming observer above.
+                // detectTapGestures without onLongPress would otherwise consider a
+                // stationary 1-5s hold a click on finger-up, opening the outfit
+                // menu AND firing the regular pet interaction simultaneously.
+                var pressAt = 0L
                 detectTapGestures(
-                    onTap = { onTap() },
-                    onDoubleTap = { onDoubleTap() }
+                    onPress = { pressAt = SystemClock.uptimeMillis() },
+                    onTap = {
+                        if (HoldGesturePolicy.isShortTap(SystemClock.uptimeMillis() - pressAt)) onTap()
+                    },
+                    onDoubleTap = {
+                        if (HoldGesturePolicy.isShortTap(SystemClock.uptimeMillis() - pressAt)) onDoubleTap()
+                    }
                 )
             }
 
