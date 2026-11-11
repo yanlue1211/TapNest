@@ -629,7 +629,7 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         speechBubble?.dismiss()
         removeOverlayView()
         cv = if (anim.isLive2DPet()) {
-            val manifest = currentPet?.petJsonPath?.let(::java.io.File)
+            val manifest = currentPet?.petJsonPath?.let { java.io.File(it) }
                 ?: return false
             try {
                 Live2DOverlayView(
