@@ -332,8 +332,8 @@ internal fun LayeredRigPreview(
             } else if (mode == RigPreviewMode.TEST && layer?.interactionConfigured == true) {
                 val periodic = TapNestLayerActions.periodicElapsed(
                     layer, rig.layers, sceneElapsed)
-                if (layer.tapShake && touchElapsed in
-                    0 until TapNestLayerActions.tapMotionDuration(layer)) {
+                if (layer.tapShake && touchElapsed >= 0L &&
+                    touchElapsed < TapNestLayerActions.tapMotionDuration(layer)) {
                     pose = TapNestLayerActions.motionPose(
                         layer, touchElapsed, canvasHeight = rig.canvasHeight)
                 } else if (periodic != null && !touched && touchElapsed >= 1800L &&
