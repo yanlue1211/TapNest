@@ -83,6 +83,9 @@ internal class SinglePetArchiveRestorer(private val context: Context) {
         val sourceDir: File
         val art: File
         when (type) {
+            // The FileManager has a separate model-aware restore path for
+            // Live2D, so this image-only legacy restorer must not decode moc3.
+            PetType.LIVE2D -> throw ImportException.InvalidFormat("Live2D 请使用专用模型恢复")
             PetType.LAYERED -> {
                 val config = rig ?: throw ImportException.InvalidFormat("旧版分层桌宠缺少 rig.json")
                 sourceDir = config.parentFile!!
