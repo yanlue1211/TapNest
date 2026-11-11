@@ -40,6 +40,20 @@ fun CompanionScreen(pet: PetInfo, onBack: () -> Unit) {
     val store = remember { CompanionStore(context) }
     var profile by remember(pet.id) { mutableStateOf(store.load(pet.id)) }
     val scope = rememberCoroutineScope()
+    val availableExpressions by produceState<List<Int>>(emptyList(), pet.id) {
+        value = withContext(Dispatchers.IO) {
+            runCatching {
+                if (pet.type != com.deskpet.data.model.PetType.LAYERED) emptyList() else {
+                    val forms = TapNestFormStore(context).load(pet)
+                    val rig = com.deskpet.engine.TapNestForms.resolve(forms)
+                    val prefix = if (rig.headMode == com.deskpet.engine.TapNestHeadMode.FULL_HEAD) "head_" else "face_"
+                    val folder = java.io.File(pet.petJsonPath!!).parentFile
+                    (0..3).filter { index -> rig.layers.any { it.id == prefix + index && java.io.File(folder, it.image).isFile } }
+                }
+            }.getOrDefault(emptyList())
+        }
+    }
+
     var tab by remember(pet.id) { mutableIntStateOf(0) }
     var action by remember { mutableStateOf(CompanionAction.FEED) }
     var iconItemId by remember { mutableStateOf("") }
@@ -153,13 +167,50 @@ fun CompanionScreen(pet: PetInfo, onBack: () -> Unit) {
                             label = { Text(label, maxLines = 1) })
                     }
                 }
+                val animation = profile.interactionAnimations[action] ?: InteractionAnimationSettings()
+                fun changeAnimation(next: InteractionAnimationSettings) {
+                    profile = profile.copy(interactionAnimations = profile.interactionAnimations + (action to next))
+                }
+                NestPanel {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("互动动画设置", modifier = Modifier.weight(1f), fontWeight = FontWeight.Bold)
+                        Switch(checked = animation.enabled, onCheckedChange = { changeAnimation(animation.copy(enabled = it)) })
+                    }
+                    Text("动画速度", style = MaterialTheme.typography.bodySmall)
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        InteractionSpeed.entries.forEach { speed ->
+                            FilterChip(selected = animation.speed == speed,
+                                onClick = { changeAnimation(animation.copy(speed = speed)) }, label = { Text(speed.label) })
+                        }
+                    }
+                    val stageLabels = when (action) {
+                        CompanionAction.FEED -> listOf("被砸表情", "吃饭表情", "吃完表情")
+                        CompanionAction.BATH -> listOf("被淋湿表情", "洗澡表情", "洗完表情")
+                        CompanionAction.PLAY -> listOf("发现玩具表情", "玩耍表情", "玩完表情")
+                    }
+                    stageLabels.forEachIndexed { index, label ->
+                        Text(label, style = MaterialTheme.typography.bodySmall)
+                        Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            (listOf(-1) + availableExpressions).forEach { frame ->
+                                FilterChip(selected = (animation.expressions.getOrNull(index) ?: -1) == frame,
+                                    onClick = {
+                                        val frames = (0..2).map { animation.expressions.getOrNull(it) ?: -1 }.toMutableList()
+                                        frames[index] = frame
+                                        changeAnimation(animation.copy(expressions = frames))
+                                    }, label = { Text(if (frame == -1) "不绑定" else if (frame == 0) "默认帧" else "表情 $frame") })
+                            }
+                        }
+                    }
+                    Text("只使用当前形态已有的头部／面部表情帧；未绑定或切换后帧不存在时保持正常表情。无需新增素材。",
+                        style = MaterialTheme.typography.bodySmall)
+                }
                 Text("点击道具进行互动；名称、Emoji、图片和专属台词都可以自己修改。",
                     style = MaterialTheme.typography.bodySmall)
                 Surface(color = MaterialTheme.colorScheme.primaryContainer,
                     shape = RoundedCornerShape(14.dp)) {
                     Column(Modifier.fillMaxWidth().padding(12.dp)) {
                         Text("🎬 本类互动专属动作素材", fontWeight = FontWeight.Bold)
-                        Text("导入 PNG 或 GIF 后，互动时整只伙伴暂时显示该素材，持续一分钟自动恢复正常。没有上传则使用轻量骨骼动作。",
+                        Text("导入 PNG 或 GIF 后，互动时整只伙伴暂时显示该素材，配合本类互动动画播放，互动结束自动恢复正常。没有上传则使用现有桌宠。",
                             style = MaterialTheme.typography.bodySmall)
                         Text("当前：${profile.actionVisuals[action] ?: "默认动作"}",
                             style = MaterialTheme.typography.bodySmall)
@@ -204,7 +255,7 @@ fun CompanionScreen(pet: PetInfo, onBack: () -> Unit) {
                                                 }
                                                 profile = result.first
                                                 OverlayState.postInteraction(pet.id, action, result.second,
-                                                    result.first.affection)
+                                                    result.first.affection, item.emoji)
                                                 Toast.makeText(context, result.second, Toast.LENGTH_SHORT).show()
                                             }.onFailure {
                                                 Toast.makeText(context, it.message ?: "互动失败", Toast.LENGTH_LONG).show()

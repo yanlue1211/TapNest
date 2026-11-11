@@ -44,16 +44,16 @@ class LayeredPetPlayer private constructor(
     else frames
     private var frameIndex = 0
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
+    private val nodes = rig.layers.associateBy { it.id }
+    private val drawingLayers = rig.layers.sortedBy { it.zIndex }
     private val springChains = mutableMapOf<String, TapNestSpringChain>()
     @Volatile private var tappedAtMs = -10000L
     @Volatile private var pickedUp = false
     @Volatile private var pickedUpAtMs = 0L
     @Volatile private var expression = 0
-    @Volatile private var actionAtMs = -10000L
-    @Volatile private var lastAction: com.deskpet.data.CompanionAction? = null
+    @Volatile internal var lifeInteraction: LifeInteractionAnimation? = null
     fun interact(action: com.deskpet.data.CompanionAction) {
-        lastAction = action
-        actionAtMs = SystemClock.uptimeMillis()
+        lifeInteraction = LifeInteractionAnimation(action, "", com.deskpet.data.InteractionAnimationSettings(), SystemClock.uptimeMillis())
     }
     @Volatile private var affection = 70
     fun setAffection(value: Int) { affection = value.coerceIn(0, 100) }
@@ -74,11 +74,13 @@ class LayeredPetPlayer private constructor(
     private val launchedAtMs = SystemClock.uptimeMillis()
 
     fun tap() {
+        lifeInteraction = null
         expression = if (rig.tapExpression in 0..3) rig.tapExpression else (expression % 3) + 1
         tappedAtMs = SystemClock.uptimeMillis()
     }
 
     fun setPickedUp(held: Boolean) {
+        if (held) lifeInteraction = null
         if (held && !pickedUp) pickedUpAtMs = SystemClock.uptimeMillis()
         pickedUp = held
     }
@@ -117,9 +119,9 @@ class LayeredPetPlayer private constructor(
             return frame
         }
         val elapsed = (now - tappedAtMs).coerceAtLeast(0)
-        val actionElapsed = (now - actionAtMs).coerceAtLeast(0)
-        val reacting = actionElapsed < 950
-        val touched = !held && elapsed < 680
+        val interaction = lifeInteraction?.takeIf { it.active(now) }
+        val reacting = interaction != null
+        val touched = !held && !reacting && elapsed < 680
         val sceneElapsed = now - launchedAtMs
         // Scene-wide arbitration: if any scheduled facial/part animation is
         // active, suppress the spontaneous blink across all owners AND the
@@ -134,9 +136,9 @@ class LayeredPetPlayer private constructor(
             TapNestBlink.isBlinking(sceneElapsed)
         val activeExpression = when {
             held -> naturalExpression() // No additional expression/animation controls while lifted.
-            reacting -> rig.expressionEmotions.entries.firstOrNull {
-                it.value == TapNestEmotion.HAPPY && it.key in 0..3
-            }?.key ?: naturalExpression()
+            reacting -> interaction?.expression(now)?.takeIf { frame ->
+                pictures.containsKey((if (rig.headMode == TapNestHeadMode.FULL_HEAD) "head_" else "face_") + frame)
+            } ?: naturalExpression()
             elapsed < 1800 -> expression.coerceIn(0, 3)
             rig.blinkExpression in 0..3 && idleBlinking -> rig.blinkExpression
             else -> naturalExpression()
@@ -154,10 +156,9 @@ class LayeredPetPlayer private constructor(
         val breath = if (rig.idleBreathingEnabled && !held && !reacting &&
             elapsed >= 1800L) TapNestBreathing.pose(sceneElapsed, rig.idleBreathingStrength)
             else null
-        val nodes = rig.layers.associateBy { it.id }
         val selectedFrameByOwner = rig.layers.filter { it.frameOwner == null }
             .associate { owner ->
-                owner.id to if (held) owner.id else TapNestLayerActions.currentFrame(
+                owner.id to if (held || reacting) owner.id else TapNestLayerActions.currentFrame(
                     owner, rig.layers, sceneElapsed, elapsed, pictures.keys,
                     allowIdleBlink = !periodicScene
                 )
@@ -169,10 +170,8 @@ class LayeredPetPlayer private constructor(
             val id = node.id
             if (held) return TapNestPose() // All child parts freeze; only the whole pet rocks.
             var p = TapNestPose()
-            if (id == "body" && reacting) {
-                lastAction?.let {
-                    p = TapNestMotion.sample(TapNestPresets.companionAction(it, id), id, actionElapsed)
-                }
+            if (reacting) {
+                // Whole-pet interaction motion is composed once by the existing controller.
             } else if (node.frameOwner != null) {
                 // Alternate art follows its owner transform, not a second nod.
             } else if (node.interactionConfigured) {
@@ -192,7 +191,7 @@ class LayeredPetPlayer private constructor(
             } else if (id.startsWith("head_") || id == "head_blank") {
                 if (touched) p = TapNestMotion.sample(TapNestPresets.nod(id), id, elapsed)
             }
-            rig.clips.firstOrNull { c -> c.tracks.any { it.layerId == id } }
+            if (!reacting) rig.clips.firstOrNull { c -> c.tracks.any { it.layerId == id } }
                 ?.let { p = TapNestMotion.sample(it, id, if (it.loop) now - launchedAtMs else elapsed) }
             // A single-point or rigid limb rocks around its chosen pivot.
             // A multi-point limb is skinned by the mesh instead.
@@ -204,7 +203,7 @@ class LayeredPetPlayer private constructor(
             }
             return p
         }
-        for (layer in rig.layers.sortedBy { it.zIndex }) {
+        for (layer in drawingLayers) {
             val id = layer.id
             val visible = when {
                 id == "pickup_pose" -> false // Dedicated art is visible only while held.
@@ -293,6 +292,11 @@ class LayeredPetPlayer private constructor(
     }
 
     companion object {
+        private data class CachedImage(val bitmap: Bitmap, val size: Pair<Int, Int>)
+        private val imageCache = object : android.util.LruCache<String, CachedImage>(12 * 1024 * 1024) {
+            override fun sizeOf(key: String, value: CachedImage) = value.bitmap.byteCount
+        }
+
         fun load(configFile: File): LayeredPetPlayer? = runCatching {
             if (!configFile.isFile || configFile.length() > 1024 * 1024) return null
             val legacy = Json { ignoreUnknownKeys = true }.decodeFromString<TapNestRig>(configFile.readText())
@@ -311,23 +315,23 @@ class LayeredPetPlayer private constructor(
                 if (!name.endsWith(".png", ignoreCase = true) ||
                     name.contains('/') || name.contains('\\') || name.contains("..")) return null
                 val file = File(dir, name)
-                val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
-                BitmapFactory.decodeFile(file.absolutePath, bounds)
-                if (bounds.outWidth <= 0 || bounds.outHeight <= 0 ||
-                    bounds.outWidth.toLong() * bounds.outHeight > 16_000_000L) return null
-                var sample = 1
-                // The character is rendered at <=320 px: 640px decoded layers are ample.
-                // Capping decoded pixels also keeps multi-frame templates below memory budget.
-                while (max(bounds.outWidth, bounds.outHeight) / sample > 640) sample *= 2
-                val bitmap = BitmapFactory.decodeFile(file.absolutePath,
-                    BitmapFactory.Options().apply {
-                        inSampleSize = sample
-                        inPreferredConfig = Bitmap.Config.ARGB_8888
-                    }) ?: return null
-                budget += bitmap.width.toLong() * bitmap.height
+                val cacheKey = file.absolutePath + ":" + file.lastModified() + ":" + file.length()
+                val cached = imageCache.get(cacheKey)
+                val image = cached ?: run {
+                    val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                    BitmapFactory.decodeFile(file.absolutePath, bounds)
+                    if (bounds.outWidth <= 0 || bounds.outHeight <= 0 ||
+                        bounds.outWidth.toLong() * bounds.outHeight > 16_000_000L) return null
+                    var sample = 1
+                    while (max(bounds.outWidth, bounds.outHeight) / sample > 640) sample *= 2
+                    val bitmap = BitmapFactory.decodeFile(file.absolutePath,
+                        BitmapFactory.Options().apply { inSampleSize = sample; inPreferredConfig = Bitmap.Config.ARGB_8888 }) ?: return null
+                    CachedImage(bitmap, bounds.outWidth to bounds.outHeight).also { imageCache.put(cacheKey, it) }
+                }
+                budget += image.bitmap.width.toLong() * image.bitmap.height
                 if (budget > 9_000_000L) return null
-                entries[layer.id] = bitmap
-                sourceSizes[layer.id] = bounds.outWidth to bounds.outHeight
+                entries[layer.id] = image.bitmap
+                sourceSizes[layer.id] = image.size
             }
             if (!entries.containsKey("body")) return null
             val dim = min(320f / max(rig.canvasWidth, rig.canvasHeight), 1f)

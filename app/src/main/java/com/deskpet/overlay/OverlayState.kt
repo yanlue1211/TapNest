@@ -28,14 +28,15 @@ object OverlayState {
         val petId: String,
         val action: com.deskpet.data.CompanionAction,
         val line: String,
-        val affection: Int
+        val affection: Int,
+        val emoji: String = ""
     )
     private val _interactions = kotlinx.coroutines.flow.MutableSharedFlow<CompanionActionEvent>(
         extraBufferCapacity = 16)
     val interactions = _interactions
     fun postInteraction(petId: String, action: com.deskpet.data.CompanionAction,
-                        line: String, affection: Int) {
-        _interactions.tryEmit(CompanionActionEvent(petId, action, line, affection))
+                        line: String, affection: Int, emoji: String = "") {
+        _interactions.tryEmit(CompanionActionEvent(petId, action, line, affection, emoji))
     }
 
     fun setRunning(id: String?) {

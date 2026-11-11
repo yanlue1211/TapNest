@@ -66,6 +66,8 @@ class AnimationController(
         val visual = withContext(Dispatchers.IO) { TemporaryActionVisual.load(file, w, h) }
         actionVisual = visual
     }
+    @Volatile private var lifeInteraction: LifeInteractionAnimation? = null
+    private var interactionGeneration = 0L
     private var s = 1f
     private var baseW = PetEngine.DEFAULT_PET_WIDTH
     private var baseH = PetEngine.DEFAULT_PET_HEIGHT
@@ -86,6 +88,7 @@ class AnimationController(
         // （如 GIF 双缓冲位图），必须保证渲染端不再引用它们
         _frame.value = null
         actionVisual = null
+        cancelInteraction()
         loader = petEngine.createLoader(p) ?: run {
             transparentTopFraction = 0f
             return false
@@ -137,9 +140,17 @@ class AnimationController(
             while (isActive) {
                 val l = loader ?: break
                 val visual = actionVisual
+                val interaction = lifeInteraction?.takeIf { it.active(android.os.SystemClock.uptimeMillis()) }
+                if (interaction == null) {
+                    if (lifeInteraction != null) actionVisual = null
+                    lifeInteraction = null
+                    (l as? PetEngine.PetLoader.Layered)?.player?.lifeInteraction = null
+                }
                 val bitmap = withContext(Dispatchers.IO) {
-                    if (visual != null && !visual.expired()) visual.frame()
+                    val source = if (visual != null && !visual.expired()) visual.frame()
                     else petEngine.getCurrentFrame(l, _state.value, fi)
+                    if (source != null && interaction != null)
+                        interaction.render(source, android.os.SystemClock.uptimeMillis()) else source
                 }
                 if (visual != null && visual.expired()) actionVisual = null
                 if (bitmap != null) {
@@ -168,6 +179,7 @@ class AnimationController(
                 val idle = _state.value == PetAnimationState.IDLE &&
                     (isCodexPet() || l is PetEngine.PetLoader.Png)
                 var ns = when {
+                    interaction != null -> LAYERED_FRAME_INTERVAL_NS
                     actionVisual != null -> LAYERED_FRAME_INTERVAL_NS
                     l is PetEngine.PetLoader.Layered -> LAYERED_FRAME_INTERVAL_NS
                     idle -> IDLE_FRAME_INTERVAL_NS
@@ -207,8 +219,9 @@ class AnimationController(
     fun isCodexPet() = loader is PetEngine.PetLoader.CodexPet
     fun isLayeredPet() = loader is PetEngine.PetLoader.Layered
     fun isLive2DPet() = loader is PetEngine.PetLoader.Live2D
-    fun tapLayeredPet() { (loader as? PetEngine.PetLoader.Layered)?.player?.tap() }
+    fun tapLayeredPet() { cancelInteraction(); (loader as? PetEngine.PetLoader.Layered)?.player?.tap() }
     fun setLayeredPickedUp(held: Boolean) {
+        if (held) cancelInteraction()
         val layered = (loader as? PetEngine.PetLoader.Layered) ?: return
         layered.player.setPickedUp(held)
         layeredPickedUp = held
@@ -216,9 +229,50 @@ class AnimationController(
         // gravity + stable x/y keep the head at exactly its prior position.
         applyScale()
     }
-    fun interactCompanion(action: com.deskpet.data.CompanionAction) {
-        (loader as? PetEngine.PetLoader.Layered)?.player?.interact(action)
+    fun cancelInteraction() {
+        interactionGeneration++
+        lifeInteraction = null
+        actionVisual = null
+        (loader as? PetEngine.PetLoader.Layered)?.player?.lifeInteraction = null
     }
+
+    suspend fun interactCompanion(action: com.deskpet.data.CompanionAction,
+        emoji: String, settings: com.deskpet.data.InteractionAnimationSettings,
+        artwork: java.io.File?) {
+        cancelInteraction()
+        if (!settings.enabled || layeredPickedUp) return
+        val generation = interactionGeneration
+        val activeLoader = loader
+        val visual = withContext(Dispatchers.IO) { TemporaryActionVisual.load(artwork, baseW, baseH) }
+        // A late decode cannot resurrect an animation after dragging, changing form or another click.
+        if (generation != interactionGeneration || activeLoader !== loader || layeredPickedUp) return
+        actionVisual = visual
+        val session = LifeInteractionAnimation(action, emoji, settings, android.os.SystemClock.uptimeMillis())
+        lifeInteraction = session
+        (loader as? PetEngine.PetLoader.Layered)?.player?.lifeInteraction = session
+    }
+
+    /** Prepare a new layered player while the old frame loop remains visible. */
+    suspend fun replaceLayered(p: PetInfo): Boolean = reloadMutex.withLock {
+        cancelInteraction()
+        val next = withContext(Dispatchers.IO) { petEngine.createLoader(p) as? PetEngine.PetLoader.Layered }
+            ?: return@withLock false
+        val first = withContext(Dispatchers.IO) { next.player.render() }
+        val top = withContext(Dispatchers.IO) { PetVisibleBounds.transparentTopFraction(first) }
+        stop()
+        loader = next
+        baseW = next.player.width
+        baseH = next.player.height
+        basePickupH = next.player.pickupHeight
+        layeredPickedUp = false
+        transparentTopFraction = top
+        reset()
+        applyScale()
+        _frame.value = Frame(first, ++frameSeq)
+        start()
+        true
+    }
+
     fun setAffection(value: Int) {
         (loader as? PetEngine.PetLoader.Layered)?.player?.setAffection(value)
     }

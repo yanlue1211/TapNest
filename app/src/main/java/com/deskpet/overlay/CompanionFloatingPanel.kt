@@ -42,7 +42,7 @@ internal class CompanionFloatingPanel(
     private val vmOwner: ViewModelStoreOwner,
     private val savedOwner: SavedStateRegistryOwner,
     private val store: CompanionStore,
-    private val onAction: (CompanionAction, String, Int, String?) -> Unit,
+    private val onAction: (CompanionAction, String, Int, String?, String) -> Unit,
     private val onClose: () -> Unit
 ) {
     private var view: ComposeView? = null
@@ -159,7 +159,7 @@ internal class CompanionFloatingPanel(
 @Composable
 private fun PanelContent(
     title: String, petId: String, store: CompanionStore,
-    onAction: (CompanionAction, String, Int, String?) -> Unit, onClose: () -> Unit
+    onAction: (CompanionAction, String, Int, String?, String) -> Unit, onClose: () -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -271,7 +271,7 @@ private fun PanelContent(
                                         store.interact(petId, kind, item.id)
                                     }
                                     profile = updated
-                                    onAction(kind, reply, updated.affection, updated.actionVisuals[kind])
+                                    onAction(kind, reply, updated.affection, updated.actionVisuals[kind], item.emoji)
                                     onClose()
                                 }.onFailure { error = it.message ?: "互动失败" }
                             }
