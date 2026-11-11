@@ -33,7 +33,7 @@ class LayeredPetPlayer private constructor(
         val canvasHeight = TapNestPickupCanvas.requiredHeight(
             rig.canvasWidth, rig.canvasHeight, source.first, source.second, scale)
         kotlin.math.ceil(canvasHeight.toDouble() * width / rig.canvasWidth.coerceAtLeast(1))
-            .toInt().coerceAtLeast(height)
+            .toInt().coerceIn(height, 2048)
     } else height
 
     // A published Bitmap must never be cleared while the UI still draws it.
