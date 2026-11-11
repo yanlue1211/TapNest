@@ -161,9 +161,10 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         auto?.onUserTouch()
         val pet = currentPet
         if (pet != null && pet.tapBubbleEnabled) {
-            val line = TapDialogue.at(pet.tapDialogues, touchLineIndex)
+            val lines = anim.tapDialogues(pet.tapDialogues)
+            val line = TapDialogue.at(lines, touchLineIndex)
             if (line != null) {
-                touchLineIndex = (touchLineIndex + 1) % pet.tapDialogues.size
+                touchLineIndex = (touchLineIndex + 1) % lines.size
                 displayTapLine(line)
             }
         }
@@ -214,6 +215,11 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
                 formPanel = null
                 if (petId == pet.id) {
                     if (!anim.replaceLayered(pet)) error("形态素材加载失败")
+                    if (formId != null) {
+                        touchLineIndex = 0
+                        speechJob?.cancel()
+                        speechBubble?.dismiss()
+                    }
                     if (!screenOn) anim.stop()
                     val profile = withContext(Dispatchers.IO) { companionStore.load(pet.id) }
                     anim.setAffection(com.deskpet.data.CompanionAffection.at(profile, System.currentTimeMillis()))
@@ -615,7 +621,7 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
                 currentPet = info
                 anim.setAffection(com.deskpet.data.CompanionAffection.at(
                     companionStore.load(id), System.currentTimeMillis()))
-                if (!info.tapBubbleEnabled || info.tapDialogues.isEmpty()) {
+                if (!info.tapBubbleEnabled || anim.tapDialogues(info.tapDialogues).isEmpty()) {
                     speechJob?.cancel()
                     speechBubble?.dismiss()
                 }

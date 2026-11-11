@@ -216,6 +216,9 @@ class AnimationController(
         if (loader != null) applyScale()
     }
 
+    fun tapDialogues(common: List<String>): List<String> =
+        (loader as? PetEngine.PetLoader.Layered)?.player?.formDialogues ?: common
+
     fun isCodexPet() = loader is PetEngine.PetLoader.CodexPet
     fun isLayeredPet() = loader is PetEngine.PetLoader.Layered
     fun isLive2DPet() = loader is PetEngine.PetLoader.Live2D

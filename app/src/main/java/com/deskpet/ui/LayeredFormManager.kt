@@ -37,6 +37,7 @@ fun LayeredFormManager(
     }
     var busy by remember { mutableStateOf(false) }
     var error by remember { mutableStateOf<String?>(null) }
+    var dialogueTarget by remember { mutableStateOf<TapNestForm?>(null) }
     var deleteTarget by remember { mutableStateOf<TapNestForm?>(null) }
 
     fun update(block: () -> Unit) {
@@ -52,6 +53,35 @@ fun LayeredFormManager(
                 error = t.message ?: "操作失败，请检查角色素材"
             } finally { busy = false }
         }
+    }
+
+    dialogueTarget?.let { form ->
+        var independent by remember(form.id) { mutableStateOf(form.tapDialogues != null) }
+        var draft by remember(form.id) { mutableStateOf((form.tapDialogues ?: pet.tapDialogues).joinToString("\n")) }
+        AlertDialog(
+            onDismissRequest = { dialogueTarget = null },
+            title = { Text("💬 ${form.name} · 点击台词") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text("使用这套形态的独立台词", modifier = Modifier.weight(1f))
+                        Switch(checked = independent, onCheckedChange = { independent = it })
+                    }
+                    Text("关闭时跟随角色的通用台词。开启后，一行一句，最多20句，每句60字；清空则该形态保持安静。",
+                        style = MaterialTheme.typography.bodySmall)
+                    OutlinedTextField(value = draft, onValueChange = { draft = it.take(2400) },
+                        enabled = independent, minLines = 4, maxLines = 7,
+                        label = { Text("${form.name} 的台词") }, modifier = Modifier.fillMaxWidth())
+                    Text("角色的总气泡开关仍然有效。仅换配件沿用当前形态的台词。",
+                        style = MaterialTheme.typography.bodySmall)
+                }
+            },
+            confirmButton = { TextButton(onClick = {
+                dialogueTarget = null
+                update { store.setDialogues(pet, form.id, if (independent) draft.lines() else null) }
+            }, enabled = !busy) { Text("保存") } },
+            dismissButton = { TextButton(onClick = { dialogueTarget = null }) { Text("取消") } }
+        )
     }
 
     deleteTarget?.let { form ->
@@ -125,6 +155,10 @@ fun LayeredFormManager(
                                     enabled = !busy && snapshot.forms.size < 24) {
                                     Text("复制形态")
                                 }
+                            }
+                            OutlinedButton(onClick = { dialogueTarget = form }, enabled = !busy,
+                                modifier = Modifier.fillMaxWidth()) {
+                                Text("💬 形态台词 · " + (form.tapDialogues?.let { "${it.size}句独立台词" } ?: "跟随通用台词"))
                             }
                             if (!selected || snapshot.forms.size > 1) {
                                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp),

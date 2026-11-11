@@ -132,4 +132,26 @@ class TapNestFormsTest {
         ).layers.map { it.id })
     }
 
+    @Test fun formSpeechInheritsOverridesAndCanBeDeliberatelySilent() {
+        val common = listOf("通用")
+        val forms = TapNestFormCollection(forms = listOf(
+            TapNestForm("chat", "Chat", base),
+            TapNestForm("work", "Work", dog, listOf("  开工啦  ", "")),
+            TapNestForm("quiet", "安静", base, emptyList())), activeFormId = "chat")
+        assertEquals(common, TapNestForms.dialogueLines(forms, common))
+        val work = TapNestForms.choose(forms, "work")
+        assertEquals(listOf("开工啦"), TapNestForms.dialogueLines(work, common))
+        assertEquals(listOf("开工啦"), TapNestForms.dialogueLines(
+            TapNestForms.choosePart(work, "ear", "chat"), common))
+        assertTrue(TapNestForms.dialogueLines(TapNestForms.choose(forms, "quiet"), common).isEmpty())
+        val file = java.io.File.createTempFile("form-speech-", ".json")
+        try {
+            file.writeText(TapNestForms.encode(forms))
+            val restored = requireNotNull(TapNestForms.parse(file))
+            assertNull(restored.forms[0].tapDialogues)
+            assertEquals(forms.forms[1].tapDialogues, restored.forms[1].tapDialogues)
+            assertEquals(emptyList<String>(), restored.forms[2].tapDialogues)
+        } finally { file.delete() }
+    }
+
 }

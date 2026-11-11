@@ -92,4 +92,29 @@ class TapNestFormStoreIntegrationTest {
             assertTrue(File(dir, ear.image).exists()) // retained; no unsafe asset cleanup
         } finally { dir.deleteRecursively() }
     }
+    @Test fun independentSpeechCopiesWithFormAndDoesNotChangeArtOrCommonSpeech() {
+        val pet = fixture()
+        val dir = File(pet.petJsonPath!!).parentFile!!
+        try {
+            val store = TapNestFormStore(context)
+            val original = store.load(pet)
+            val rigBytes = File(dir, "rig.json").readBytes()
+            store.setDialogues(pet, "default", listOf("  开工啦  ", "") + List(30) { "句子$it" })
+            val saved = store.load(pet)
+            assertEquals(original.forms[0].rig, saved.forms[0].rig)
+            assertEquals(20, saved.forms[0].tapDialogues!!.size)
+            assertEquals("开工啦", saved.forms[0].tapDialogues!!.first())
+            assertArrayEquals(rigBytes, File(dir, "rig.json").readBytes())
+            val clone = store.add(pet, "default", "Work")
+            assertEquals(saved.forms[0].tapDialogues, clone.tapDialogues)
+            store.setDialogues(pet, clone.id, emptyList())
+            store.setActive(pet, clone.id)
+            assertTrue(requireNotNull(LayeredPetPlayer.load(File(pet.petJsonPath!!))).formDialogues!!.isEmpty())
+            store.setDialogues(pet, clone.id, null)
+            assertNull(requireNotNull(LayeredPetPlayer.load(File(pet.petJsonPath!!))).formDialogues)
+            assertEquals(saved.forms[0].tapDialogues, store.load(pet).forms.first().tapDialogues)
+            assertEquals(listOf("嘿嘿，戳到我啦！", "我在这里～", "再陪我玩一会儿？"), pet.tapDialogues)
+        } finally { dir.deleteRecursively() }
+    }
+
 }

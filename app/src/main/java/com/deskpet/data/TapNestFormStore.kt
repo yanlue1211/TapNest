@@ -63,10 +63,20 @@ class TapNestFormStore(private val context: Context) {
         val form = TapNestForm(
             "form_" + UUID.randomUUID().toString().replace("-", "").take(12),
             label.trim().take(40).ifBlank { "形态" + (current.forms.size + 1) },
-            from?.rig ?: TapNestTemplates.manual()
+            from?.rig ?: TapNestTemplates.manual(), from?.tapDialogues?.toList()
         )
         commit(pet, current.copy(forms = current.forms + form))
         return form
+    }
+
+    /** Update only speech metadata; keep artwork, bones, active form and overrides intact. */
+    fun setDialogues(pet: PetInfo, id: String, lines: List<String>?) = synchronized(writeLock) {
+        val current = load(pet)
+        require(current.forms.any { it.id == id }) { "形态不存在" }
+        val sanitized = lines?.let(com.deskpet.data.model.TapDialogue::sanitize)
+        commit(pet, current.copy(forms = current.forms.map {
+            if (it.id == id) it.copy(tapDialogues = sanitized) else it
+        }))
     }
 
     fun remove(pet: PetInfo, id: String) = synchronized(writeLock) {
