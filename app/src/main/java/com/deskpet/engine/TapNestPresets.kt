@@ -64,22 +64,28 @@ object TapNestPresets {
     ))
 
     /**
-     * Short tap reaction for hats, bows, hair clips and other head accessories.
-     * They lift off gently, hang for a beat, land with a tiny rebound, then rest.
-     * All displacement is local to the part: the body/head keep their own motion.
+     * A real, clearly visible toss. Height is proportional to the character's
+     * canvas, never a tiny fixed offset that disappears on high-res user PNGs.
+     * Fast takeoff, a brief apex, accelerating fall, then a gentle landing.
+     * Head/body remain in place; only this accessory flies.
      */
-    fun hatPop(id: String) = TapNestClip("hat_pop", 680, tracks = listOf(
-        TapNestTrack(id, listOf(
-            frame(0, TapNestPose()),
-            frame(85, TapNestPose(y = -9f, angle = -2f)),
-            frame(195, TapNestPose(y = -26f, angle = 2f)),
-            frame(285, TapNestPose(y = -29f, angle = 3f)),
-            frame(445, TapNestPose(y = -6f, angle = -1.5f)),
-            frame(525, TapNestPose(y = 3f, scaleY = 0.98f)),
-            frame(595, TapNestPose(y = -2.5f)),
-            frame(680, TapNestPose())
+    fun hatPop(id: String, canvasHeight: Float = 512f,
+               flightHeight: Float = 0.22f): TapNestClip {
+        val lift = canvasHeight.coerceAtLeast(1f) * flightHeight.coerceIn(.08f, .40f)
+        return TapNestClip("hat_pop", 960, tracks = listOf(
+            TapNestTrack(id, listOf(
+                frame(0, TapNestPose()),
+                frame(100, TapNestPose(y = -lift * .44f, angle = -3f)),
+                frame(245, TapNestPose(y = -lift * .95f, angle = 3.5f)),
+                frame(345, TapNestPose(y = -lift, angle = 2f)),
+                frame(455, TapNestPose(y = -lift * .98f, angle = -1f)),
+                frame(670, TapNestPose(y = -lift * .53f, angle = -3f)),
+                frame(810, TapNestPose(y = 5f, angle = 1.5f, scaleY = .97f)),
+                frame(885, TapNestPose(y = -5f, angle = -.8f)),
+                frame(960, TapNestPose())
+            ))
         ))
-    ))
+    }
 
     fun earTwitch(left: String, right: String) = TapNestClip(
         "ears", 460, tracks = listOf(

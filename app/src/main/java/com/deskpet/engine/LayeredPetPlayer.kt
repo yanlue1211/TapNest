@@ -157,12 +157,15 @@ class LayeredPetPlayer private constructor(
                 // Alternate art follows its owner transform, not a second nod.
             } else if (node.interactionConfigured) {
                 val periodic = TapNestLayerActions.periodicElapsed(node, rig.layers, sceneElapsed)
-                if (node.tapShake && touched) {
-                    p = TapNestLayerActions.motionPose(node, elapsed)
+                if (node.tapShake && !held && elapsed <
+                    TapNestLayerActions.tapMotionDuration(node)) {
+                    p = TapNestLayerActions.motionPose(
+                        node, elapsed, canvasHeight = rig.canvasHeight)
                 } else if (periodic != null && !held && !touched &&
                     elapsed >= 1800 && !reacting &&
                     node.periodicAction == TapNestPeriodicAction.SHAKE) {
-                    p = TapNestLayerActions.motionPose(node, periodic, periodic = true)
+                    p = TapNestLayerActions.motionPose(
+                        node, periodic, periodic = true, canvasHeight = rig.canvasHeight)
                 }
             } else if (id == "tail" && !node.idleSwing && !node.interactionConfigured) {
                 p = TapNestMotion.sample(TapNestPresets.wag(id), id, now - launchedAtMs)

@@ -332,11 +332,14 @@ internal fun LayeredRigPreview(
             } else if (mode == RigPreviewMode.TEST && layer?.interactionConfigured == true) {
                 val periodic = TapNestLayerActions.periodicElapsed(
                     layer, rig.layers, sceneElapsed)
-                if (touched && layer.tapShake) {
-                    pose = TapNestLayerActions.motionPose(layer, touchElapsed)
+                if (layer.tapShake && touchElapsed >= 0L &&
+                    touchElapsed < TapNestLayerActions.tapMotionDuration(layer)) {
+                    pose = TapNestLayerActions.motionPose(
+                        layer, touchElapsed, canvasHeight = rig.canvasHeight)
                 } else if (periodic != null && !touched && touchElapsed >= 1800L &&
                     layer.periodicAction == TapNestPeriodicAction.SHAKE) {
-                    pose = TapNestLayerActions.motionPose(layer, periodic, periodic = true)
+                    pose = TapNestLayerActions.motionPose(
+                        layer, periodic, periodic = true, canvasHeight = rig.canvasHeight)
                 }
             } else if (id == "tail" && mode == RigPreviewMode.TEST &&
                 layer?.idleSwing != true && layer?.interactionConfigured != true) {
