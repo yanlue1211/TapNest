@@ -25,4 +25,32 @@ Live2D 首版以 **Cubism 3/4/5** 的 `.model3.json`、`.moc3`、`Textures/*.png
 - https://docs.live2d.com/en/cubism-sdk-manual/cubism-core/
 - https://github.com/Live2D/CubismJavaSamples
 
-**计划仅用于分离开发任务，不代表 Live2D 已完成。**
+**上方为初期架构记录。以下为首版已编码功能与仍待验证的项目；安装及播放验收以实际手机为准。**
+
+## 2026-11-11 首版独立模块实现状态
+
+- ✅ 新增独立类型 `PetType.LIVE2D`，不把 Live2D 拆成 PNG 图层，不变更旧序列化字段。
+- ✅ 导入 ZIP 并校验 `.model3.json` / `.moc3` / 贴图与动作引用；防路径穿越、超量文件和残缺素材；失败清理新建文件。
+- ✅ 独立 WebViewAssetLoader 本地只读模型沙盒；透明 Android 悬浮窗口；手势移动、双击弹伙伴面板、长按 5 秒关闭、捏合缩放。
+- ✅ 便于未来移植的 `live2d-web/` 单独 PixiJS/untitled 引擎源码；GitHub Actions 打包 JS 到 APK；**不捆绑专有 Cubism Core**。
+- ✅ 单只导出、完整备份、从备份恢复 Live2D；仍使用原来 `pets.json` 和 `PetInfo`，对 PNG/GIF/绑骨/Codex 数据路径最小入侵。
+- ⚠️ 官方 Hosted Cubism Core 必须联网加载；无网络时提示失败，不会读取云端任何个人数据。模型素材仅在本机，允许发送的只有下载 Core 的常规网络请求。
+- ⚠️ 尚未在 HarmonyOS 7 真机验证 GPU/WebView/WebGL/动作兼容性；**自动构建成功不能视为真机验收**。
+- ⚠️ 首版交互使用模型自带 TapBody / Tap / Touch / TapHead 动作组和 expression；复杂自定义参数及多轨道动作编辑留作后续版本。
+- ⚠️ 模型顶部透明占位和触摸命中当前按窗口边界处理；精细碰撞与透明点透改进后续验证，不修改已有 PNG 行为。
+- ⚠️ 尽管 MIT 前端引擎可依法复用，Cubism Core 和导入模型仍需分别遵守其许可证；公开发行 APK 前复核 Live2D 的 Expandable Application 条款。
+
+**代码入口**
+- `app/src/main/java/com/deskpet/data/Live2DModelFiles.kt`
+- `app/src/main/java/com/deskpet/overlay/Live2DOverlayView.kt`
+- `live2d-web/src/viewer.js`
+- `app/src/main/assets/live2d/index.html`
+
+**验证步骤**（不清空任何现有桌宠）
+1. 在「导入宠物」选择「🌸 导入 Live2D 模型」；选择自己拥有合法使用权的 Cubism 3/4/5 `.zip`。
+2. 选中这个新宠物，开启悬浮窗，观察透明背景、模型动作/眨眼；拖动、捏合、轻点、双击和长按五秒关闭。
+3. 关闭再开启 App；切换别的宠物再切回来；息屏再亮屏。
+4. 测试「导出角色」和「备份全部」→确认 ZIP 内含 `model3.json`/`moc3`/贴图；在测试环境里验证恢复，不可先卸载已有应用。
+5. 无网络时检查能否给出 Core 加载失败提示；不能因为失败删除角色数据。
+
+
