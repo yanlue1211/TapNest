@@ -121,4 +121,30 @@ class LayeredPetPlayerTest {
         assertEquals(Color.BLUE, second.getPixel(32, 32))
         assertEquals("Previously published frame stays stable", Color.RED, first.getPixel(32, 32))
     }
+    @Test fun lifeExpressionsCancelOnPickupAndMissingFormFramesUseNormalFace() {
+        png("body.png", Color.GREEN)
+        png("head_0.png", Color.RED)
+        png("head_1.png", Color.BLUE)
+        val rig = TapNestRig(canvasWidth = 64, canvasHeight = 64, layers = listOf(
+            TapNestLayer("body", "body.png"),
+            TapNestLayer("head_0", "head_0.png", zIndex = 1),
+            TapNestLayer("head_1", "head_1.png", zIndex = 1)))
+        val cfg = tmp.newFile("interaction_rig.json").apply { writeText(Json.encodeToString(rig)) }
+        val player = requireNotNull(LayeredPetPlayer.load(cfg))
+        val now = android.os.SystemClock.uptimeMillis()
+        player.lifeInteraction = LifeInteractionAnimation(com.deskpet.data.CompanionAction.FEED, "🍪",
+            com.deskpet.data.InteractionAnimationSettings(expressions = listOf(1, 1, 1)), now)
+        assertEquals(Color.BLUE, player.render().getPixel(32, 32))
+        player.setPickedUp(true)
+        org.junit.Assert.assertNull(player.lifeInteraction)
+        player.setPickedUp(false)
+        assertEquals(Color.RED, player.render().getPixel(32, 32))
+        // A stage bound in another form cannot replace this form's normal expression.
+        player.lifeInteraction = LifeInteractionAnimation(com.deskpet.data.CompanionAction.PLAY, "🧸",
+            com.deskpet.data.InteractionAnimationSettings(expressions = listOf(3, 3, 3)), now)
+        assertEquals(Color.RED, player.render().getPixel(32, 32))
+        player.tap()
+        org.junit.Assert.assertNull(player.lifeInteraction)
+    }
+
 }

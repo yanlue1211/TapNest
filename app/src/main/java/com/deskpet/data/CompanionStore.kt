@@ -19,6 +19,19 @@ enum class CompanionTemperament(val label: String, val dailyLoss: Int) {
 enum class CompanionAction { FEED, BATH, PLAY }
 
 @Serializable
+enum class InteractionSpeed(val label: String, val factor: Float) {
+    SLOW("慢", .75f), STANDARD("标准", 1f), FAST("快", 1.35f)
+}
+
+@Serializable
+data class InteractionAnimationSettings(
+    val enabled: Boolean = true,
+    val speed: InteractionSpeed = InteractionSpeed.STANDARD,
+    /** Existing head/face slot, -1 leaves the normal expression. */
+    val expressions: List<Int> = listOf(-1, -1, -1)
+)
+
+@Serializable
 data class CompanionItem(
     val id: String = UUID.randomUUID().toString(),
     val action: CompanionAction,
@@ -45,7 +58,8 @@ data class CompanionProfile(
     val items: List<CompanionItem> = defaultItems(),
     val reminders: List<CompanionReminder> = emptyList(),
     /** Optional action-specific character PNG/GIF displayed for 60 seconds. */
-    val actionVisuals: Map<CompanionAction, String> = emptyMap()
+    val actionVisuals: Map<CompanionAction, String> = emptyMap(),
+    val interactionAnimations: Map<CompanionAction, InteractionAnimationSettings> = emptyMap()
 )
 
 fun defaultItems(): List<CompanionItem> = listOf(

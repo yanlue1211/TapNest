@@ -133,7 +133,25 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         auto?.onUserTouch()
     }
 
+    private var companionAnimationJob: Job? = null
+    private fun cancelCompanionAnimation() {
+        companionAnimationJob?.cancel()
+        companionAnimationJob = null
+        anim.cancelInteraction()
+    }
+    private fun animateCompanion(id: String, action: com.deskpet.data.CompanionAction, emoji: String, artwork: String?) {
+        cancelCompanionAnimation()
+        companionAnimationJob = sc.launch {
+            val profile = withContext(Dispatchers.IO) { companionStore.load(id) }
+            if (id != petId) return@launch
+            anim.interactCompanion(action, emoji,
+                profile.interactionAnimations[action] ?: com.deskpet.data.InteractionAnimationSettings(),
+                companionStore.actionVisualFile(id, action, artwork ?: profile.actionVisuals[action]))
+        }
+    }
+
     private fun onTap() {
+        cancelCompanionAnimation()
         if (anim.isCodexPet()) {
             anim.switchState(PetAnimationState.WAVING)
         } else {
@@ -181,6 +199,7 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
     }
 
     private fun switchForm(pet: PetInfo, formId: String?, category: String?, source: String?) {
+        cancelCompanionAnimation()
         formSwitchJob?.cancel()
         formSwitchJob = sc.launch {
             try {
@@ -193,7 +212,12 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
                 }
                 formPanel?.dismiss()
                 formPanel = null
-                if (petId == pet.id) show(pet.id)
+                if (petId == pet.id) {
+                    if (!anim.replaceLayered(pet)) error("形态素材加载失败")
+                    if (!screenOn) anim.stop()
+                    val profile = withContext(Dispatchers.IO) { companionStore.load(pet.id) }
+                    anim.setAffection(com.deskpet.data.CompanionAffection.at(profile, System.currentTimeMillis()))
+                }
             } catch (e: CancellationException) { throw e }
             catch (e: Exception) {
                 Log.w(TAG, "form switch failed", e)
@@ -211,15 +235,10 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         floatingPanel?.dismiss()
         floatingPanel = CompanionFloatingPanel(
             this, wm, this, this, this, companionStore,
-            onAction = { action, line, affection, artwork ->
+            onAction = { action, line, affection, artwork, emoji ->
                 anim.setAffection(affection)
-                anim.interactCompanion(action)
                 displayTapLine(line)
-                sc.launch {
-                    val source = if (artwork == null) null
-                        else companionStore.actionVisualFile(id, action, artwork)
-                    anim.playActionArtwork(source)
-                }
+                animateCompanion(id, action, emoji, artwork)
             },
             onClose = {
                 floatingPanel?.dismiss()
@@ -299,16 +318,8 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
             OverlayState.interactions.collect { event ->
                 if (event.petId == petId) {
                     anim.setAffection(event.affection)
-                    anim.interactCompanion(event.action)
                     displayTapLine(event.line)
-                    sc.launch {
-                        val source = withContext(Dispatchers.IO) {
-                            val profile = companionStore.load(event.petId)
-                            companionStore.actionVisualFile(event.petId,
-                                event.action, profile.actionVisuals[event.action])
-                        }
-                        anim.playActionArtwork(source)
-                    }
+                    animateCompanion(event.petId, event.action, event.emoji, null)
                 }
             }
         }
@@ -324,6 +335,7 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
             isCodexPet = anim::isCodexPet,
             onScale = ::onScale,
             onDragStart = {
+                cancelCompanionAnimation()
                 anim.setLayeredPickedUp(true)
                 auto?.onUserTouch()
             },
@@ -455,6 +467,7 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         persistPositionAsync()
         OverlayState.setRunning(null)
         scaleJob?.cancel()
+        cancelCompanionAnimation()
         formSwitchJob?.cancel()
         formPanel?.dismiss()
         formPanel = null
