@@ -29,7 +29,11 @@ android {
         manifestPlaceholders["tapNestLabel"] = if (parallelRestoreBuild) "Tap Nest · 安全恢复" else "@string/app_name"
         minSdk = 26
         targetSdk = 35
-        versionCode = 1
+        // GitHub Actions run numbers increase on every build. Signed updates must
+        // never ship a lower versionCode than an already installed build.
+        // Local builds stay at 1; CI installs use a monotonic build number.
+        versionCode = (System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1)
+            .coerceAtLeast(1)
         versionName = "0.1.0"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // 语言资源过滤：应用 UI 只有中文（默认 values/），依赖库却携带几十种
