@@ -4,6 +4,9 @@ package com.deskpet.overlay
 object HoldGesturePolicy {
     enum class Action { NONE, MENU, CLOSE }
 
+    /** A stationary hold opens the outfit menu; it must never also count as a tap. */
+    fun isShortTap(heldMs: Long): Boolean = heldMs in 0L until 1000L
+
     fun action(heldMs: Long, moved: Boolean, multiTouch: Boolean): Action = when {
         moved || multiTouch -> Action.NONE
         heldMs >= 5000L -> Action.CLOSE
