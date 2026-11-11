@@ -229,7 +229,8 @@ internal fun LayeredRigPreview(
             pickupAsset.width, pickupAsset.height, sc)
     } else rig.canvasHeight
     val previewHeight = if (pickupAsset != null)
-        (270f * previewCanvasHeight / rig.canvasHeight.coerceAtLeast(1)).dp
+        (270f * previewCanvasHeight / rig.canvasHeight.coerceAtLeast(1))
+            .coerceAtMost(2400f).dp
     else 270.dp
 
     Canvas(
