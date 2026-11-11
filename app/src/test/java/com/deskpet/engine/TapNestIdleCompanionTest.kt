@@ -87,9 +87,26 @@ class TapNestIdleCompanionTest {
         assertTrue(hat.interactionConfigured)
         assertFalse(hat.periodicEnabled)
         assertFalse(hat.idleSwing)
-        assertTrue(TapNestLayerActions.motionPose(hat, 195L).y < -20f)
-        assertTrue(TapNestLayerActions.motionPose(hat, 525L).y > 0f)
-        assertEquals(TapNestPose(), TapNestLayerActions.motionPose(hat, 680L))
+        val takeoff = TapNestLayerActions.motionPose(hat, 100L)
+        val airborne = TapNestLayerActions.motionPose(hat, 345L)
+        val falling = TapNestLayerActions.motionPose(hat, 670L)
+        val landed = TapNestLayerActions.motionPose(hat, 810L)
+        assertTrue("hat must visibly take off", takeoff.y < -35f)
+        assertTrue("hat must rise by over 100 pixels on a 512px canvas", airborne.y < -100f)
+        assertTrue("hat must fall back down", falling.y > airborne.y)
+        assertTrue("hat must land and gently rebound", landed.y > 0f)
+        assertEquals(TapNestPose(), TapNestLayerActions.motionPose(hat, 960L))
+        assertEquals(960L, TapNestLayerActions.tapMotionDuration(hat))
+        assertEquals(680L, TapNestLayerActions.tapMotionDuration(
+            TapNestTemplates.newPart("ear_left", 6)))
+        // Same relative lift on large PNG canvases. Old absolute -29px
+        // animation was almost invisible on 1024px / 2048px assets.
+        assertTrue(TapNestLayerActions.motionPose(hat, 345L,
+            canvasHeight = 1024).y < -200f)
+        val flyingIdle = hat.copy(periodicEnabled = true,
+            periodicMotion = TapNestPartMotion.HAT_POP, periodicIntervalSeconds = 8f)
+        assertEquals(950L, TapNestLayerActions.periodicElapsed(flyingIdle, 8950L))
+        assertNull(TapNestLayerActions.periodicElapsed(flyingIdle, 8960L))
         val option = hat.copy(periodicMotion = TapNestPartMotion.TWITCH)
         assertEquals(TapNestMotion.sample(TapNestPresets.twitch("hat_1"),
             "hat_1", 160L), TapNestLayerActions.motionPose(option, 160L, periodic = true))
