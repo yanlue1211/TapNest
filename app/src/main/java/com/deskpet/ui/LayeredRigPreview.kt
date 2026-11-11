@@ -78,7 +78,9 @@ private fun visibleLayer(
 ): Boolean {
     val id = layer.id
     return when {
-    layer.frameOwner != null -> selectedFrames[layer.frameOwner] == id
+    layer.frameOwner != null ->
+        selectedFrames[layer.frameOwner] == id &&
+            TapNestLayerActions.ownerVisible(layer.frameOwner, face, headMode)
     selectedFrames[id] != null && selectedFrames[id] != id -> false
     id.startsWith("head_") && id != "head_blank" ->
         headMode == TapNestHeadMode.FULL_HEAD && id == face
