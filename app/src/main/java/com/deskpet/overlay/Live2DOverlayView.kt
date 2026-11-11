@@ -66,8 +66,12 @@ class Live2DOverlayView(
         .addPathHandler("/model/", WebViewAssetLoader.PathHandler { relative ->
             // Paths are relative to exactly this imported pet's model folder.
             val path = Uri.decode(relative)
-            if (path.contains('%')) return@PathHandler null
-            val file = Live2DModelFiles.resolveAsset(root, path) ?: return@PathHandler null
+            // Return a local 404 rather than null: null lets WebView attempt
+            // a NETWORK fallback for a missing/private model path.
+            val notFound = WebResourceResponse(null, null, null)
+            if (path.contains('%')) return@PathHandler notFound
+            val file = Live2DModelFiles.resolveAsset(root, path)
+                ?: return@PathHandler notFound
             val mime = when (file.extension.lowercase()) {
                 "json" -> "application/json"
                 "png" -> "image/png"
