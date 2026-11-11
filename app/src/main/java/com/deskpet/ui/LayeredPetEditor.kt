@@ -68,7 +68,7 @@ fun LayeredPetEditor(
     val editorRequester = remember { BringIntoViewRequester() }
     var previewMode by remember(editingPet?.id, formId) { mutableStateOf(RigPreviewMode.POSITION) }
     var newLayerName by remember { mutableStateOf("") }
-    val partPresets = listOf("左翅膀", "右翅膀", "左耳朵", "右耳朵", "尾巴", "头部", "自定义图层")
+    val partPresets = listOf("左翅膀", "右翅膀", "左耳朵", "右耳朵", "尾巴", "头部", "帽子", "自定义图层")
     var newPartPreset by remember { mutableStateOf(partPresets.first()) }
     var partPresetMenu by remember { mutableStateOf(false) }
     var pendingRemoveLayerId by remember { mutableStateOf<String?>(null) }
@@ -338,6 +338,9 @@ fun LayeredPetEditor(
                     }
                     val spec = newPartPreset
                     val customLabel = newLayerName.trim()
+                    val hatLike = spec == "帽子" ||
+                        (spec == "自定义图层" &&
+                            (customLabel.contains("帽") || customLabel.contains("hat", ignoreCase = true)))
                     val side = when {
                         spec.startsWith("左") -> "left"
                         spec.startsWith("右") -> "right"
@@ -348,6 +351,7 @@ fun LayeredPetEditor(
                         spec.contains("耳朵") -> "ear"
                         spec == "尾巴" -> "tail"
                         spec == "头部" -> "head"
+                        hatLike -> "hat"
                         else -> "part"
                     }
                     if (kind == "part" && customLabel.isBlank()) {
@@ -360,6 +364,7 @@ fun LayeredPetEditor(
                             "ear" -> "耳朵"
                             "tail" -> "尾巴"
                             "head" -> "头部"
+                            "hat" -> customLabel.ifBlank { "帽子" }
                             else -> customLabel
                         }
                         val z = when (kind) {
@@ -367,6 +372,7 @@ fun LayeredPetEditor(
                             "wing" -> 5
                             "ear" -> 15
                             "head" -> 20
+                            "hat" -> 25
                             else -> 12
                         }
                         val id = when {
@@ -385,13 +391,15 @@ fun LayeredPetEditor(
                         // Category follows mirrored clones, survives renames, and can
                         // be hidden/reattached without deleting any artwork.
                         val wardrobeCategory = when (kind) {
-                            "ear", "tail", "wing" -> kind
+                            "ear", "tail", "wing", "hat" -> kind
                             "part" -> "custom_$id"
                             else -> ""
                         }
                         val created = listOf(TapNestTemplates.newPart(id, z).copy(
                             displayName = labelName,
-                            wardrobeCategory = wardrobeCategory
+                            wardrobeCategory = wardrobeCategory,
+                            parentId = if (kind == "hat" && rig.headMode == TapNestHeadMode.BLANK_HEAD_WITH_FACE)
+                                "head_blank" else TapNestTemplates.newPart(id, z).parentId
                         ))
                         if (rig.layers.size + created.size > 48) {
                             error = "图层已满（最多 48 层，包含动作帧）"
@@ -657,7 +665,7 @@ fun LayeredPetEditor(
                     }
                 } else {
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("点触时晃动本部位", modifier = Modifier.weight(1f))
+                        Text("点触时播放本部位动作", modifier = Modifier.weight(1f))
                         Switch(checked = layer.tapShake, onCheckedChange = {
                             update(layer.copy(tapShake = it))
                         })
@@ -683,6 +691,7 @@ fun LayeredPetEditor(
                                         TapNestPartMotion.BOUNCE -> "弹跳"
                                         TapNestPartMotion.FLAP -> "扇动"
                                         TapNestPartMotion.TWITCH -> "抖动"
+                                        TapNestPartMotion.HAT_POP -> "帽帽弹起"
                                     }) })
                                 }
                             }
@@ -750,6 +759,8 @@ fun LayeredPetEditor(
                                                 TapNestPartMotion.BOUNCE -> "弹跳"
                                                 TapNestPartMotion.FLAP -> "扇动"
                                                 TapNestPartMotion.TWITCH -> "抖动"
+                                                TapNestPartMotion.HAT_POP -> "帽帽弹起"
+                                        TapNestPartMotion.HAT_POP -> "帽帽弹起"
                                             }) }
                                         )
                                     }
