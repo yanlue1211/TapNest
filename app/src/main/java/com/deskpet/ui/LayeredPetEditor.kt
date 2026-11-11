@@ -94,6 +94,15 @@ fun LayeredPetEditor(
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null && pickingLayer.isNotEmpty()) {
             val previous = images[pickingLayer]
+            // A fresh PNG on a mirrored copy is already drawn for its own side.
+            // Unmirror only this image's owner; retain the copied rig and bones.
+            val selected = rig.layers.firstOrNull { it.id == pickingLayer }
+            if (selected != null && selected.frameOwner == null &&
+                selected.mirrorX && selected.mirroredFromId != null) {
+                rig = rig.copy(layers = rig.layers.map { part ->
+                    if (part.id == pickingLayer) TapNestSymmetry.independentArtwork(part) else part
+                })
+            }
             images[pickingLayer] = uri
             // A paired mirrored part shares the source art when first created.
             // Manually replaced art on the mirrored side remains independent.
@@ -186,6 +195,22 @@ fun LayeredPetEditor(
             }
             OutlinedTextField(value = name, onValueChange = { name = it.take(60) },
                 label = { Text(if (formForEdit != null) "当前形态的名字" else "这只桌宠的名字") }, modifier = Modifier.fillMaxWidth())
+            NestPanel {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("🌿 日常轻呼吸", modifier = Modifier.weight(1f))
+                    Switch(checked = rig.idleBreathingEnabled, onCheckedChange = {
+                        rig = rig.copy(idleBreathingEnabled = it)
+                    })
+                }
+                if (rig.idleBreathingEnabled) {
+                    BindingSlider("呼吸幅度（推荐 1）",
+                        rig.idleBreathingStrength, 0.2f, 2f) {
+                        rig = rig.copy(idleBreathingStrength = it)
+                    }
+                    Text("静置时整只桌宠轻微起伏，脚底位置基本不动；点触与拎起时暂停。可在下方测试预览中查看。",
+                        style = MaterialTheme.typography.bodySmall)
+                }
+            }
             NestSection("图层与素材",
                 "每个部位可以独立上传和调整。推荐所有 PNG 使用相同透明画布尺寸。")
             val slots = TapNestTemplates.slotsFor(rig).filter { slot ->
@@ -378,7 +403,7 @@ fun LayeredPetEditor(
                         }
                     }
                 }) { Text("＋ 添加选中的部位") }
-                Text("两侧可分别创建，也可调好一侧后使用「↔ 镜像复制」；复制后更换右侧 PNG 不会清除点位、锚点及动作参数。",
+                Text("两侧可分别创建，也可调好一侧后使用「↔ 镜像复制」；镜像复制后换上自己画的新 PNG，会取消这张默认图的镜像并保留骨骼设置。",
                     style = MaterialTheme.typography.bodySmall)
             }
             FoldHeader("🪁 长按拎起效果", pickupSettingsOpen) {
@@ -643,20 +668,20 @@ fun LayeredPetEditor(
                             update(layer.copy(tapSwitchFrame = it))
                         })
                     }
-                    if (layer.tapShake || (layer.periodicEnabled &&
-                        layer.periodicAction == TapNestPeriodicAction.SHAKE)) {
-                        Text("晃动方式（头部点头、身体弹跳、翅膀扇动、耳朵抖动）",
-                            style = MaterialTheme.typography.bodySmall)
-                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            TapNestPartMotion.entries.forEach { type ->
-                                FilterChip(selected = layer.tapMotion == type, onClick = {
-                                    update(layer.copy(tapMotion = type))
-                                }, label = { Text(when (type) {
-                                    TapNestPartMotion.NOD -> "摇头"
-                                    TapNestPartMotion.BOUNCE -> "弹跳"
-                                    TapNestPartMotion.FLAP -> "扇动"
-                                    TapNestPartMotion.TWITCH -> "抖动"
-                                }) })
+                    if (layer.tapShake) {
+                        Text("👆 点触动作类型", style = MaterialTheme.typography.bodySmall)
+                        TapNestPartMotion.entries.chunked(2).forEach { row ->
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                row.forEach { type ->
+                                    FilterChip(selected = layer.tapMotion == type, onClick = {
+                                        update(layer.copy(tapMotion = type))
+                                    }, label = { Text(when (type) {
+                                        TapNestPartMotion.NOD -> "摇头"
+                                        TapNestPartMotion.BOUNCE -> "弹跳"
+                                        TapNestPartMotion.FLAP -> "扇动"
+                                        TapNestPartMotion.TWITCH -> "抖动"
+                                    }) })
+                                }
                             }
                         }
                     }
@@ -677,6 +702,22 @@ fun LayeredPetEditor(
                             update(layer.copy(periodicEnabled = it))
                         })
                     }
+                    if (TapNestLayerActions.hasPeriodicPartner(layer, rig.layers)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text("左右配件同步定时动作", modifier = Modifier.weight(1f))
+                            Switch(checked = layer.syncPairedPeriodic, onCheckedChange = {
+                                val pairId = if (layer.id.endsWith("_left"))
+                                    layer.id.removeSuffix("_left") + "_right"
+                                else layer.id.removeSuffix("_right") + "_left"
+                                rig = rig.copy(layers = rig.layers.map { part ->
+                                    if (part.id == layer.id || part.id == pairId)
+                                        part.copy(syncPairedPeriodic = it) else part
+                                })
+                            })
+                        }
+                        Text("默认同一时刻动；只要有一侧启用定时动作，两侧都会响应。关闭后各自按自己的间隔运行。",
+                            style = MaterialTheme.typography.bodySmall)
+                    }
                     if (layer.periodicEnabled) {
                         BindingSlider("自动动作间隔（秒）",
                             layer.periodicIntervalSeconds, 2f, 60f) {
@@ -691,6 +732,26 @@ fun LayeredPetEditor(
                                 selected = layer.periodicAction == TapNestPeriodicAction.SWITCH_FRAME,
                                 onClick = { update(layer.copy(periodicAction = TapNestPeriodicAction.SWITCH_FRAME)) },
                                 label = { Text("短暂换帧") })
+                        }
+                        if (layer.periodicAction == TapNestPeriodicAction.SHAKE) {
+                            Text("🌙 闲置时偶尔动作类型（与点触独立）",
+                                style = MaterialTheme.typography.bodySmall)
+                            TapNestPartMotion.entries.chunked(2).forEach { row ->
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    row.forEach { type ->
+                                        FilterChip(
+                                            selected = (layer.periodicMotion ?: layer.tapMotion) == type,
+                                            onClick = { update(layer.copy(periodicMotion = type)) },
+                                            label = { Text(when (type) {
+                                                TapNestPartMotion.NOD -> "摇头"
+                                                TapNestPartMotion.BOUNCE -> "弹跳"
+                                                TapNestPartMotion.FLAP -> "扇动"
+                                                TapNestPartMotion.TWITCH -> "抖动"
+                                            }) }
+                                        )
+                                    }
+                                }
+                            }
                         }
                         if (layer.periodicAction == TapNestPeriodicAction.SWITCH_FRAME) {
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -718,7 +779,7 @@ fun LayeredPetEditor(
                             )
                         }
                     }
-                    Text("默认连续晃动请在下方「闲置时自动晃动」开关中设置；与定时抖一下是两个独立功能。",
+                    Text("点触、定时短动作、连续摆动、眨眼分别设置；左右耳朵／翅膀默认共享定时节奏。",
                         style = MaterialTheme.typography.bodySmall)
                 }
                 } // foldActions
