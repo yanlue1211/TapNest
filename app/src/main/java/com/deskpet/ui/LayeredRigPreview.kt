@@ -303,7 +303,7 @@ internal fun LayeredRigPreview(
         val periodicScene = mode == RigPreviewMode.TEST && touchElapsed >= 1800L &&
             rig.layers.any { layer ->
                 layer.frameOwner == null && assets.containsKey(layer.id) &&
-                    TapNestLayerActions.periodicElapsed(layer, sceneElapsed) != null
+                    TapNestLayerActions.periodicElapsed(layer, rig.layers, sceneElapsed) != null
             }
         val idleBlinking = mode == RigPreviewMode.TEST && !periodicScene &&
             TapNestBlink.isBlinking(sceneElapsed)
@@ -331,12 +331,12 @@ internal fun LayeredRigPreview(
                 // Alternate frame follows its default image through the parent chain.
             } else if (mode == RigPreviewMode.TEST && layer?.interactionConfigured == true) {
                 val periodic = TapNestLayerActions.periodicElapsed(
-                    layer, (clock - previewStartedAt).coerceAtLeast(0L))
+                    layer, rig.layers, sceneElapsed)
                 if (touched && layer.tapShake) {
                     pose = TapNestLayerActions.motionPose(layer, touchElapsed)
                 } else if (periodic != null && !touched && touchElapsed >= 1800L &&
                     layer.periodicAction == TapNestPeriodicAction.SHAKE) {
-                    pose = TapNestLayerActions.motionPose(layer, periodic)
+                    pose = TapNestLayerActions.motionPose(layer, periodic, periodic = true)
                 }
             } else if (id == "tail" && mode == RigPreviewMode.TEST &&
                 layer?.idleSwing != true && layer?.interactionConfigured != true) {
@@ -360,6 +360,12 @@ internal fun LayeredRigPreview(
         native.translate((size.width - rig.canvasWidth * factor) / 2f,
             (size.height - rig.canvasHeight * factor) / 2f)
         native.scale(factor, factor)
+        if (mode == RigPreviewMode.TEST && !pickupPreview && rig.idleBreathingEnabled &&
+            touchElapsed >= 1800L) {
+            val breath = TapNestBreathing.pose(sceneElapsed, rig.idleBreathingStrength)
+            native.scale(breath.scaleX, breath.scaleY,
+                rig.canvasWidth * .5f, rig.canvasHeight * .88f)
+        }
         val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
         if (pickupPreview) {
             native.rotate(TapNestPickupMotion.angle(
