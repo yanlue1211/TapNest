@@ -164,7 +164,7 @@ object TapNestPickupCanvas {
         val swingAllowance = widestSide * kotlin.math.sin(Math.toRadians(8.0)).toFloat()
         val bottom = imageHeight.toDouble() * sc + swingAllowance + 2.0
         return kotlin.math.max(canvasHeight.toDouble(), bottom)
-            .coerceAtMost(16384.0).let(kotlin.math::ceil).toInt()
+            .coerceAtMost(16384.0).let { kotlin.math.ceil(it) }.toInt()
     }
 }
 
