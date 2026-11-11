@@ -88,7 +88,7 @@ object TapNestTemplates {
                 else -> TapNestPartMotion.NOD
             },
             periodicEnabled = isEar,
-            periodicIntervalSeconds = if (isEar) (if (isRight) 9f else 8f) else 7f,
+            periodicIntervalSeconds = if (isEar) 8f else 7f,
             interactionConfigured = true
         )
     }
