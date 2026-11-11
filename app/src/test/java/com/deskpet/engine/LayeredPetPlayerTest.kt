@@ -32,6 +32,48 @@ class LayeredPetPlayerTest {
         return file
     }
 
+    @Test fun longPickupArtShowsTailWithoutShrinkingOrMovingHead() {
+        png("body.png", Color.GREEN)
+        val file = tmp.newFile("long_pose.png")
+        val art = Bitmap.createBitmap(64, 144, Bitmap.Config.ARGB_8888)
+        art.eraseColor(Color.TRANSPARENT)
+        // Head and tail are on the SAME image. In the previous 64px canvas,
+        // the blue tail at y=120 was cut off by the framebuffer itself.
+        for (y in 5 until 30) for (x in 15 until 49) art.setPixel(x, y, Color.RED)
+        for (y in 110 until 140) for (x in 15 until 49) art.setPixel(x, y, Color.BLUE)
+        file.outputStream().use { art.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        art.recycle()
+        val rig = TapNestRig(
+            canvasWidth = 64, canvasHeight = 64, pickupArtworkEnabled = true,
+            layers = listOf(
+                TapNestLayer("body", "body.png", zIndex = 0),
+                TapNestLayer("pickup_pose", "long_pose.png", zIndex = 100)
+            )
+        )
+        val cfg = tmp.newFile("long_pickup_rig.json").apply {
+            writeText(Json.encodeToString(rig))
+        }
+        val player = requireNotNull(LayeredPetPlayer.load(cfg))
+        val before = player.render()
+        assertEquals(64, before.height)
+        assertEquals(Color.GREEN, before.getPixel(32, 10))
+        assertTrue(player.pickupHeight >= 144)
+        player.setPickedUp(true)
+        val lifted = player.render()
+        assertEquals(before.width, lifted.width)
+        assertEquals(player.pickupHeight, lifted.height)
+        assertEquals("same head pixel position and scale", Color.RED,
+            lifted.getPixel(32, 15))
+        assertEquals("long tail stays visible", Color.BLUE,
+            lifted.getPixel(32, 125))
+        player.setPickedUp(false)
+        val released = player.render()
+        assertEquals(64, released.height)
+        assertEquals(Color.GREEN, released.getPixel(32, 10))
+        assertEquals("the published original frame was not mutated",
+            Color.GREEN, before.getPixel(32, 15))
+    }
+
     @Test fun manualWingDefaultAndTapFrameBothShowWithoutLegacyWingHiding() {
         png("body.png", Color.GREEN)
         png("wing_left.png", Color.RED)
