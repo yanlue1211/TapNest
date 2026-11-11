@@ -41,6 +41,21 @@ object TapNestLayerActions {
         }?.id ?: owner.id
     }
 
+    /**
+     * An alternate frame inherits the visibility of its owning head/face.
+     * Without this check, head_0_f1 (blink/periodic frame) can be drawn
+     * ON TOP of an active head_2 expression, producing a mixed face.
+     */
+    fun ownerVisible(ownerId: String, visibleFace: String, headMode: TapNestHeadMode): Boolean =
+        when {
+            ownerId == "head_blank" -> headMode == TapNestHeadMode.BLANK_HEAD_WITH_FACE
+            ownerId.startsWith("head_") ->
+                headMode == TapNestHeadMode.FULL_HEAD && ownerId == visibleFace
+            ownerId.startsWith("face_") ->
+                headMode == TapNestHeadMode.BLANK_HEAD_WITH_FACE && ownerId == visibleFace
+            else -> true
+        }
+
     fun motionPose(layer: TapNestLayer, motionAgeMs: Long): TapNestPose {
         val clip = when (layer.tapMotion) {
             TapNestPartMotion.NOD -> TapNestPresets.nod(layer.id)
