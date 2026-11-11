@@ -130,6 +130,14 @@ jobs:
           APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -1)"
           test -x "$APKSIGNER"
           "$APKSIGNER" verify --print-certs "$APK" > /dev/null
+          # A valid signature is not enough: make sure the signed artifact is
+          # the NORMAL user app, not the side-by-side isolated test package.
+          AAPT="$(find "$ANDROID_HOME/build-tools" -type f -name aapt | sort -V | tail -1)"
+          test -x "$AAPT"
+          BADGING="$("$AAPT" dump badging "$APK")"
+          printf '%s\n' "$BADGING" | grep -Fq "package: name='com.tapnest.pet'"
+          printf '%s\n' "$BADGING" | grep -Fq "application-label:'点点栖'"
+          echo "Verified official package + display name: 点点栖"
           mkdir -p app/build/outputs/apk/tapnest
           cp "$APK" "app/build/outputs/apk/tapnest/Tap Nest.apk"
 
