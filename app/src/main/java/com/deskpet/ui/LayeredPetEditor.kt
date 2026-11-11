@@ -697,6 +697,20 @@ fun LayeredPetEditor(
                             }
                         }
                     }
+                    val hatTap = layer.tapShake && layer.tapMotion == TapNestPartMotion.HAT_POP
+                    val hatIdle = layer.periodicEnabled &&
+                        layer.periodicAction == TapNestPeriodicAction.SHAKE &&
+                        (layer.periodicMotion ?: layer.tapMotion) == TapNestPartMotion.HAT_POP
+                    if (hatTap || hatIdle) {
+                        Text("🎩 帽帽起飞：会明显离开脑袋，再落回原位",
+                            style = MaterialTheme.typography.bodySmall)
+                        BindingSlider("飞起高度（占整个画布的比例）",
+                            layer.hatFlightHeight, 0.08f, 0.40f) {
+                            update(layer.copy(hatFlightHeight = it))
+                        }
+                        Text("默认飞起约画布高度的 22%，约为旧动画的 4 倍。若飞出画布被截断，请在 PNG 画布顶部留透明空间，或稍微调低高度。",
+                            style = MaterialTheme.typography.bodySmall)
+                    }
                     if (layer.tapSwitchFrame) {
                         Text("点触时显示哪张动作帧（约 1 秒）",
                             style = MaterialTheme.typography.bodySmall)
