@@ -30,7 +30,7 @@ object TapNestLayerActions {
             // otherwise the scene mixes two different action frames.
             owner.periodicAction == TapNestPeriodicAction.SWITCH_FRAME &&
                 periodicElapsed(owner, elapsedMs) != null &&
-                touchAgeMs > 1400L -> owner.periodicFrame
+                touchAgeMs >= 1800L -> owner.periodicFrame
             owner.idleBlinkEnabled && allowIdleBlink && touchAgeMs > 1400L &&
                 TapNestBlink.isBlinking(elapsedMs) -> owner.blinkFrame
             else -> 0
