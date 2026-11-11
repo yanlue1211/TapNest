@@ -269,11 +269,48 @@ class FileManager(private val context: Context) {
         catch (e: Exception) { tmp.delete(); dest.delete(); throw ImportException.ExtractionFailed(e) }
     }
 
+    /**
+     * Dedicated Live2D ZIP import. Files stay inside this pet's private folder,
+     * never overwrite PNG rigs or reuse an existing model directory.
+     * Rendering uses the independent WebView/Pixi runtime.
+     */
+    suspend fun importLive2D(uri: Uri): PetInfo {
+        val id = java.util.UUID.randomUUID().toString()
+        val destDir = File(petDir, id).also { it.mkdirs() }
+        return try {
+            context.contentResolver.openInputStream(uri)?.use { zipExtractor.extract(it, destDir) }
+                ?: throw ImportException.FileNotFound("无法打开 Live2D ZIP")
+            val model = Live2DModelFiles.findAndValidate(destDir)
+            val digest = java.security.MessageDigest.getInstance("SHA-256")
+            model.manifest.inputStream().use { input ->
+                val buffer = ByteArray(16 * 1024)
+                while (true) {
+                    val n = input.read(buffer)
+                    if (n < 0) break
+                    digest.update(buffer, 0, n)
+                }
+            }
+            val hash = digest.digest().joinToString("") { "%02x".format(it.toInt() and 0xff) }
+            PetInfo(
+                id = id, type = PetType.LIVE2D, displayName = model.title,
+                petJsonPath = model.manifest.absolutePath,
+                spritesheetPath = model.manifest.absolutePath,
+                sourceId = "live2d:$hash"
+            )
+        } catch (e: ImportException) {
+            destDir.deleteRecursively(); throw e
+        } catch (e: Exception) {
+            destDir.deleteRecursively(); throw ImportException.ExtractionFailed(e)
+        }
+    }
+
     fun deletePet(petInfo: PetInfo) {
         when (petInfo.type) {
             PetType.CODEX_PET -> petInfo.petJsonPath?.let { File(it).parentFile?.deleteRecursively() }
             PetType.GIF, PetType.PNG -> File(petInfo.spritesheetPath).delete()
             PetType.LAYERED -> petInfo.petJsonPath?.let { File(it).parentFile?.deleteRecursively() }
+            PetType.LIVE2D -> if (ZipExtractor.isSafePetId(petInfo.id))
+                File(petDir, petInfo.id).deleteRecursively()
         }
     }
 
@@ -386,7 +423,12 @@ class FileManager(private val context: Context) {
                             }
                             // 找不到精灵图就整条跳过：兜底用备份里的旧路径入库，
                             // 会造出"列表里有、点了没反应"的死宠
-                            val sheetFile = if (pet.type == PetType.LAYERED) {
+                            val sheetFile = if (pet.type == PetType.LIVE2D) {
+                                // New formats save their manifest instead of a fake PNG.
+                                File(destDir, File(pet.spritesheetPath).name).takeIf {
+                                    it.isFile && it.name.endsWith(".model3.json", true)
+                                }?.also { Live2DModelFiles.validate(it) }
+                            } else if (pet.type == PetType.LAYERED) {
                                 File(destDir, "body.png").takeIf { it.isFile }
                             } else if (pet.type == PetType.PNG) {
                                 File(destDir, File(pet.spritesheetPath).name)
@@ -399,6 +441,7 @@ class FileManager(private val context: Context) {
                             }
                             val fixedPet = pet.copy(
                                 petJsonPath = when (pet.type) {
+                                    PetType.LIVE2D -> sheetFile.absolutePath
                                     PetType.LAYERED -> File(destDir, "rig.json")
                                         .takeIf { it.isFile }?.absolutePath
                                     else -> findPetJson(destDir)?.absolutePath
@@ -423,6 +466,33 @@ class FileManager(private val context: Context) {
                         }
                     }
                 } else {
+                    val singleFile = File(tmpDir, "tapnest-pet.json")
+                    val single = runCatching {
+                        if (singleFile.isFile && singleFile.length() < 100_000)
+                            json.decodeFromString<PetInfo>(singleFile.readText())
+                        else null
+                    }.getOrNull()
+                    if (single?.type == PetType.LIVE2D) {
+                        val model = Live2DModelFiles.findAndValidate(tmpDir)
+                        val id = java.util.UUID.randomUUID().toString()
+                        val destination = File(petDir, id)
+                        try {
+                            if (!model.root.copyRecursively(destination, false))
+                                throw ImportException.InvalidFormat("Live2D 文件复制不完整")
+                            File(destination, "tapnest-pet.json").delete()
+                            val manifest = File(destination, model.manifest.name)
+                            Live2DModelFiles.validate(manifest)
+                            petRepository.addPetDirect(single.copy(
+                                id = id, type = PetType.LIVE2D,
+                                petJsonPath = manifest.absolutePath,
+                                spritesheetPath = manifest.absolutePath,
+                                sourceId = "live2d:restored:$id"
+                            ))
+                        } catch (t: Exception) {
+                            destination.deleteRecursively()
+                            throw t
+                        }
+                    } else {
                     // Old "导出角色" ZIPs have no pets.json. Preserve the existing
                     // complete-backup pathway, and recognize per-pet rigs, Codex,
                     // PNG or GIF archives through a separate validated importer.
@@ -430,6 +500,7 @@ class FileManager(private val context: Context) {
                         tmpDir, petRepository,
                         queryDisplayName(uri) ?: uri.lastPathSegment
                     )
+                    }
                 }
             } finally { tmpDir.deleteRecursively() }
         } ?: throw ImportException.FileNotFound("无法打开文件")
@@ -459,7 +530,8 @@ class FileManager(private val context: Context) {
     // ===== Helpers =====
 
     private fun addPetFilesToZip(zip: ZipOutputStream, pet: PetInfo, prefix: String) {
-        val dir = if (pet.type == PetType.CODEX_PET || pet.type == PetType.LAYERED)
+        val dir = if (pet.type == PetType.CODEX_PET || pet.type == PetType.LAYERED ||
+            pet.type == PetType.LIVE2D)
             File(pet.spritesheetPath).parentFile else null
         if (dir != null && dir.exists()) {
             dir.walkTopDown().forEach { file ->
