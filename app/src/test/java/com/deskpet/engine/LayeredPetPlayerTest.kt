@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNotSame
+import org.junit.Assert.assertTrue
 import org.junit.Assert.assertNotNull
 import org.junit.Rule
 import org.junit.Test
