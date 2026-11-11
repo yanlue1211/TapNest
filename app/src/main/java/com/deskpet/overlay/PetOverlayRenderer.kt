@@ -30,7 +30,15 @@ fun PetOverlayRenderer(
     val image = remember(frame) { frame?.bitmap?.asImageBitmap() }
     Box(modifier.size(with(d) { w.toDp() }, with(d) { h.toDp() }), Alignment.TopStart) {
         Canvas(Modifier.fillMaxSize()) {
-            image?.let { drawImage(it, dstSize = IntSize(size.width.toInt(), size.height.toInt())) }
+            image?.let {
+                // A pickup/resume size change can precede the next 30 FPS frame
+                // by one tick. Always preserve bitmap aspect ratio instead of
+                // briefly stretching the old head into the taller window.
+                val wPx = size.width.toInt().coerceAtLeast(1)
+                val hPx = (size.width * it.height / it.width.coerceAtLeast(1))
+                    .toInt().coerceAtLeast(1)
+                drawImage(it, dstSize = IntSize(wPx, hPx))
+            }
         }
     }
 }

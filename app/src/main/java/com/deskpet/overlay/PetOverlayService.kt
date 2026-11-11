@@ -731,7 +731,9 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         // Bottom gesture-bar avoidance and horizontal grab handle are unchanged.
         val sb = safeBounds()
         val w = anim.petWidth.value
-        val h = anim.petHeight.value
+        // Pickup art can be much taller. Never clamp with its extended height:
+        // that would teleport the grabbed HEAD upward near the bottom of screen.
+        val h = anim.normalPetHeight
         // 允许宠物左右留一部分在屏幕外，但必须留出"把手"能拖回来。
         // 旧代码硬编码 32px，高分屏（3x 密度）上只有约 10dp，几乎抓不住。
         val margin = 24f * resources.displayMetrics.density

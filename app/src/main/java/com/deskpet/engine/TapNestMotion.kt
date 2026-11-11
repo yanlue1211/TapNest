@@ -145,6 +145,31 @@ data class TapNestClip(
 
 /** Platform-independent interpolation: the future mobile editor and overlay share this. */
 /** Deterministic wobble when lifting a layered companion, shared by overlay and preview. */
+/**
+ * Independent height for a long pickup PNG. Width is deliberately NOT resized:
+ * the character's head stays the same size and its top-centre anchor stays put.
+ *
+ * The 8-degree side sway sweeps the bottom corners further down, so leave a
+ * small extra transparent strip to avoid chopping clothes/tails during rocking.
+ */
+object TapNestPickupCanvas {
+    fun requiredHeight(canvasWidth: Int, canvasHeight: Int, imageWidth: Int,
+                       imageHeight: Int, imageScale: Float): Int {
+        if (canvasWidth <= 0 || canvasHeight <= 0 ||
+            imageWidth <= 0 || imageHeight <= 0) return canvasHeight.coerceAtLeast(1)
+        val sc = imageScale.coerceIn(.3f, 3f)
+        // Preserve exact legacy dimensions if this pose already fits.
+        if (imageHeight.toDouble() * sc <= canvasHeight) return canvasHeight
+        val widestSide = kotlin.math.max(
+            canvasWidth * .5f, kotlin.math.abs(imageWidth - canvasWidth * .5f)
+        ) * sc
+        val swingAllowance = widestSide * kotlin.math.sin(Math.toRadians(8.0)).toFloat()
+        val bottom = imageHeight.toDouble() * sc + swingAllowance + 2.0
+        return kotlin.math.max(canvasHeight.toDouble(), bottom)
+            .coerceAtMost(16384.0).let { kotlin.math.ceil(it) }.toInt()
+    }
+}
+
 object TapNestPickupMotion {
     fun angle(heldForMs: Long, amplitude: Float, cyclesPerSecond: Float): Float {
         val seconds = heldForMs.coerceAtLeast(0L) / 1000.0

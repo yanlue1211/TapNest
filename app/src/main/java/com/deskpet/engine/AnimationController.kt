@@ -69,6 +69,11 @@ class AnimationController(
     private var s = 1f
     private var baseW = PetEngine.DEFAULT_PET_WIDTH
     private var baseH = PetEngine.DEFAULT_PET_HEIGHT
+    private var basePickupH = PetEngine.DEFAULT_PET_HEIGHT
+    @Volatile private var layeredPickedUp = false
+    /** Original-height bounds are retained during dragging so the head never jumps. */
+    val normalPetHeight: Int
+        get() = (baseH * s).toInt().coerceAtLeast(MIN_PET_SIZE_PX)
 
     /** Fraction of the canvas ABOVE the first painted pixel, measured once at load.
      * Read by overlay position clamping; remains valid at any zoom level. */
@@ -89,6 +94,9 @@ class AnimationController(
         val (w, h) = petEngine.getPetSize(active)
         baseW = w
         baseH = h
+        basePickupH = (active as? PetEngine.PetLoader.Layered)
+            ?.player?.pickupHeight ?: h
+        layeredPickedUp = false
         // PNG originals and layered rigs often have substantial transparent
         // canvas above the character. The WindowManager window may need to move
         // further than safeBounds.top to get the DRAWN HEAD up to the top.
@@ -201,7 +209,12 @@ class AnimationController(
     fun isLive2DPet() = loader is PetEngine.PetLoader.Live2D
     fun tapLayeredPet() { (loader as? PetEngine.PetLoader.Layered)?.player?.tap() }
     fun setLayeredPickedUp(held: Boolean) {
-        (loader as? PetEngine.PetLoader.Layered)?.player?.setPickedUp(held)
+        val layered = (loader as? PetEngine.PetLoader.Layered) ?: return
+        layered.player.setPickedUp(held)
+        layeredPickedUp = held
+        // Compose's overlay Box changes only its height; TOP/LEFT WindowManager
+        // gravity + stable x/y keep the head at exactly its prior position.
+        applyScale()
     }
     fun interactCompanion(action: com.deskpet.data.CompanionAction) {
         (loader as? PetEngine.PetLoader.Layered)?.player?.interact(action)
@@ -212,6 +225,7 @@ class AnimationController(
 
     private fun applyScale() {
         _w.value = (baseW * s).toInt().coerceAtLeast(MIN_PET_SIZE_PX)
-        _h.value = (baseH * s).toInt().coerceAtLeast(MIN_PET_SIZE_PX)
+        _h.value = ((if (layeredPickedUp) basePickupH else baseH) * s)
+            .toInt().coerceAtLeast(MIN_PET_SIZE_PX)
     }
 }
