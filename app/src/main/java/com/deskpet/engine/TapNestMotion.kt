@@ -45,7 +45,7 @@ enum class TapNestSwingMode { DELAY, SPRING }
 enum class TapNestSwingRange { CENTERED, OUTWARD_ONLY }
 
 @Serializable
-enum class TapNestPartMotion { NOD, BOUNCE, FLAP, TWITCH }
+enum class TapNestPartMotion { NOD, BOUNCE, FLAP, TWITCH, HAT_POP }
 
 @Serializable
 enum class TapNestPeriodicAction { SHAKE, SWITCH_FRAME }
