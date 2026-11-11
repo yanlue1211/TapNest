@@ -23,6 +23,23 @@ object TapNestSymmetry {
         return if (motionId.endsWith("_left") && motionId.contains("wing")) -1f else 1f
     }
 
+    /**
+     * First independent PNG on a mirrored clone: keep the usable copied rig
+     * but put its points on the already-drawn right/left side. The clone's
+     * original shared PNG still mirrors until the user replaces it.
+     * Imported art follows the recommended same-size transparent canvas.
+     */
+    fun independentArtwork(layer: TapNestLayer): TapNestLayer {
+        if (!layer.mirrorX || layer.mirroredFromId == null) return layer
+        return layer.copy(
+            mirrorX = false,
+            mirroredFromId = null,
+            x = -layer.x,
+            pivotX = (1f - layer.pivotX).coerceIn(0f, 1f),
+            bones = layer.bones.map { it.copy(x = (1f - it.x).coerceIn(0f, 1f)) }
+        )
+    }
+
     fun mirroredGroup(
         source: TapNestLayer,
         frames: List<TapNestLayer>,

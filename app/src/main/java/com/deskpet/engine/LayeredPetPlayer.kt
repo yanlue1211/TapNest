@@ -108,7 +108,7 @@ class LayeredPetPlayer private constructor(
         val periodicScene = !held && !reacting && elapsed >= 1800 &&
             rig.layers.any { layer ->
                 layer.frameOwner == null && pictures.containsKey(layer.id) &&
-                    TapNestLayerActions.periodicElapsed(layer, sceneElapsed) != null
+                    TapNestLayerActions.periodicElapsed(layer, rig.layers, sceneElapsed) != null
             }
         val idleBlinking = !periodicScene && !held && !reacting &&
             TapNestBlink.isBlinking(sceneElapsed)
@@ -131,6 +131,9 @@ class LayeredPetPlayer private constructor(
                 if (pictures.containsKey(slot)) slot else "face_0"
             }
         }
+        val breath = if (rig.idleBreathingEnabled && !held && !reacting &&
+            elapsed >= 1800L) TapNestBreathing.pose(sceneElapsed, rig.idleBreathingStrength)
+            else null
         val nodes = rig.layers.associateBy { it.id }
         val selectedFrameByOwner = rig.layers.filter { it.frameOwner == null }
             .associate { owner ->
@@ -153,13 +156,13 @@ class LayeredPetPlayer private constructor(
             } else if (node.frameOwner != null) {
                 // Alternate art follows its owner transform, not a second nod.
             } else if (node.interactionConfigured) {
-                val periodic = TapNestLayerActions.periodicElapsed(node, now - launchedAtMs)
+                val periodic = TapNestLayerActions.periodicElapsed(node, rig.layers, sceneElapsed)
                 if (node.tapShake && touched) {
                     p = TapNestLayerActions.motionPose(node, elapsed)
                 } else if (periodic != null && !held && !touched &&
                     elapsed >= 1800 && !reacting &&
                     node.periodicAction == TapNestPeriodicAction.SHAKE) {
-                    p = TapNestLayerActions.motionPose(node, periodic)
+                    p = TapNestLayerActions.motionPose(node, periodic, periodic = true)
                 }
             } else if (id == "tail" && !node.idleSwing && !node.interactionConfigured) {
                 p = TapNestMotion.sample(TapNestPresets.wag(id), id, now - launchedAtMs)
@@ -205,6 +208,8 @@ class LayeredPetPlayer private constructor(
             }
             canvas.save()
             canvas.scale(sx, sy)
+            if (breath != null) canvas.scale(
+                breath.scaleX, breath.scaleY, rig.canvasWidth * .5f, rig.canvasHeight * .88f)
             if (held) canvas.rotate(pickupAngle,
                 rig.canvasWidth * .5f, 0f)
             // Reflect once around the whole character, including bones and alternate frames.

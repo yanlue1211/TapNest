@@ -59,6 +59,7 @@ object TapNestTemplates {
         val isWing = lower.contains("wing")
         val isEar = lower.contains("ear")
         val isTail = lower.contains("tail")
+        val isHat = lower.startsWith("hat") || lower.contains("_hat")
         val isHead = lower.contains("head")
         val isBody = lower == "body"
         val isRight = lower.endsWith("_right")
@@ -69,10 +70,10 @@ object TapNestTemplates {
             isPaired -> .40f
             else -> .5f
         }
-        val parent = if (isEar || lower.contains("eye")) "head_0" else if (!isBody) "body" else null
+        val parent = if (isEar || isHat || lower.contains("eye")) "head_0" else if (!isBody) "body" else null
         return TapNestLayer(id = id, image = "", parentId = parent, zIndex = zIndex,
             pivotX = pivotX,
-            pivotY = when { isEar -> .28f; isWing -> .5f; isHead || isTail -> .72f; else -> .65f },
+            pivotY = when { isEar -> .28f; isHat -> .68f; isWing -> .5f; isHead || isTail -> .72f; else -> .65f },
             idleSwing = isWing || isTail,
             idleAmplitude = if (isTail) 85f else if (isWing) 14f else 10f,
             idleSpeed = if (isTail) .48f else .7f,
@@ -80,15 +81,16 @@ object TapNestTemplates {
             springSoftness = if (isTail) .85f else .72f,
             springDamping = if (isTail) .45f else .40f,
             shapePreservation = if (isTail) .30f else 0f,
-            tapShake = isWing || isHead || isBody,
+            tapShake = isWing || isHead || isBody || isHat,
             tapMotion = when {
                 isWing -> TapNestPartMotion.FLAP
+                isHat -> TapNestPartMotion.HAT_POP
                 isEar -> TapNestPartMotion.TWITCH
                 isBody -> TapNestPartMotion.BOUNCE
                 else -> TapNestPartMotion.NOD
             },
             periodicEnabled = isEar,
-            periodicIntervalSeconds = if (isEar) (if (isRight) 9f else 8f) else 7f,
+            periodicIntervalSeconds = if (isEar) 8f else 7f,
             interactionConfigured = true
         )
     }

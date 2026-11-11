@@ -18,6 +18,40 @@ object TapNestLayerActions {
         return local.takeIf { it < PULSE_MS }
     }
 
+    /**
+     * Use one schedule for both members of an ear or wing pair, including
+     * manually imported left/right PNGs. A pair only syncs if both allow it;
+     * disabling sync restores each layer's own interval and enabled state.
+     * No timers, global mutable state, or changes to historical save files.
+     */
+    fun periodicElapsed(layer: TapNestLayer, allLayers: List<TapNestLayer>, elapsedMs: Long): Long? {
+        val otherId = pairedId(layer.id) ?: return periodicElapsed(layer, elapsedMs)
+        val partner = allLayers.firstOrNull { it.id == otherId && it.frameOwner == null }
+            ?: return periodicElapsed(layer, elapsedMs)
+        if (!layer.syncPairedPeriodic || !partner.syncPairedPeriodic)
+            return periodicElapsed(layer, elapsedMs)
+        val driver = listOf(layer, partner)
+            .filter { it.interactionConfigured && it.periodicEnabled }
+            .minByOrNull { if (it.id.endsWith("_left")) 0 else 1 }
+            ?: return null
+        if (!layer.interactionConfigured) return null
+        return periodicElapsed(driver, elapsedMs)
+    }
+
+    fun hasPeriodicPartner(layer: TapNestLayer, layers: List<TapNestLayer>): Boolean =
+        pairedId(layer.id)?.let { id ->
+            layers.any { it.id == id && it.frameOwner == null }
+        } ?: false
+
+    private fun pairedId(id: String): String? {
+        if (!id.startsWith("wing_") && !id.startsWith("ear_")) return null
+        return when {
+            id.endsWith("_left") -> id.removeSuffix("_left") + "_right"
+            id.endsWith("_right") -> id.removeSuffix("_right") + "_left"
+            else -> null
+        }
+    }
+
     fun currentFrame(
         owner: TapNestLayer, allLayers: List<TapNestLayer>,
         elapsedMs: Long, touchAgeMs: Long, availableIds: Set<String>,
@@ -29,7 +63,7 @@ object TapNestLayerActions {
             // A periodic expression has higher priority than idle blinking,
             // otherwise the scene mixes two different action frames.
             owner.periodicAction == TapNestPeriodicAction.SWITCH_FRAME &&
-                periodicElapsed(owner, elapsedMs) != null &&
+                periodicElapsed(owner, allLayers, elapsedMs) != null &&
                 touchAgeMs >= 1800L -> owner.periodicFrame
             owner.idleBlinkEnabled && allowIdleBlink && touchAgeMs > 1400L &&
                 TapNestBlink.isBlinking(elapsedMs) -> owner.blinkFrame
@@ -56,13 +90,30 @@ object TapNestLayerActions {
             else -> true
         }
 
-    fun motionPose(layer: TapNestLayer, motionAgeMs: Long): TapNestPose {
-        val clip = when (layer.tapMotion) {
-            TapNestPartMotion.NOD -> TapNestPresets.nod(layer.id)
-            TapNestPartMotion.BOUNCE -> TapNestPresets.bounce(layer.id)
-            TapNestPartMotion.FLAP -> TapNestPresets.flap(layer.id)
-            TapNestPartMotion.TWITCH -> TapNestPresets.twitch(layer.id)
+    fun motionPose(layer: TapNestLayer, motionAgeMs: Long, periodic: Boolean = false): TapNestPose {
+        val selected = if (periodic) layer.periodicMotion ?: layer.tapMotion else layer.tapMotion
+        // A mirrored clone already reverses the canvas. Use the source-side
+        // clip sign to prevent reflecting left/right flap directions twice.
+        val motionId = if (layer.mirrorX) layer.mirroredFromId ?: layer.id else layer.id
+        val clip = when (selected) {
+            TapNestPartMotion.NOD -> TapNestPresets.nod(motionId)
+            TapNestPartMotion.BOUNCE -> TapNestPresets.bounce(motionId)
+            TapNestPartMotion.FLAP -> TapNestPresets.flap(motionId)
+            TapNestPartMotion.TWITCH -> TapNestPresets.twitch(motionId)
+            TapNestPartMotion.HAT_POP -> TapNestPresets.hatPop(motionId)
         }
-        return TapNestMotion.sample(clip, layer.id, motionAgeMs)
+        return TapNestMotion.sample(clip, motionId, motionAgeMs)
+    }
+}
+
+/** Slow, tiny breath around the feet; composed once with the entire layered rig. */
+object TapNestBreathing {
+    private const val BREATH_CYCLE_MS = 4000L
+
+    fun pose(elapsedMs: Long, strength: Float = 1f): TapNestPose {
+        val wave = kotlin.math.sin(
+            elapsedMs.coerceAtLeast(0L).toDouble() * 2.0 * kotlin.math.PI / BREATH_CYCLE_MS
+        ).toFloat() * strength.coerceIn(0.2f, 2f)
+        return TapNestPose(scaleX = 1f + wave * 0.004f, scaleY = 1f + wave * 0.012f)
     }
 }

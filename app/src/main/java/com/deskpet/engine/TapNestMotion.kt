@@ -23,7 +23,10 @@ data class TapNestRig(
     /** Map frame index to a mood; no labels means preserve legacy default face. */
     val expressionEmotions: Map<Int, TapNestEmotion> = emptyMap(),
     val layers: List<TapNestLayer> = emptyList(),
-    val clips: List<TapNestClip> = emptyList()
+    val clips: List<TapNestClip> = emptyList(),
+    /** Subtle whole-character breathing; opt in so old companions remain unchanged. */
+    val idleBreathingEnabled: Boolean = false,
+    val idleBreathingStrength: Float = 1f
 )
 
 /** Normalized control points from root to tip, all inside the imported PNG. */
@@ -42,7 +45,7 @@ enum class TapNestSwingMode { DELAY, SPRING }
 enum class TapNestSwingRange { CENTERED, OUTWARD_ONLY }
 
 @Serializable
-enum class TapNestPartMotion { NOD, BOUNCE, FLAP, TWITCH }
+enum class TapNestPartMotion { NOD, BOUNCE, FLAP, TWITCH, HAT_POP }
 
 @Serializable
 enum class TapNestPeriodicAction { SHAKE, SWITCH_FRAME }
@@ -93,12 +96,16 @@ data class TapNestLayer(
     /** Motion settings are edited on the owner/default-frame screen. */
     val tapShake: Boolean = false,
     val tapMotion: TapNestPartMotion = TapNestPartMotion.NOD,
+    /** Null keeps the previous shared tap/periodic motion for existing saves. */
+    val periodicMotion: TapNestPartMotion? = null,
     val tapSwitchFrame: Boolean = false,
     val tapFrame: Int = 1,
     val periodicEnabled: Boolean = false,
     val periodicIntervalSeconds: Float = 7f,
     val periodicAction: TapNestPeriodicAction = TapNestPeriodicAction.SHAKE,
     val periodicFrame: Int = 1,
+    /** Left/right ear and wing pairs share one idle action clock unless disabled. */
+    val syncPairedPeriodic: Boolean = true,
     val idleBlinkEnabled: Boolean = false,
     val blinkFrame: Int = 1
 )
