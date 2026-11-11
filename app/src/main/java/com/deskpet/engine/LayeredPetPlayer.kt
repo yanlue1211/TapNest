@@ -21,9 +21,27 @@ class LayeredPetPlayer private constructor(
     private val pictures: Map<String, Bitmap>,
     private val sourceSizes: Map<String, Pair<Int, Int>>
 ) {
-    // A published Bitmap must never be cleared while the UI is still drawing it.
-    // Rotate through 3 preallocated surfaces to eliminate intermittent clear-frame flashes.
+    /**
+     * Extended artwork uses a separate buffer height; NEVER squeeze it into
+     * the ordinary frame, which would either crop the tail or shrink the head.
+     * The extra pixels exist only below the original top-anchored canvas.
+     */
+    val pickupHeight: Int = if (rig.pickupArtworkEnabled && pictures.containsKey("pickup_pose")) {
+        val source = sourceSizes["pickup_pose"] ?: (0 to 0)
+        val scale = rig.layers.firstOrNull { it.id == "pickup_pose" }
+            ?.restScale?.coerceIn(.3f, 3f) ?: 1f
+        val canvasHeight = TapNestPickupCanvas.requiredHeight(
+            rig.canvasWidth, rig.canvasHeight, source.first, source.second, scale)
+        kotlin.math.ceil(canvasHeight.toDouble() * width / rig.canvasWidth.coerceAtLeast(1))
+            .toInt().coerceAtLeast(height)
+    } else height
+
+    // A published Bitmap must never be cleared while the UI still draws it.
+    // Two triple buffers avoid resizing/recycling frames during a drag.
     private val frames = Array(3) { Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888) }
+    private val pickupFrames = if (pickupHeight > height)
+        Array(3) { Bitmap.createBitmap(width, pickupHeight, Bitmap.Config.ARGB_8888) }
+    else frames
     private var frameIndex = 0
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     private val springChains = mutableMapOf<String, TapNestSpringChain>()
@@ -68,25 +86,27 @@ class LayeredPetPlayer private constructor(
     /** Triple-buffered render target. The UI never observes a bitmap being cleared. */
     @Synchronized fun render(): Bitmap {
         frameIndex = (frameIndex + 1) % frames.size
-        val frame = frames[frameIndex]
-        val canvas = Canvas(frame)
-        canvas.drawColor(android.graphics.Color.TRANSPARENT, android.graphics.PorterDuff.Mode.CLEAR)
         val now = SystemClock.uptimeMillis()
         val held = pickedUp
         val heldMs = if (held) (now - pickedUpAtMs).coerceAtLeast(0) else 0L
+        val pickupPicture = if (held && rig.pickupArtworkEnabled)
+            pictures["pickup_pose"] else null
+        val frame = if (pickupPicture != null) pickupFrames[frameIndex] else frames[frameIndex]
+        val canvas = Canvas(frame)
+        canvas.drawColor(android.graphics.Color.TRANSPARENT, android.graphics.PorterDuff.Mode.CLEAR)
         val sx = width.toFloat() / rig.canvasWidth.coerceAtLeast(1)
         val sy = height.toFloat() / rig.canvasHeight.coerceAtLeast(1)
         val pickupAngle = if (held) TapNestPickupMotion.angle(
             heldMs, 8f, 1.25f) else 0f // Fixed, lightweight pickup motion.
-        val pickupPicture = if (held && rig.pickupArtworkEnabled)
-            pictures["pickup_pose"] else null
         if (pickupPicture != null) {
             val source = sourceSizes["pickup_pose"]
                 ?: (pickupPicture.width to pickupPicture.height)
             val scale = rig.layers.firstOrNull { it.id == "pickup_pose" }
                 ?.restScale?.coerceIn(.3f, 3f) ?: 1f
             canvas.save()
-            canvas.scale(sx, sy)
+            // Use original horizontal pixel scale on BOTH axes: extending the
+            // destination height must not stretch or shrink the puppy's head.
+            canvas.scale(sx, sx)
             canvas.rotate(pickupAngle, rig.canvasWidth * .5f, 0f)
             // Single full-frame art; only shared top-centre pivot and size control.
             canvas.scale(scale, scale, rig.canvasWidth * .5f, 0f)
