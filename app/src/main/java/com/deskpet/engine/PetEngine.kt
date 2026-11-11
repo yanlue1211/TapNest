@@ -29,10 +29,20 @@ class PetEngine(
         data class Png(val bitmap: Bitmap) : PetLoader()
 
         data class Layered(val player: LayeredPetPlayer) : PetLoader()
+
+        /** Real Cubism model; frames are painted by the separate transparent WebView. */
+        data class Live2D(val manifest: java.io.File) : PetLoader()
     }
 
     fun createLoader(petInfo: PetInfo): PetLoader? {
         return when (petInfo.type) {
+            PetType.LIVE2D -> petInfo.petJsonPath?.let { path ->
+                runCatching {
+                    val file = java.io.File(path)
+                    com.deskpet.data.Live2DModelFiles.validate(file)
+                    PetLoader.Live2D(file)
+                }.getOrNull()
+            }
             PetType.CODEX_PET -> {
                 val config = petInfo.petJsonPath?.let {
                     spritesheetParser.parse(it)
@@ -84,6 +94,7 @@ class PetEngine(
                 )
             }
             is PetLoader.Png -> loader.bitmap
+            is PetLoader.Live2D -> null
             is PetLoader.Layered -> loader.player.render()
             is PetLoader.Gif -> {
                 gifRenderer.getFrame()
@@ -97,6 +108,7 @@ class PetEngine(
             is PetLoader.Gif -> 1  // GIF 不分帧，每帧独立
             is PetLoader.Png -> 1
             is PetLoader.Layered -> 1
+            is PetLoader.Live2D -> 1
         }
     }
 
@@ -128,6 +140,7 @@ class PetEngine(
                     (loader.bitmap.height * factor).toInt().coerceAtLeast(32))
             }
             is PetLoader.Layered -> Pair(loader.player.width, loader.player.height)
+            is PetLoader.Live2D -> Pair(300, 360)
         }
     }
 

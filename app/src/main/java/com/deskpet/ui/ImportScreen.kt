@@ -121,6 +121,10 @@ fun ImportScreen(
         uri?.let { runImport(it) { u -> fileManager.importCodexPet(u) } }
     }
 
+    val live2dLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
+        uri?.let { runImport(it) { u -> fileManager.importLive2D(u) } }
+    }
+
     val pngLauncher = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri: Uri? ->
         uri?.let { runImport(it) { u -> fileManager.importPng(u) } }
     }
@@ -179,6 +183,15 @@ fun ImportScreen(
                 filled = true,
                 enabled = !isImporting
             ) { onCreateLayered() }
+            Spacer(Modifier.height(12.dp))
+
+            ImportOption(
+                icon = "🌸",
+                title = "导入 Live2D 模型",
+                subtitle = "独立模式 · 选择完整模型 ZIP（model3.json / moc3 / 贴图 / 动作）",
+                filled = false,
+                enabled = !isImporting
+            ) { live2dLauncher.launch(arrayOf("application/zip", "application/octet-stream", "*/*")) }
             Spacer(Modifier.height(12.dp))
 
             ImportOption(

@@ -121,6 +121,9 @@ class AnimationController(
 
     fun start() {
         fj?.cancel()
+        // Cubism owns its own WebGL frame clock. Creating a bitmap coroutine
+        // would waste CPU while getCurrentFrame() deliberately returns null.
+        if (loader is PetEngine.PetLoader.Live2D) { fj = null; return }
         fj = scope.launch(Dispatchers.Main) {
             var lt = System.nanoTime()
             while (isActive) {
@@ -195,6 +198,7 @@ class AnimationController(
 
     fun isCodexPet() = loader is PetEngine.PetLoader.CodexPet
     fun isLayeredPet() = loader is PetEngine.PetLoader.Layered
+    fun isLive2DPet() = loader is PetEngine.PetLoader.Live2D
     fun tapLayeredPet() { (loader as? PetEngine.PetLoader.Layered)?.player?.tap() }
     fun setLayeredPickedUp(held: Boolean) {
         (loader as? PetEngine.PetLoader.Layered)?.player?.setPickedUp(held)

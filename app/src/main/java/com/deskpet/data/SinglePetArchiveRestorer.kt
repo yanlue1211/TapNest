@@ -52,6 +52,7 @@ internal class SinglePetArchiveRestorer(private val context: Context) {
         return friendly?.takeIf { it.isNotBlank() && it != "TapNest_backup" }
             ?: when (type) {
                 PetType.LAYERED -> "恢复的绑骨桌宠"
+                PetType.LIVE2D -> "恢复的 Live2D 桌宠"
                 PetType.CODEX_PET -> "恢复的素材包桌宠"
                 PetType.GIF -> "恢复的 GIF 桌宠"
                 PetType.PNG -> "恢复的 PNG 桌宠"
@@ -82,6 +83,9 @@ internal class SinglePetArchiveRestorer(private val context: Context) {
         val sourceDir: File
         val art: File
         when (type) {
+            // The FileManager has a separate model-aware restore path for
+            // Live2D, so this image-only legacy restorer must not decode moc3.
+            PetType.LIVE2D -> throw ImportException.InvalidFormat("Live2D 请使用专用模型恢复")
             PetType.LAYERED -> {
                 val config = rig ?: throw ImportException.InvalidFormat("旧版分层桌宠缺少 rig.json")
                 sourceDir = config.parentFile!!

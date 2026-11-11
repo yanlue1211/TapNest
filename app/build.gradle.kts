@@ -122,6 +122,9 @@ dependencies {
     // Kotlin Serialization (for pet.json)
     implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.7.3")
 
+    // Separate Live2D transparent WebView; only reads imported model assets.
+    implementation("androidx.webkit:webkit:1.12.1")
+
     // Core
     implementation("androidx.core:core-ktx:1.13.1")
 
