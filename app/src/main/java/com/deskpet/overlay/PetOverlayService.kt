@@ -682,13 +682,12 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
     }
 
     private fun clampPosition() {
-        // 安全区夹取（与主界面 safeDrawing 同一病根的悬浮窗版）：本窗口带
-        // FLAG_LAYOUT_NO_LIMITS，可以画进状态栏/导航条/挖孔底下——底部是
-        // 系统手势区（拖宠物的手势会被抢走）、挖孔会遮宠物。用
-        // currentWindowMetrics.windowInsets 取显示区域的安全边距（它报告
-        // 的是显示器自身的 insets，不受本窗口 NO_LIMITS 影响）；API < 30
-        // 没有此 API，回退为旧行为（全屏边界）。垂直方向完全收进安全区，
-        // 水平方向保留"露把手"的部分出屏玩法
+        // Content-aware safe bounds: some user-supplied 1500x1500 PNGs and
+        // multi-part rigs leave a huge transparent upper canvas. Clamping
+        // their WINDOW at status bar height means the actual painted HEAD
+        // never reaches the screen top. Allow only the measured alpha padding
+        // to go beyond the safe upper edge, keeping visible pixels accessible.
+        // Bottom gesture-bar avoidance and horizontal grab handle are unchanged.
         val sb = safeBounds()
         val w = anim.petWidth.value
         val h = anim.petHeight.value
@@ -696,7 +695,10 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         // 旧代码硬编码 32px，高分屏（3x 密度）上只有约 10dp，几乎抓不住。
         val margin = 24f * resources.displayMetrics.density
         wx = wx.coerceIn((sb.left - w + margin), (sb.right - margin))
-        wy = wy.coerceIn(sb.top.toFloat(), (sb.bottom - h).toFloat().coerceAtLeast(sb.top.toFloat()))
+        wy = PetVerticalPositionPolicy.clampY(
+            wy, sb.top.toFloat(), sb.bottom.toFloat(), h,
+            anim.transparentTopFraction
+        )
     }
 
     /** 安全区矩形（扣除系统栏 + 挖孔）。API 30+ 精确；旧版本回退全屏。 */
