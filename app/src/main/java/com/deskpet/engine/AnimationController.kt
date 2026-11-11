@@ -67,7 +67,7 @@ class AnimationController(
         actionVisual = visual
     }
     @Volatile private var lifeInteraction: LifeInteractionAnimation? = null
-    private var interactionGeneration = 0L
+    private val interactionGeneration = java.util.concurrent.atomic.AtomicLong()
     private var s = 1f
     private var baseW = PetEngine.DEFAULT_PET_WIDTH
     private var baseH = PetEngine.DEFAULT_PET_HEIGHT
@@ -230,7 +230,7 @@ class AnimationController(
         applyScale()
     }
     fun cancelInteraction() {
-        interactionGeneration++
+        interactionGeneration.incrementAndGet()
         lifeInteraction = null
         actionVisual = null
         (loader as? PetEngine.PetLoader.Layered)?.player?.lifeInteraction = null
@@ -241,15 +241,16 @@ class AnimationController(
         artwork: java.io.File?) {
         cancelInteraction()
         if (!settings.enabled || layeredPickedUp) return
-        val generation = interactionGeneration
+        val generation = interactionGeneration.get()
         val activeLoader = loader
         val visual = withContext(Dispatchers.IO) { TemporaryActionVisual.load(artwork, baseW, baseH) }
         // A late decode cannot resurrect an animation after dragging, changing form or another click.
-        if (generation != interactionGeneration || activeLoader !== loader || layeredPickedUp) return
+        if (generation != interactionGeneration.get() || activeLoader !== loader || layeredPickedUp) return
         actionVisual = visual
         val session = LifeInteractionAnimation(action, emoji, settings, android.os.SystemClock.uptimeMillis())
         lifeInteraction = session
         (loader as? PetEngine.PetLoader.Layered)?.player?.lifeInteraction = session
+        start() // Wake PNG idle immediately so its 500ms sleep cannot skip the falling phase.
     }
 
     /** Prepare a new layered player while the old frame loop remains visible. */
