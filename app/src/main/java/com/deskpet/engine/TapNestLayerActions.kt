@@ -20,16 +20,19 @@ object TapNestLayerActions {
 
     fun currentFrame(
         owner: TapNestLayer, allLayers: List<TapNestLayer>,
-        elapsedMs: Long, touchAgeMs: Long, availableIds: Set<String>
+        elapsedMs: Long, touchAgeMs: Long, availableIds: Set<String>,
+        allowIdleBlink: Boolean = true
     ): String {
         if (!owner.interactionConfigured) return owner.id
         val requested = when {
             owner.tapSwitchFrame && touchAgeMs in 0..999L -> owner.tapFrame
-            owner.idleBlinkEnabled && touchAgeMs > 1400L &&
-                TapNestBlink.isBlinking(elapsedMs) -> owner.blinkFrame
+            // A periodic expression has higher priority than idle blinking,
+            // otherwise the scene mixes two different action frames.
             owner.periodicAction == TapNestPeriodicAction.SWITCH_FRAME &&
                 periodicElapsed(owner, elapsedMs) != null &&
                 touchAgeMs > 1400L -> owner.periodicFrame
+            owner.idleBlinkEnabled && allowIdleBlink && touchAgeMs > 1400L &&
+                TapNestBlink.isBlinking(elapsedMs) -> owner.blinkFrame
             else -> 0
         }
         if (requested <= 0) return owner.id
