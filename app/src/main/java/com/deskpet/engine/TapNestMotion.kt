@@ -158,6 +158,8 @@ object TapNestPickupCanvas {
         if (canvasWidth <= 0 || canvasHeight <= 0 ||
             imageWidth <= 0 || imageHeight <= 0) return canvasHeight.coerceAtLeast(1)
         val sc = imageScale.coerceIn(.3f, 3f)
+        // Preserve exact legacy dimensions if this pose already fits.
+        if (imageHeight.toDouble() * sc <= canvasHeight) return canvasHeight
         val widestSide = kotlin.math.max(
             canvasWidth * .5f, kotlin.math.abs(imageWidth - canvasWidth * .5f)
         ) * sc
