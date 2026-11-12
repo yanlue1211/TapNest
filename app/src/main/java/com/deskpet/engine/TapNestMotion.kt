@@ -115,6 +115,9 @@ data class TapNestLayer(
     val interactionConfigured: Boolean = false,
     /** Motion settings are edited on the owner/default-frame screen. */
     val tapShake: Boolean = false,
+    /** Opt in when editing basic parameters; preserve legacy clips otherwise. */
+    val tapBasicConfigured: Boolean = false,
+    val periodicBasicConfigured: Boolean = false,
     val tapFlexible: TapNestImpulse = TapNestImpulse(),
     val periodicFlexible: TapNestImpulse = TapNestImpulse(),
     val tapMotion: TapNestPartMotion = TapNestPartMotion.NOD,

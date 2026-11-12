@@ -735,7 +735,7 @@ fun LayeredPetEditor(
                             } else {
                                 PartMotionSettings(layer, partFlow.trigger, ::update)
                                 val impulse = if (partFlow.trigger == PartTrigger.TAP) layer.tapFlexible else layer.periodicFlexible
-                                fun change(value: TapNestImpulse) { update(if (partFlow.trigger == PartTrigger.TAP) layer.copy(tapFlexible = value) else layer.copy(periodicFlexible = value)) }
+                                fun change(value: TapNestImpulse) { update(if (partFlow.trigger == PartTrigger.TAP) layer.copy(tapFlexible = value, tapBasicConfigured = true) else layer.copy(periodicFlexible = value, periodicBasicConfigured = true)) }
                                 BindingSlider("动作幅度", impulse.amplitude, 0f, 55f) { change(impulse.copy(amplitude = it)) }
                                 BindingSlider("动作速度", impulse.speed, .5f, 6f) { change(impulse.copy(speed = it)) }
                                 BindingSlider("动作次数", impulse.count.toFloat(), 1f, 6f) { change(impulse.copy(count = it.toInt())) }

@@ -13,11 +13,11 @@ object TapNestLayerActions {
      * their historical 680ms / 700ms touch and idle windows.
      */
     fun tapMotionDuration(layer: TapNestLayer): Long =
-        if (layer.tapFlexible.enabled) layer.tapFlexible.durationMs.coerceIn(200L, 3000L)
+        if (layer.tapFlexible.enabled || layer.tapBasicConfigured) layer.tapFlexible.durationMs.coerceIn(200L, 3000L)
         else if (layer.tapMotion == TapNestPartMotion.HAT_POP) 960L else 680L
 
     private fun periodicPulseDuration(layer: TapNestLayer): Long =
-        if (layer.periodicFlexible.enabled) layer.periodicFlexible.durationMs.coerceIn(200L, 3000L)
+        if (layer.periodicFlexible.enabled || layer.periodicBasicConfigured) layer.periodicFlexible.durationMs.coerceIn(200L, 3000L)
         else if (layer.periodicAction == TapNestPeriodicAction.SHAKE &&
             (layer.periodicMotion ?: layer.tapMotion) == TapNestPartMotion.HAT_POP) 960L
         else PULSE_MS
@@ -212,7 +212,21 @@ object TapNestLayerActions {
             TapNestPartMotion.HAT_POP -> TapNestPresets.hatPop(
                 motionId, canvasHeight.toFloat(), layer.hatFlightHeight)
         }
-        return TapNestMotion.sample(clip, motionId, motionAgeMs)
+        val configured = if (periodic) layer.periodicBasicConfigured else layer.tapBasicConfigured
+        if (!configured || selected == TapNestPartMotion.HAT_POP)
+            return TapNestMotion.sample(clip, motionId, motionAgeMs)
+        val action = if (periodic) layer.periodicFlexible else layer.tapFlexible
+        val duration = action.durationMs.coerceIn(200L, 3000L)
+        if (motionAgeMs !in 0 until duration) return TapNestPose()
+        val progress = motionAgeMs.toDouble() / duration
+        val envelope = kotlin.math.sin(kotlin.math.PI * progress).let { it * it }
+        val wave = (kotlin.math.sin(2 * kotlin.math.PI * action.count.coerceIn(1, 6) *
+            action.speed.coerceIn(.5f, 6f) / 3.0 * progress) * envelope).toFloat()
+        val amount = wave * action.amplitude.coerceIn(0f, 55f)
+        return when (selected) {
+            TapNestPartMotion.BOUNCE -> TapNestPose(y = -amount)
+            else -> TapNestPose(angle = amount)
+        }
     }
 }
 
