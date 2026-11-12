@@ -35,6 +35,17 @@ internal enum class PartTrigger(val label: String, val description: String) {
         IDLE -> layer.copy(periodicPlane = plane, periodicBasicConfigured = true, periodicMotion = if (plane.enabled) TapNestPartMotion.NOD else layer.periodicMotion)
         else -> layer.copy(idlePlane = plane)
     }
+    fun region(layer: TapNestLayer) = when(this) {
+        TAP -> layer.tapBoneRegion ?: layer.boneRegion
+        IDLE -> layer.periodicBoneRegion ?: layer.boneRegion
+        else -> layer.idleBoneRegion ?: layer.boneRegion
+    }
+    fun withRegion(layer: TapNestLayer, region: TapNestBoneRegion) = when {
+        this == TAP && separate(layer) -> layer.copy(tapBoneRegion = region)
+        this == IDLE && separate(layer) -> layer.copy(periodicBoneRegion = region)
+        this == CONTINUOUS && separate(layer) -> layer.copy(idleBoneRegion = region)
+        else -> layer.copy(boneRegion = region)
+    }
     fun chains(layer: TapNestLayer) = when(this) {
         TAP -> layer.tapBoneChains ?: layer.boneChains
         IDLE -> layer.periodicBoneChains ?: layer.boneChains
@@ -59,9 +70,9 @@ internal enum class PartTrigger(val label: String, val description: String) {
         BLINK -> false
     }
     fun withSeparate(layer: TapNestLayer, enabled: Boolean): TapNestLayer = when(this) {
-        TAP -> layer.copy(tapBones = if (enabled) bones(layer).toList() else null, tapBoneChains = if (enabled) chains(layer).toList() else null)
-        IDLE -> layer.copy(periodicBones = if (enabled) bones(layer).toList() else null, periodicBoneChains = if (enabled) chains(layer).toList() else null)
-        CONTINUOUS -> layer.copy(idleBones = if (enabled) bones(layer).toList() else null, idleBoneChains = if (enabled) chains(layer).toList() else null)
+        TAP -> layer.copy(tapBones = if (enabled) bones(layer).toList() else null, tapBoneChains = if (enabled) chains(layer).toList() else null, tapBoneRegion = if (enabled) region(layer) else null)
+        IDLE -> layer.copy(periodicBones = if (enabled) bones(layer).toList() else null, periodicBoneChains = if (enabled) chains(layer).toList() else null, periodicBoneRegion = if (enabled) region(layer) else null)
+        CONTINUOUS -> layer.copy(idleBones = if (enabled) bones(layer).toList() else null, idleBoneChains = if (enabled) chains(layer).toList() else null, idleBoneRegion = if (enabled) region(layer) else null)
         BLINK -> layer
     }
     fun withBones(layer: TapNestLayer, points: List<TapNestBonePoint>) = when {

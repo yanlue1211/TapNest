@@ -80,7 +80,12 @@ object TapNestLayerActions {
             layer.periodicEnabled && layer.periodicFlexible.enabled && touchMs >= 1800L && periodicElapsed(layer, layers, sceneMs) != null -> layer.periodicBoneChains
             else -> layer.idleBoneChains
         } ?: layer.boneChains
-        return if (points === layer.bones && plane == layer.idlePlane && chains === layer.boneChains) layer else layer.copy(bones = points, idlePlane = plane, boneChains = chains)
+        val region = when {
+            layer.tapShake && layer.tapFlexible.enabled && touchMs in 0 until tapMotionDuration(layer) -> layer.tapBoneRegion
+            layer.periodicEnabled && layer.periodicFlexible.enabled && touchMs >= 1800L && periodicElapsed(layer, layers, sceneMs) != null -> layer.periodicBoneRegion
+            else -> layer.idleBoneRegion
+        } ?: layer.boneRegion
+        return if (points === layer.bones && plane == layer.idlePlane && chains === layer.boneChains && region == layer.boneRegion) layer else layer.copy(bones = points, idlePlane = plane, boneChains = chains, boneRegion = region)
     }
 
     /** Arc length, rather than point index, defines the quarter boundaries. */

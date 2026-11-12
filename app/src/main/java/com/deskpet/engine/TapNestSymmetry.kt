@@ -33,6 +33,7 @@ object TapNestSymmetry {
     fun synchronizedMotion(source: TapNestLayer, target: TapNestLayer): TapNestLayer = target.copy(
         syncPairedAll = true, syncPairedPeriodic = true,
         boneRegion = source.boneRegion, boneChains = source.boneChains,
+        tapBoneRegion = source.tapBoneRegion, periodicBoneRegion = source.periodicBoneRegion, idleBoneRegion = source.idleBoneRegion,
         tapBoneChains = source.tapBoneChains, periodicBoneChains = source.periodicBoneChains, idleBoneChains = source.idleBoneChains,
         tapPlane = source.tapPlane, periodicPlane = source.periodicPlane, idlePlane = source.idlePlane,
         bones = source.bones, tapBones = source.tapBones, periodicBones = source.periodicBones, idleBones = source.idleBones,
@@ -71,6 +72,7 @@ object TapNestSymmetry {
             periodicBones = layer.periodicBones?.map { it.copy(x = 1f - it.x) },
             idleBones = layer.idleBones?.map { it.copy(x = 1f - it.x) },
             boneRegion = reflectedRegion(layer.boneRegion),
+            tapBoneRegion = layer.tapBoneRegion?.let(::reflectedRegion), periodicBoneRegion = layer.periodicBoneRegion?.let(::reflectedRegion), idleBoneRegion = layer.idleBoneRegion?.let(::reflectedRegion),
             boneChains = layer.boneChains.map(::reflectedChain),
             tapBoneChains = layer.tapBoneChains?.map(::reflectedChain),
             periodicBoneChains = layer.periodicBoneChains?.map(::reflectedChain),

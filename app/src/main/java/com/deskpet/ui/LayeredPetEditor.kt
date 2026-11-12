@@ -221,7 +221,7 @@ fun LayeredPetEditor(
                 rig = rig.copy(layers = rig.layers.map {
                     if (it.id == activeLayer && previewMode == RigPreviewMode.BONES) {
                         val chain = partFlow.trigger.chains(it).getOrNull(selectedChain - 1)
-                        it.copy(bones = chain?.bones ?: partFlow.trigger.bones(it), boneRegion = chain?.region ?: it.boneRegion)
+                        it.copy(bones = chain?.bones ?: partFlow.trigger.bones(it), boneRegion = chain?.region ?: partFlow.trigger.region(it))
                     } else it
                 }),
                 uris = images.toMap(),
@@ -858,9 +858,9 @@ fun LayeredPetEditor(
                             var showRegion by remember(activeLayer, selectedChain) { mutableStateOf(false) }
                             TextButton(onClick = { showRegion = !showRegion }) { Text(if (showRegion) "收起影响区域" else "设置这条骨链的影响区域 →") }
                             if (showRegion) {
-                                val region = editingChain?.region ?: original.boneRegion
+                                val region = editingChain?.region ?: partFlow.trigger.region(original)
                                 fun changeRegion(value: TapNestBoneRegion) {
-                                    val next = if (editingChain == null) original.copy(boneRegion = value) else partFlow.trigger.withChains(original,
+                                    val next = if (editingChain == null) partFlow.trigger.withRegion(original, value) else partFlow.trigger.withChains(original,
                                         chains.mapIndexed { i, chain -> if (i == selectedChain - 1) chain.copy(region = value) else chain })
                                     rig = rig.copy(layers = rig.layers.map { if (it.id == activeLayer) next else it })
                                 }
@@ -974,9 +974,11 @@ fun LayeredPetEditor(
                                     listOf(TapNestMotionScope.WHOLE, TapNestMotionScope.UPPER, TapNestMotionScope.MIDDLE, TapNestMotionScope.LOWER).forEach { scope ->
                                         FilterChip(layer.idleScope == scope, { update(layer.copy(idleScope = scope)) }, label = { Text(when(scope) { TapNestMotionScope.WHOLE -> "从根部开始"; TapNestMotionScope.UPPER -> "从中上开始"; TapNestMotionScope.MIDDLE -> "从中部开始"; else -> "从中下开始" }) })
                                     }
+                                    if (layer.swingMode == TapNestSwingMode.SPRING) {
                                     BindingSlider("柔软度", layer.springSoftness, 0f, 1f) { update(layer.copy(springSoftness = it)) }
                                     BindingSlider("阻尼", layer.springDamping, .1f, 1.3f) { update(layer.copy(springDamping = it)) }
                                     BindingSlider("保形", layer.shapePreservation, 0f, 1f) { update(layer.copy(shapePreservation = it)) }
+                                    }
                                 } else {
                                     val impulse = if (partFlow.trigger == PartTrigger.TAP) layer.tapFlexible else layer.periodicFlexible
                                     ImpulseSettings(impulse, showEnable = false) {
@@ -1213,7 +1215,7 @@ private fun ImpulseSettings(value: TapNestImpulse, showEnable: Boolean = true, u
     if (value.enabled) {
         listOf(TapNestMotionScope.WHOLE, TapNestMotionScope.UPPER, TapNestMotionScope.MIDDLE, TapNestMotionScope.LOWER).forEach { scope ->
             FilterChip(value.scope == scope, { update(value.copy(scope = scope)) }, label = {
-                Text(when(scope) { TapNestMotionScope.WHOLE -> "整段运动"; TapNestMotionScope.DISTAL -> "中后段运动"; TapNestMotionScope.TIP -> "只抖尖端"; TapNestMotionScope.UPPER -> "从中上开始"; TapNestMotionScope.MIDDLE -> "从中部开始"; TapNestMotionScope.LOWER -> "从中下开始" })
+                Text(when(scope) { TapNestMotionScope.WHOLE -> "从根部开始"; TapNestMotionScope.DISTAL -> "中后段运动"; TapNestMotionScope.TIP -> "只抖尖端"; TapNestMotionScope.UPPER -> "从中上开始"; TapNestMotionScope.MIDDLE -> "从中部开始"; TapNestMotionScope.LOWER -> "从中下开始" })
             })
         }
         BindingSlider("柔软度", value.softness, 0f, 1f) { update(value.copy(softness = it)) }

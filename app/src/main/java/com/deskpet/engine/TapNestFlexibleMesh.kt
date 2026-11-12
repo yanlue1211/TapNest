@@ -76,7 +76,7 @@ object TapNestFlexibleMesh {
 
     private fun regionWeight(region: TapNestBoneRegion, x: Float, y: Float): Float {
         if (x < region.left || x > region.right || y < region.top || y > region.bottom) return 0f
-        if (region == TapNestBoneRegion()) return 1f
+        if (region.left == 0f && region.top == 0f && region.right == 1f && region.bottom == 1f) return 1f
         val distance = minOf(x - region.left, region.right - x, y - region.top, region.bottom - y)
         return (distance / .025f).coerceIn(0f, 1f)
     }
