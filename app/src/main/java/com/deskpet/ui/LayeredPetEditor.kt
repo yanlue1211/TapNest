@@ -627,12 +627,19 @@ fun LayeredPetEditor(
             if (showSettings) {
                 val original = rig.layers.firstOrNull { it.id == activeLayer }
                 val editingChain = if (partFlow.step == PartEditorStep.BONES && original != null) partFlow.trigger.chains(original).getOrNull(selectedChain - 1) else null
-                val layer = original?.copy(bones = editingChain?.bones ?: partFlow.trigger.bones(original))
+                val layer = if (original == null) null else if (editingChain != null) editingChain.asLayer(original) else original.copy(bones = partFlow.trigger.bones(original))
                 if (layer != null && original != null) {
                     fun update(p: TapNestLayer) {
                         val next = if (editingChain != null) {
-                            partFlow.trigger.withChains(p.copy(bones = original.bones), partFlow.trigger.chains(original).mapIndexed { i, chain ->
-                                if (i == selectedChain - 1) chain.copy(bones = p.bones) else chain
+                            partFlow.trigger.withChains(p.copy(bones = original.bones, boneChains = original.boneChains,
+                                tapBones = original.tapBones, periodicBones = original.periodicBones, idleBones = original.idleBones, idlePlane = original.idlePlane,
+                                idleScope = original.idleScope, springSoftness = original.springSoftness, springDamping = original.springDamping,
+                                tapFlexible = original.tapFlexible, periodicFlexible = original.periodicFlexible), partFlow.trigger.chains(original).mapIndexed { i, chain ->
+                                val impulse = if (partFlow.trigger == PartTrigger.TAP) p.tapFlexible else p.periodicFlexible
+                                if (i == selectedChain - 1) chain.copy(bones = p.bones,
+                                    scope = if (partFlow.trigger == PartTrigger.CONTINUOUS) p.idleScope else impulse.scope,
+                                    softness = if (partFlow.trigger == PartTrigger.CONTINUOUS) p.springSoftness else impulse.softness,
+                                    damping = if (partFlow.trigger == PartTrigger.CONTINUOUS) p.springDamping else impulse.damping) else chain
                             })
                         } else if (partFlow.trigger.separate(original)) {
                             partFlow.trigger.withBones(p.copy(bones = original.bones), p.bones)

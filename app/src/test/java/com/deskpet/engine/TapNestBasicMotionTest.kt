@@ -2,6 +2,9 @@ package com.deskpet.engine
 
 import org.junit.Assert.*
 import org.junit.Test
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.json.Json
 
 class TapNestBasicMotionTest {
     @Test fun rigidAndFlexibleShareBasicParametersWithoutEnablingBones() {
@@ -66,6 +69,13 @@ class TapNestBasicMotionTest {
         assertEquals(target.mirrorX, synced.mirrorX)
         assertEquals(source.tapFlexible, synced.tapFlexible)
         assertEquals(source.idleSpeed, synced.idleSpeed)
+    }
+
+    @Test fun newSkeletonAndPlaneFieldsSurviveBackupRoundTrip() {
+        val chain = TapNestBoneChain(name = "右飘带🎀", bones = listOf(TapNestBonePoint(.2f, .3f), TapNestBonePoint(.5f, .8f)), scope = TapNestMotionScope.MIDDLE, softness = .8f)
+        val layer = TapNestLayer("bow", "b.png", tapBoneChains = listOf(chain), boneChains = listOf(chain),
+            tapBones = chain.bones, tapPlane = TapNestMotionPlane(enabled = true, axisDegrees = 35f), syncPairedAll = true)
+        assertEquals(layer, Json.decodeFromString<TapNestLayer>(Json.encodeToString(layer)))
     }
 
 }

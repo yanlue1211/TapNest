@@ -59,13 +59,20 @@ data class TapNestBoneRegion(val left: Float = 0f, val top: Float = 0f, val righ
 @Serializable
 data class TapNestBoneChain(
     val name: String = "飘带",
+    val scope: TapNestMotionScope? = null,
+    val softness: Float? = null,
+    val damping: Float? = null,
     val bones: List<TapNestBonePoint> = emptyList(),
     val region: TapNestBoneRegion = TapNestBoneRegion(),
     val plane: TapNestMotionPlane = TapNestMotionPlane()
 ) {
     fun asLayer(layer: TapNestLayer) = layer.copy(bones = bones,
         tapBones = null, periodicBones = null, idleBones = null, boneChains = emptyList(),
-        idlePlane = if (plane.enabled) plane else layer.idlePlane)
+        idlePlane = if (plane.enabled) plane else layer.idlePlane,
+        idleScope = scope ?: layer.idleScope,
+        springSoftness = softness ?: layer.springSoftness, springDamping = damping ?: layer.springDamping,
+        tapFlexible = layer.tapFlexible.copy(scope = scope ?: layer.tapFlexible.scope, softness = softness ?: layer.tapFlexible.softness, damping = damping ?: layer.tapFlexible.damping),
+        periodicFlexible = layer.periodicFlexible.copy(scope = scope ?: layer.periodicFlexible.scope, softness = softness ?: layer.periodicFlexible.softness, damping = damping ?: layer.periodicFlexible.damping))
 }
 
 @Serializable
