@@ -76,6 +76,10 @@ object TapNestFlexibleMesh {
                 TapNestSwingBounds.limitAngle(TapNestSwingBounds.periodicDrive(
                     omega * delayedTime, layer.idleAmplitude.coerceIn(0f, 40f), layer.idlePlane),
                     layer.idlePlane, layer.idleAmplitude.coerceIn(0f, 40f)) * weight
+            } else if (layer.idlePlane.enabled && !layer.idlePlane.linear) {
+                TapNestSwingBounds.periodicDrive(omega * delayedTime,
+                    layer.idleAmplitude.coerceIn(0f, 40f), layer.idlePlane,
+                    if (layer.idleStartReversed) -1f else 1f) * weight
             } else (amplitude * weight * sin(omega * delayedTime)).toFloat()
         }
     }
