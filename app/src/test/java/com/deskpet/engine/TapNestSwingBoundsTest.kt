@@ -79,6 +79,65 @@ class TapNestSwingBoundsTest {
         assertTrue(kotlin.math.abs(old) > 9f)
     }
 
+    @Test fun zeroClockwiseSideUsesWholeCycleInsteadOfFreezingForHalf() {
+        val plane = TapNestMotionPlane(enabled = true, negativeLimit = 118.83f, positiveLimit = 0f)
+        val frames = (0..24).map { i ->
+            val raw = TapNestSwingBounds.periodicDrive(i * 2.0 * Math.PI / 24.0, 40f, plane)
+            TapNestLayerActions.planePose(raw, plane, 40f).angle
+        }
+        assertEquals(0f, frames.first(), .001f)
+        assertEquals(-40f, frames[12], .001f)
+        assertEquals(0f, frames.last(), .001f)
+        assertTrue(frames.drop(1).dropLast(1).all { it < -.0001f })
+        assertTrue(frames[3] > frames[5] && frames[5] > frames[8])
+        assertTrue(frames[16] < frames[20] && frames[20] < frames[23])
+    }
+
+    @Test fun zeroCounterclockwiseSideUsesOneFullPeriodAndLimitedAmplitude() {
+        val plane = TapNestMotionPlane(enabled = true, negativeLimit = 0f, positiveLimit = 15f)
+        val frames = (0..24).map { i ->
+            TapNestLayerActions.planePose(
+                TapNestSwingBounds.periodicDrive(i * 2.0 * Math.PI / 24.0, 85f, plane),
+                plane, 85f).angle
+        }
+        assertEquals(15f, frames[12], .001f)
+        assertTrue(frames.drop(1).dropLast(1).all { it > 0f && it <= 15f })
+        assertTrue(frames[10] < frames[12] && frames[12] > frames[14])
+    }
+
+    @Test fun rigidAndBoneDriveKeepTwoSidedMovementUnchanged() {
+        val plane = TapNestMotionPlane(enabled = true, negativeLimit = 40f, positiveLimit = 40f)
+        val samples = (0..12).map { i ->
+            TapNestSwingBounds.periodicDrive(i * 2.0 * Math.PI / 12, 35f, plane, -1f)
+        }
+        assertTrue(samples.take(6).all { it <= .0001f })
+        assertTrue(samples.drop(7).all { it >= -.0001f })
+        val tail = TapNestLayer(id = "tail", image = "tail.png", idleSwing = true,
+            idleAmplitude = 35f, idlePlane = TapNestMotionPlane(
+                enabled = true, negativeLimit = 30f, positiveLimit = 0f),
+            bones = listOf(TapNestBonePoint(.5f, .9f), TapNestBonePoint(.5f, .1f)))
+        val single = (0L..2000L step 100L).map {
+            TapNestFlexibleMesh.segmentAngles(tail, it)[0]
+        }
+        assertTrue(single.drop(1).take(19).all { it <= 0f })
+        assertTrue(single.any { it < -20f })
+    }
+
+    @Test fun oneSidedSpringMotorKeepsMovingAtBothSpringVersions() {
+        for (version in listOf(1, 2)) {
+            val plane = TapNestMotionPlane(enabled = true, negativeLimit = 50f, positiveLimit = 0f)
+            val tail = TapNestLayer(id = "tail", image = "tail.png", idleSwing = true,
+                idleAmplitude = 40f, idleSpeed = .7f, springVersion = version,
+                bones = listOf(TapNestBonePoint(.5f, .9f), TapNestBonePoint(.5f, .1f)),
+                swingMode = TapNestSwingMode.SPRING, idlePlane = plane)
+            val engine = TapNestSpringChain()
+            val samples = (0L..4000L step 20L).map { engine.step(tail, it)[0] }
+            assertTrue("v=$version", samples.count { it < -8f } > 40)
+            assertTrue("v=$version", samples.distinctBy { (it * 100).toInt() }.size > 100)
+            assertTrue("v=$version", samples.all { it <= .001f && it >= -50.001f })
+        }
+    }
+
     @Test fun legacyUnrestrictedMotionAndStraightMotionAreUnchanged() {
         val free = TapNestMotionPlane()
         assertEquals(75f, TapNestSwingBounds.limitAngle(75f, free, 80f, true), .0001f)
