@@ -131,7 +131,7 @@ class GestureHandler(
                         val action = HoldGesturePolicy.action(
                             SystemClock.uptimeMillis() - began, moved, multiTouch || pinching)
                         if (!closed && !moved && !multiTouch && !pinching &&
-                            HoldGesturePolicy.isShortTap(ended - began)) onPhysicalTap()
+                            (ended - began) in 0L until viewConfiguration.longPressTimeoutMillis) onPhysicalTap()
                         if (!closed && action == HoldGesturePolicy.Action.MENU) onHoldMenu()
                     }
                 }

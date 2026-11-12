@@ -38,13 +38,15 @@ class GestureHandlerComposeTest {
         var taps = 0
         var menus = 0
         var closes = 0
+        var physicalTaps = 0
         val gestures = GestureHandler(
             onDrag = { dx, _, _ -> dragged += dx },
             onTap = { taps++ },
             isCodexPet = { false },
             onDragStart = { dragsStarted++ },
             onHoldMenu = { menus++ },
-            onHoldClose = { closes++ }
+            onHoldClose = { closes++ },
+            onPhysicalTap = { physicalTaps++ }
         )
         compose.setContent {
             Box(Modifier.size(200.dp).testTag("pet").then(gestures.modifier))
@@ -61,6 +63,7 @@ class GestureHandlerComposeTest {
         assertTrue("长按后拖动应有真正的位置变化", dragged > 20f)
         assertEquals(1, dragsStarted)
         assertEquals("拖动不能误触发点击", 0, taps)
+        assertEquals("拖动不能计入五连戳", 0, physicalTaps)
         assertEquals("拖动不能误弹换装", 0, menus)
         assertEquals("拖动不能误关闭", 0, closes)
     }
