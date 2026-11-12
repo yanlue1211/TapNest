@@ -30,6 +30,11 @@ object TapNestClothing {
         if (isLinked(layer)) nodes["body"] ?: layer
         else layer.frameOwner?.let(nodes::get) ?: layer
 
+    /** The canvas supplies transforms, while Android Paint alpha is per draw.
+     * Without this, a fading body leaves an opaque floating coat behind. */
+    fun combinedAlpha(layer: TapNestLayer, ownAlpha: Float, bodyAlpha: Float): Float =
+        (ownAlpha * if (isLinked(layer)) bodyAlpha else 1f).coerceIn(0f, 1f)
+
     fun sortZ(layer: TapNestLayer, nodes: Map<String, TapNestLayer>): Int =
         if (isLinked(layer)) (nodes["body"]?.zIndex ?: layer.zIndex) + 1 else layer.zIndex
 
