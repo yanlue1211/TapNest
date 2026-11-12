@@ -241,7 +241,6 @@ fun LayeredPetEditor(
 
                         Row(Modifier.horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            TextButton(onClick = { back() }) { Text("← 上一步") }
                             TextButton(onClick = { previewMode = RigPreviewMode.TEST; testRequest++ }) { Text("测试动作") }
                             if (partFlow.step == PartEditorStep.BONES) TextButton(onClick = { previewMode = RigPreviewMode.BONES; dragUnlocked = true }) { Text("继续绑点") }
 
@@ -345,7 +344,6 @@ fun LayeredPetEditor(
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     TextButton(onClick = {
                         activeLayer = slot.id
-                        previewMode = RigPreviewMode.POSITION
                         partFlow = PartEditorFlow()
                         previewMode = RigPreviewMode.TEST
                         showSettings = true
@@ -832,6 +830,19 @@ fun LayeredPetEditor(
                         PartEditorStep.FLEX -> {
                             Text("是否需要柔性点？", style = MaterialTheme.typography.titleMedium)
                             Text("柔性点让耳根稳定、耳尖弯动。同一部位只绑一次，其他动作也能使用。")
+                            if (partFlow.trigger == PartTrigger.IDLE || partFlow.trigger == PartTrigger.TAP) {
+                                val sourceName = if (partFlow.trigger == PartTrigger.IDLE) "点触互动" else "闲置抖动"
+                                OutlinedButton(onClick = {
+                                    update(partFlow.trigger.setFlexible(layer, true))
+                                    Toast.makeText(ctx, "已复用${sourceName}绑骨，动作参数独立保留", Toast.LENGTH_SHORT).show()
+                                    go(PartEditorStep.SUMMARY)
+                                }, enabled = layer.bones.size >= 2, modifier = Modifier.fillMaxWidth()) {
+                                    Text("复用${sourceName}绑骨")
+                                }
+                                Text(if (layer.bones.size >= 2) "沿用当前部位的 ${layer.bones.size} 个点，不改位置和动作参数。"
+                                    else "当前部位还没有可复用的绑骨，请先放置至少两个点。",
+                                    style = MaterialTheme.typography.bodySmall)
+                            }
                             FlowChoice("使用柔性点", if (layer.bones.size >= 2) "已有 ${layer.bones.size} 个点，可继续调整" else "下一步在完整角色上放置控制点") {
                                 update(partFlow.trigger.setFlexible(layer, true)); go(PartEditorStep.BONES)
                             }
