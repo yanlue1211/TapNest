@@ -94,7 +94,13 @@ fun LayeredPetEditor(
     fun back() {
         if (showSettings && partFlow.history.isNotEmpty()) {
             partFlow = partFlow.back()
-            previewMode = if (partFlow.step == PartEditorStep.BONES) RigPreviewMode.BONES else RigPreviewMode.TEST
+            previewMode = when (partFlow.step) {
+                PartEditorStep.BONES -> RigPreviewMode.BONES
+                PartEditorStep.ANCHOR -> RigPreviewMode.PIVOT
+                PartEditorStep.POSITION -> RigPreviewMode.POSITION
+                else -> RigPreviewMode.TEST
+            }
+            dragUnlocked = partFlow.step in listOf(PartEditorStep.BONES, PartEditorStep.ANCHOR, PartEditorStep.POSITION)
         } else if (showSettings) showSettings = false else onBack()
     }
     var error by remember { mutableStateOf<String?>(null) }
@@ -147,7 +153,7 @@ fun LayeredPetEditor(
                 if (existing == null) petRepository.addPetDirect(resultPet) else petRepository.replacePet(resultPet)
                 workingPet = resultPet
                 if (returnToParts) {
-                    showSettings = false
+                    showSettings = true
                     partFlow = PartEditorFlow()
                     Toast.makeText(ctx, "当前部位已保存", Toast.LENGTH_SHORT).show()
                 } else onCreated(resultPet)
@@ -242,10 +248,13 @@ fun LayeredPetEditor(
                         Row(Modifier.horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             TextButton(onClick = { previewMode = RigPreviewMode.TEST; testRequest++ }) { Text("测试动作") }
+                            TextButton(onClick = { showOtherParts = !showOtherParts }) { Text(if (showOtherParts) "隐藏其他部位" else "显示其他部位") }
+                            TextButton(onClick = { saveEditor(true) }, enabled = !busy && images["body"] != null) { Text("保存回部位主页") }
+                            if (partFlow.step == PartEditorStep.ANCHOR) TextButton(onClick = { previewMode = RigPreviewMode.PIVOT; dragUnlocked = true }) { Text("继续放锚点") }
                             if (partFlow.step == PartEditorStep.BONES) TextButton(onClick = { previewMode = RigPreviewMode.BONES; dragUnlocked = true }) { Text("继续绑点") }
 
 
-                            if (partFlow.step in listOf(PartEditorStep.BONES, PartEditorStep.POSITION)) TextButton(onClick = { dragUnlocked = !dragUnlocked }) { Text(if (dragUnlocked) "锁定拖动" else "解锁拖动") }
+                            if (partFlow.step in listOf(PartEditorStep.BONES, PartEditorStep.POSITION, PartEditorStep.ANCHOR)) TextButton(onClick = { dragUnlocked = !dragUnlocked }) { Text(if (dragUnlocked) "锁定拖动" else "解锁拖动") }
                         }
                     }
                 }
@@ -600,10 +609,11 @@ fun LayeredPetEditor(
                         partFlow = partFlow.next(step)
                         previewMode = when (step) {
                             PartEditorStep.BONES -> RigPreviewMode.BONES
+                            PartEditorStep.ANCHOR -> RigPreviewMode.PIVOT
                             PartEditorStep.POSITION -> RigPreviewMode.POSITION
                             else -> RigPreviewMode.TEST
                         }
-                        dragUnlocked = step in listOf(PartEditorStep.BONES, PartEditorStep.POSITION)
+                        dragUnlocked = step in listOf(PartEditorStep.BONES, PartEditorStep.POSITION, PartEditorStep.ANCHOR)
                         scope.launch { detailScroll.scrollTo(0) }
                     }
                     PartFlowHeader(partFlow)
@@ -636,7 +646,7 @@ fun LayeredPetEditor(
                                 }
                             }
                             Button(onClick = { go(if (!enabled) PartEditorStep.SUMMARY else when(partFlow.trigger) {
-                                PartTrigger.CONTINUOUS -> PartEditorStep.MOTION
+                                PartTrigger.CONTINUOUS -> PartEditorStep.ANCHOR
                                 PartTrigger.BLINK -> PartEditorStep.FRAME
                                 else -> PartEditorStep.TYPE
                             }) }) { Text(if (enabled) "下一步 →" else "确认关闭 →") }
@@ -647,7 +657,7 @@ fun LayeredPetEditor(
                                 update(partFlow.trigger.chooseFrame(layer)); go(PartEditorStep.FRAME)
                             }
                             FlowChoice("🎐 摇晃", "下一步只调整怎么摇") {
-                                update(partFlow.trigger.chooseMotion(layer)); go(PartEditorStep.MOTION)
+                                update(partFlow.trigger.chooseMotion(layer)); go(PartEditorStep.ANCHOR)
                             }
                         }
                         PartEditorStep.FRAME, PartEditorStep.MATERIAL -> {
@@ -712,120 +722,26 @@ fun LayeredPetEditor(
                                 Button(onClick = { go(PartEditorStep.SUMMARY) }) { Text("完成素材设置 →") }
                             }
                         }
+                        PartEditorStep.ANCHOR -> {
+                            Text("在预览中点击部位的固定位置，例如耳根或翅膀根部。")
+                            BindingSlider("锚点 X", layer.pivotX, 0f, 1f) { update(layer.copy(pivotX = it)) }
+                            BindingSlider("锚点 Y", layer.pivotY, 0f, 1f) { update(layer.copy(pivotY = it)) }
+                            Button(onClick = { go(PartEditorStep.MOTION) }) { Text("下一步：设置运动 →") }
+                        }
                         PartEditorStep.MOTION -> {
                             if (partFlow.trigger == PartTrigger.CONTINUOUS) {
-                var chosenTailPreset by remember(activeLayer) {
-                    mutableStateOf(TapNestTailPresets.ALL.firstOrNull { it.id == layer.idlePresetId } ?: TapNestTailPresets.ALL.first())
-                }
-                var tailPresetMenu by remember(activeLayer) { mutableStateOf(false) }
-                Box {
-                    OutlinedButton(onClick = { tailPresetMenu = true }) {
-                        Text("${chosenTailPreset.title}  ▾")
-                    }
-                    DropdownMenu(expanded = tailPresetMenu,
-                        onDismissRequest = { tailPresetMenu = false }) {
-                        TapNestTailPresets.ALL.forEach { choice ->
-                            DropdownMenuItem(text = { Text(choice.title) }, onClick = {
-                                chosenTailPreset = choice
-                                tailPresetMenu = false
-                            })
-                        }
-                    }
-                }
-                Text(chosenTailPreset.description, style = MaterialTheme.typography.bodySmall)
-                Text("建议骨骼：${chosenTailPreset.bonePercentages.joinToString(" → ") { "${it}%" }}（尾根到尾尖，沿图形中线）",
-                    style = MaterialTheme.typography.bodySmall)
-                Row(modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(onClick = {
-                        update(TapNestTailPresets.applySettings(layer, chosenTailPreset))
-                    }, modifier = Modifier.weight(1f)) { Text("应用弹簧参数") }
-                    OutlinedButton(onClick = {
-                        if (layer.bones.size >= 2) {
-                            val newBones = TapNestTailPresets.repositionBones(
-                                layer.bones, chosenTailPreset
-                            )
-                            update(layer.copy(bones = newBones))
-                            selectedBone = 0
-                            previewMode = RigPreviewMode.BONES
-                        }
-                    }, modifier = Modifier.weight(1f),
-                        enabled = layer.bones.size >= 2) { Text("按首尾重排点位") }
-                }
-                Text(
-                    if (layer.bones.size < 2)
-                        "先放两个点：P1 在尾根、P2 在尾尖内侧（约 85%～90%），然后才能自动补齐中间点。"
-                    else "应用参数不会改动你已绑好的点；「按首尾重排点位」会沿现有骨骼轨迹重新取点，保留首尾坐标。",
-                    style = MaterialTheme.typography.bodySmall
-                )
-                if (chosenTailPreset.swingRange == TapNestSwingRange.OUTWARD_ONLY) {
-                    Text("单侧模式：沿身体一侧斜放，从根到尖排点；程序根据方向自动选择向外摇（不跨过原始姿势向内甩）。",
-                        style = MaterialTheme.typography.bodySmall)
-                }
-                if (layer.idleSwing) {
-                    TapNestMotionScope.entries.forEach { range ->
-                        FilterChip(layer.idleScope == range, { update(layer.copy(idleScope = range)) }, label = {
-                            Text(when(range) { TapNestMotionScope.WHOLE -> "整段运动"; TapNestMotionScope.DISTAL -> "中后段运动"; TapNestMotionScope.TIP -> "仅尖端运动" })
-                        })
-                    }
-                    Text("晃动方式", fontWeight = FontWeight.SemiBold)
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        FilterChip(
-                            selected = layer.swingMode == TapNestSwingMode.DELAY,
-                            onClick = { update(layer.copy(swingMode = TapNestSwingMode.DELAY)) },
-                            label = { Text("原版延迟") }
-                        )
-                        FilterChip(
-                            selected = layer.swingMode == TapNestSwingMode.SPRING,
-                            onClick = { update(layer.copy(swingMode = TapNestSwingMode.SPRING, springVersion = 2)) },
-                            label = { Text("🌀 弹簧惯性") }
-                        )
-                    }
-                    if (layer.swingMode == TapNestSwingMode.SPRING) {
-                        Text("尾根带头左右摇，上半段像弹簧一样延迟跟随，转向时会回弹。",
-                            style = MaterialTheme.typography.bodySmall)
-                    }
-                    BindingSlider("左右摆动幅度（度）", layer.idleAmplitude, 0f,
-                        if (layer.swingMode == TapNestSwingMode.SPRING) 85f else 40f
-                    ) { update(layer.copy(idleAmplitude = it)) }
-                    BindingSlider("晃动速度（次／秒）", layer.idleSpeed, 0.1f, 3f) {
-                        update(layer.copy(idleSpeed = it))
-                    }
-                    if (layer.swingMode == TapNestSwingMode.SPRING) {
-                        BindingSlider("弹簧柔软度（越高越软）", layer.springSoftness, 0f, 1f) {
-                            update(layer.copy(springSoftness = it))
-                        }
-                        BindingSlider("回弹阻尼（越低越弹）", layer.springDamping, 0.1f, 1.3f) {
-                            update(layer.copy(springDamping = it))
-                        }
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("单侧向外摇晃", modifier = Modifier.weight(1f))
-                            Switch(
-                                checked = layer.swingRange == TapNestSwingRange.OUTWARD_ONLY,
-                                onCheckedChange = {
-                                    update(layer.copy(swingRange = if (it)
-                                        TapNestSwingRange.OUTWARD_ONLY else TapNestSwingRange.CENTERED))
-                                }
-                            )
-                        }
-                        BindingSlider("🖍️ 粗线条保形（越高越不扭曲）", layer.shapePreservation, 0f, 1f) {
-                            update(layer.copy(shapePreservation = it))
-                        }
-                        Text("粗轮廓或短胖尾巴建议保形 0.7～0.85；保形为 1 时整张图刚性摇摆，不再弯曲。幅度控制左右大摆，柔软度与阻尼控制末端跟随。",
-                            style = MaterialTheme.typography.bodySmall)
-                        Text("建议至少 3 个点，按根→中→尖排列；大脑袋挡住的尾巴需要在图层位置上调整可见部分。",
-                            style = MaterialTheme.typography.bodySmall)
-                    } else if (layer.bones.size >= 3) {
-                        BindingSlider("上段跟随延迟（秒）", layer.idleLagSeconds, 0f, 0.45f) {
-                            update(layer.copy(idleLagSeconds = it))
-                        }
-                        Text("延迟模式靠近根部先摆、上段稍晚跟上。",
-                            style = MaterialTheme.typography.bodySmall)
-                    }
-                }
-
-                            } else PartMotionSettings(layer, partFlow.trigger, ::update)
-                            Button(onClick = { go(PartEditorStep.FLEX) }) { Text("下一步：是否使用柔性点 →") }
+                                BindingSlider("摆动幅度（度）", layer.idleAmplitude, 0f, 85f) { update(layer.copy(idleAmplitude = it)) }
+                                BindingSlider("摆动速度（次／秒）", layer.idleSpeed, .1f, 3f) { update(layer.copy(idleSpeed = it)) }
+                            } else {
+                                PartMotionSettings(layer, partFlow.trigger, ::update)
+                                val impulse = if (partFlow.trigger == PartTrigger.TAP) layer.tapFlexible else layer.periodicFlexible
+                                fun change(value: TapNestImpulse) { update(if (partFlow.trigger == PartTrigger.TAP) layer.copy(tapFlexible = value) else layer.copy(periodicFlexible = value)) }
+                                BindingSlider("动作幅度", impulse.amplitude, 0f, 55f) { change(impulse.copy(amplitude = it)) }
+                                BindingSlider("动作速度", impulse.speed, .5f, 6f) { change(impulse.copy(speed = it)) }
+                                BindingSlider("动作次数", impulse.count.toFloat(), 1f, 6f) { change(impulse.copy(count = it.toInt())) }
+                                BindingSlider("持续时间（毫秒）", impulse.durationMs.toFloat(), 200f, 3000f) { change(impulse.copy(durationMs = it.toLong())) }
+                            }
+                            Button(onClick = { go(PartEditorStep.FLEX) }) { Text("下一步：是否需要柔性弯曲 →") }
                         }
                         PartEditorStep.FLEX -> {
                             Text("是否需要柔性点？", style = MaterialTheme.typography.titleMedium)
@@ -877,37 +793,6 @@ fun LayeredPetEditor(
                     }
                     val boneIndex = selectedBone.coerceIn(0, layer.bones.lastIndex)
                     val bone = layer.bones[boneIndex]
-                    var dirMenu by remember(activeLayer, boneIndex) { mutableStateOf(false) }
-                    fun directionLabel(d: TapNestBoneSwingDirection): String = when(d) {
-                        TapNestBoneSwingDirection.AUTO -> "自动旋转"
-                        TapNestBoneSwingDirection.HORIZONTAL -> "左右 →"
-                        TapNestBoneSwingDirection.HORIZONTAL_REVERSE -> "左右 ←（反向）"
-                        TapNestBoneSwingDirection.VERTICAL -> "上下 ↓（翅膀）"
-                        TapNestBoneSwingDirection.VERTICAL_REVERSE -> "上下 ↑（反向）"
-                        TapNestBoneSwingDirection.ROTATION_REVERSE -> "逆向旋转"
-                        TapNestBoneSwingDirection.FIXED -> "固定"
-                    }
-                    Box {
-                        OutlinedButton(onClick = { dirMenu = true }) {
-                            Text("第 ${boneIndex + 1} 点运动方向：${directionLabel(bone.swingDirection)} ▾")
-                        }
-                        DropdownMenu(expanded = dirMenu, onDismissRequest = { dirMenu = false }) {
-                            TapNestBoneSwingDirection.entries.forEach { option ->
-                                DropdownMenuItem(text = { Text(directionLabel(option)) }, onClick = {
-                                    update(layer.copy(bones = layer.bones.mapIndexed { i, original ->
-                                        if (i == boneIndex) original.copy(swingDirection = option) else original
-                                    }))
-                                    dirMenu = false
-                                })
-                            }
-                        }
-                    }
-                    Text(
-                        if (boneIndex == 0)
-                            "P1 为根部锚点。它的方向可作为下一点选「自动」时的默认值。"
-                        else "本点控制前一个点到本点的骨骼段。横向/纵向位移在大幅度时可能拉伸贴图，可配合保形调整。",
-                        style = MaterialTheme.typography.bodySmall
-                    )
                     BindingSlider("点位 ${boneIndex + 1} · 横向 X", bone.x, 0f, 1f) {
                         update(layer.copy(bones = layer.bones.mapIndexed { i, old ->
                             if (i == boneIndex) old.copy(x = it) else old
@@ -928,14 +813,16 @@ fun LayeredPetEditor(
                         color = MaterialTheme.colorScheme.primary)
                 }
 
-                            var showFlexibleTuning by remember(activeLayer) { mutableStateOf(false) }
-                            TextButton(onClick = { showFlexibleTuning = !showFlexibleTuning }) {
-                                Text(if (showFlexibleTuning) "收起柔性效果参数" else "柔性效果参数（可选） →")
-                            }
-                            if (showFlexibleTuning && partFlow.trigger != PartTrigger.CONTINUOUS) {
-                                val impulse = if (partFlow.trigger == PartTrigger.TAP) layer.tapFlexible else layer.periodicFlexible
-                                ImpulseSettings(impulse, showEnable = false) {
-                                    update(if (partFlow.trigger == PartTrigger.TAP) layer.copy(tapFlexible = it) else layer.copy(periodicFlexible = it))
+                            if (layer.bones.size >= 2) {
+                                if (partFlow.trigger == PartTrigger.CONTINUOUS) {
+                                    BindingSlider("柔软度", layer.springSoftness, 0f, 1f) { update(layer.copy(springSoftness = it)) }
+                                    BindingSlider("阻尼", layer.springDamping, .1f, 1.3f) { update(layer.copy(springDamping = it)) }
+                                    BindingSlider("保形", layer.shapePreservation, 0f, 1f) { update(layer.copy(shapePreservation = it)) }
+                                } else {
+                                    val impulse = if (partFlow.trigger == PartTrigger.TAP) layer.tapFlexible else layer.periodicFlexible
+                                    ImpulseSettings(impulse, showEnable = false) {
+                                        update(if (partFlow.trigger == PartTrigger.TAP) layer.copy(tapFlexible = it) else layer.copy(periodicFlexible = it))
+                                    }
                                 }
                             }
                             Button(onClick = { go(PartEditorStep.SUMMARY) }, enabled = layer.bones.size >= 2) { Text("绑好了，下一步 →") }
@@ -1165,22 +1052,14 @@ private fun ImpulseSettings(value: TapNestImpulse, showEnable: Boolean = true, u
         Switch(value.enabled, { update(value.copy(enabled = it)) })
     }
     if (value.enabled) {
-        Row(Modifier.horizontalScroll(rememberScrollState())) {
-            TextButton(onClick = { update(TapNestImpulse(enabled = true)) }) { Text("✨ 只抖尖端") }
-            TextButton(onClick = { update(TapNestImpulse(enabled = true, amplitude = 9f, count = 1, damping = .65f)) }) { Text("🐶 轻抖耳尖") }
-            TextButton(onClick = { update(TapNestImpulse(enabled = true, scope = TapNestMotionScope.WHOLE, amplitude = 35f, count = 1, durationMs = 900L)) }) { Text("🐕 快速甩尾") }
-        }
         TapNestMotionScope.entries.forEach { scope ->
             FilterChip(value.scope == scope, { update(value.copy(scope = scope)) }, label = {
                 Text(when(scope) { TapNestMotionScope.WHOLE -> "整段运动"; TapNestMotionScope.DISTAL -> "中后段运动"; TapNestMotionScope.TIP -> "只抖尖端" })
             })
         }
-        BindingSlider("摆动幅度", value.amplitude, 0f, 55f) { update(value.copy(amplitude = it)) }
-        BindingSlider("动作速度", value.speed, .5f, 6f) { update(value.copy(speed = it)) }
         BindingSlider("柔软度", value.softness, 0f, 1f) { update(value.copy(softness = it)) }
         BindingSlider("回弹阻尼", value.damping, .1f, 1.3f) { update(value.copy(damping = it)) }
-        BindingSlider("抖动次数", value.count.toFloat(), 1f, 6f) { update(value.copy(count = it.toInt())) }
-        BindingSlider("持续时间（毫秒）", value.durationMs.toFloat(), 200f, 3000f) { update(value.copy(durationMs = it.toLong())) }
+
     }
 }
 

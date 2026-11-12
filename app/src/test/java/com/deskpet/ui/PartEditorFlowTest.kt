@@ -17,7 +17,7 @@ class PartEditorFlowTest {
 
     @Test fun flexibleMotionBranchHasItsOwnBackPath() {
         val route = PartEditorFlow(trigger = PartTrigger.TAP).next(PartEditorStep.ENABLE)
-            .next(PartEditorStep.TYPE).next(PartEditorStep.MOTION).next(PartEditorStep.FLEX)
+            .next(PartEditorStep.TYPE).next(PartEditorStep.ANCHOR).next(PartEditorStep.MOTION).next(PartEditorStep.FLEX)
             .next(PartEditorStep.BONES).next(PartEditorStep.SUMMARY)
         assertEquals(PartEditorStep.BONES, route.back().step)
         assertEquals(PartEditorStep.FLEX, route.back().back().step)

@@ -7,7 +7,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.deskpet.engine.*
 
-internal enum class PartEditorStep { SELECT, ENABLE, TYPE, FRAME, MOTION, FLEX, BONES, SUMMARY, POSITION, MATERIAL }
+internal enum class PartEditorStep { SELECT, ENABLE, TYPE, FRAME, ANCHOR, MOTION, FLEX, BONES, SUMMARY, POSITION, MATERIAL }
 
 /** Explicit route history: Back follows the path the user actually chose. */
 internal data class PartEditorFlow(
@@ -66,9 +66,10 @@ internal fun PartFlowHeader(flow: PartEditorFlow) {
         PartEditorStep.ENABLE -> "是否开启"
         PartEditorStep.TYPE -> "选择动作表现"
         PartEditorStep.FRAME -> "上传或选择目标帧"
-        PartEditorStep.MOTION -> "设置怎么摇"
-        PartEditorStep.FLEX -> "选择是否使用柔性点"
-        PartEditorStep.BONES -> "绑定和调整柔性点"
+        PartEditorStep.ANCHOR -> "放置固定锚点"
+        PartEditorStep.MOTION -> "方向、幅度与速度"
+        PartEditorStep.FLEX -> "是否需要柔性弯曲"
+        PartEditorStep.BONES -> "骨链与柔性效果"
         PartEditorStep.SUMMARY -> "测试并保存"
         PartEditorStep.POSITION -> "位置与大小"
         PartEditorStep.MATERIAL -> "素材与名称"
