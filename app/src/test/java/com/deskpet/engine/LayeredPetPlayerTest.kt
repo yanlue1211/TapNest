@@ -35,6 +35,36 @@ class LayeredPetPlayerTest {
         return file
     }
 
+    @Test fun grabbedPuppyEarCanSwingAboveOriginalCanvasWithoutBeingCutOff() {
+        val file = tmp.newFile("top_ear.png")
+        val art = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888)
+        art.eraseColor(Color.TRANSPARENT)
+        for (y in 0..6) for (x in 0..9) art.setPixel(x, y, Color.BLUE)
+        file.outputStream().use { art.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        art.recycle()
+        val rig = TapNestRig(canvasWidth = 64, canvasHeight = 64,
+            layers = listOf(TapNestLayer("body", "top_ear.png")))
+        val cfg = tmp.newFile("top_ear_rig.json").apply { writeText(Json.encodeToString(rig)) }
+        val player = requireNotNull(LayeredPetPlayer.load(cfg))
+        val neutral = player.render()
+        assertTrue("must have upper room above the source PNG", player.topInset >= 10)
+        assertEquals(Color.BLUE, neutral.getPixel(5, player.topInset + 3))
+        assertEquals(0, Color.alpha(neutral.getPixel(5, 0)))
+        player.setPickedUp(true)
+        android.os.SystemClock.sleep(200L) // 8° tilt; top-left ear travels above y=0.
+        val tilted = player.render()
+        val above = (0 until player.topInset).any { y ->
+            (0 until player.width).any { x ->
+                val pixel = tilted.getPixel(x, y)
+                Color.alpha(pixel) > 80 && Color.blue(pixel) > 180
+            }
+        }
+        assertTrue("ear tips must remain visible in the new transparent safe strip", above)
+        player.setPickedUp(false)
+        val restored = player.render()
+        assertEquals(Color.BLUE, restored.getPixel(5, player.topInset + 3))
+    }
+
     @Test fun longPickupArtShowsTailWithoutShrinkingOrMovingHead() {
         png("body.png", Color.GREEN)
         val file = tmp.newFile("long_pose.png")
