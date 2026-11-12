@@ -119,6 +119,8 @@ data class TapNestLayer(
     val image: String,
     /** Human-readable label, including Chinese; id remains safe ASCII for local filenames. */
     val displayName: String = "",
+    /** Opt-in outfit PNG: follows the body's transform, clips and mesh directly. */
+    val bodyLinkedClothing: Boolean = false,
     /** Reflect the whole part across the character canvas' vertical centre. */
     val mirrorX: Boolean = false,
     /** Reflect the drive when the artwork has already been drawn for this side. */
