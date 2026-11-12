@@ -13,6 +13,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.IntOffset
 import com.deskpet.engine.AnimationController
 
 @Composable
@@ -37,7 +38,9 @@ fun PetOverlayRenderer(
                 val wPx = size.width.toInt().coerceAtLeast(1)
                 val hPx = (size.width * it.height / it.width.coerceAtLeast(1))
                     .toInt().coerceAtLeast(1)
-                drawImage(it, dstSize = IntSize(wPx, hPx))
+                val sourceInset = (size.width * (frame?.topInset ?: 0) / it.width.coerceAtLeast(1)).toInt()
+                drawImage(it, dstOffset = IntOffset(0, anim.renderTopInset - sourceInset),
+                    dstSize = IntSize(wPx, hPx))
             }
         }
     }

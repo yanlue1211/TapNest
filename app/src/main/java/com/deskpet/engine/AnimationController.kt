@@ -18,7 +18,7 @@ class AnimationController(
      * StateFlow 按 equals 去重，若直接发 Bitmap，双缓冲复用同一对象时不会触发重组；
      * seq 保证每帧都是"新值"，位图可以放心复用。
      */
-    data class Frame(val bitmap: Bitmap, val seq: Long)
+    data class Frame(val bitmap: Bitmap, val seq: Long, val topInset: Int = 0)
 
     companion object {
         private const val IDLE_FRAME_INTERVAL_NS = 500_000_000L
@@ -163,7 +163,8 @@ class AnimationController(
                 }
                 if (visual != null && visual.expired()) actionVisual = null
                 if (bitmap != null && generation == visualGeneration.get()) {
-                    _frame.value = Frame(bitmap, ++frameSeq)
+                    _frame.value = Frame(bitmap, ++frameSeq,
+                        if (visual == null) (l as? PetEngine.PetLoader.Layered)?.player?.topInset ?: 0 else 0)
                 }
                 fi++
                 val tf = petEngine.getFrameCount(l, _state.value)
@@ -239,7 +240,7 @@ class AnimationController(
         layered.player.setPickedUp(held)
         layeredPickedUp = held
         if (held) layered.player.preparedPickupFrame?.let {
-            _frame.value = Frame(it, ++frameSeq)
+            _frame.value = Frame(it, ++frameSeq, baseTopInset)
         }
         // Compose's overlay Box changes only its height; TOP/LEFT WindowManager
         // gravity + stable x/y keep the head at exactly its prior position.
@@ -289,7 +290,7 @@ class AnimationController(
         transparentTopFraction = top
         reset()
         applyScale()
-        _frame.value = Frame(first, ++frameSeq)
+        _frame.value = Frame(first, ++frameSeq, baseTopInset)
         start()
         true
     }
