@@ -494,7 +494,7 @@ internal fun LayeredRigPreview(
                 jointAngles != null && jointAngles.isNotEmpty()) {
                 val root = skinLayer.bones.first()
                 native.save()
-                native.rotate(jointAngles[0], root.x.coerceIn(0f, 1f) * art.width,
+                native.rotate(jointAngles[0] * if (skinLayer.reflectedMotion) -1f else 1f, root.x.coerceIn(0f, 1f) * art.width,
                     root.y.coerceIn(0f, 1f) * art.height)
                 native.drawBitmap(art.bitmap, null,
                     RectF(0f, 0f, art.width.toFloat(), art.height.toFloat()), paint)

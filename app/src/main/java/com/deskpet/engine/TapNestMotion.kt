@@ -163,12 +163,7 @@ data class TapNestLayer(
     val interactionConfigured: Boolean = false,
     /** Motion settings are edited on the owner/default-frame screen. */
     val tapShake: Boolean = false,
-    /** Opt in when editing basic parameters; preserve legacy clips otherwise. */
-    val tapBasicConfigured: Boolean = false,
-    val periodicBasicConfigured: Boolean = false,
-    val tapFlexible: TapNestImpulse = TapNestImpulse(),
-    val periodicFlexible: TapNestImpulse = TapNestImpulse(),
-    val tapMotion: TapNestPartMotion = TapNestPartMotion.NOD,
+    /** Opt in when ed…70 tokens truncated…    val tapMotion: TapNestPartMotion = TapNestPartMotion.NOD,
     /** Hat flight height as fraction of the full PNG canvas (e.g. .22 = 22%). */
     val hatFlightHeight: Float = 0.22f,
     /** Null keeps the previous shared tap/periodic motion for existing saves. */

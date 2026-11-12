@@ -299,7 +299,7 @@ class LayeredPetPlayer private constructor(
                 // through mesh cells, preserving heavy artwork outlines exactly.
                 val root = skinLayer.bones.first()
                 canvas.save()
-                canvas.rotate(jointAngles[0], root.x.coerceIn(0f, 1f) * source.first,
+                canvas.rotate(jointAngles[0] * if (skinLayer.reflectedMotion) -1f else 1f, root.x.coerceIn(0f, 1f) * source.first,
                     root.y.coerceIn(0f, 1f) * source.second)
                 canvas.drawBitmap(picture, null,
                     RectF(0f, 0f, source.first.toFloat(), source.second.toFloat()), paint)
