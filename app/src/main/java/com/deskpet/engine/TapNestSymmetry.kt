@@ -29,6 +29,25 @@ object TapNestSymmetry {
      * original shared PNG still mirrors until the user replaces it.
      * Imported art follows the recommended same-size transparent canvas.
      */
+    /** Copy animation configuration, preserving the partner's art, placement and identity. */
+    fun synchronizedMotion(source: TapNestLayer, target: TapNestLayer): TapNestLayer = target.copy(
+        syncPairedAll = true, syncPairedPeriodic = true,
+        bones = source.bones, tapBones = source.tapBones, periodicBones = source.periodicBones, idleBones = source.idleBones,
+        idleSwing = source.idleSwing, idleFlexibleEnabled = source.idleFlexibleEnabled,
+        idleScope = source.idleScope, idleAmplitude = source.idleAmplitude, idleSpeed = source.idleSpeed,
+        idleLagSeconds = source.idleLagSeconds, swingMode = source.swingMode, springVersion = source.springVersion,
+        springSoftness = source.springSoftness, springDamping = source.springDamping,
+        shapePreservation = source.shapePreservation, swingRange = source.swingRange,
+        interactionConfigured = source.interactionConfigured, tapShake = source.tapShake,
+        tapFlexible = source.tapFlexible, periodicFlexible = source.periodicFlexible,
+        tapBasicConfigured = source.tapBasicConfigured, periodicBasicConfigured = source.periodicBasicConfigured,
+        tapMotion = source.tapMotion, periodicMotion = source.periodicMotion,
+        periodicEnabled = source.periodicEnabled, periodicIntervalSeconds = source.periodicIntervalSeconds,
+        periodicAction = source.periodicAction, periodicSwitchFrame = source.periodicSwitchFrame,
+        tapSwitchFrame = source.tapSwitchFrame, tapFrame = source.tapFrame, periodicFrame = source.periodicFrame,
+        hatFlightHeight = source.hatFlightHeight
+    )
+
     fun independentArtwork(layer: TapNestLayer): TapNestLayer {
         if (!layer.mirrorX || layer.mirroredFromId == null) return layer
         return layer.copy(

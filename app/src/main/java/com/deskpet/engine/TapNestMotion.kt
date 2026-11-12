@@ -138,6 +138,7 @@ data class TapNestLayer(
     val periodicSwitchFrame: Boolean = false,
     /** Left/right ear and wing pairs share one idle action clock unless disabled. */
     val syncPairedPeriodic: Boolean = true,
+    val syncPairedAll: Boolean = false,
     val idleBlinkEnabled: Boolean = false,
     val blinkFrame: Int = 1
 )

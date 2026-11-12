@@ -140,6 +140,11 @@ fun LayeredPetEditor(
 
     fun saveEditor(returnToParts: Boolean) {
         if (busy) return
+        val sourcePart = rig.layers.firstOrNull { it.id == activeLayer && it.syncPairedAll }
+        if (sourcePart != null) rig = rig.copy(layers = rig.layers.map {
+            if (it.frameOwner == null && (it.mirroredFromId == sourcePart.id || sourcePart.mirroredFromId == it.id))
+                TapNestSymmetry.synchronizedMotion(sourcePart, it) else it
+        })
         busy = true
         error = null
         scope.launch {
@@ -609,7 +614,14 @@ fun LayeredPetEditor(
                         val next = if (partFlow.trigger.separate(original)) {
                             partFlow.trigger.withBones(p.copy(bones = original.bones), p.bones)
                         } else p
-                        rig = rig.copy(layers = rig.layers.map { if (it.id == activeLayer) next else it })
+                        rig = rig.copy(layers = rig.layers.map {
+                            when {
+                                it.id == activeLayer -> next
+                                it.frameOwner == null && (it.mirroredFromId == activeLayer || next.mirroredFromId == it.id) ->
+                                    if (next.syncPairedAll) TapNestSymmetry.synchronizedMotion(next, it) else it.copy(syncPairedAll = false)
+                                else -> it
+                            }
+                        })
                     }
                     fun go(step: PartEditorStep) {
                         partFlow = partFlow.next(step)
@@ -625,6 +637,12 @@ fun LayeredPetEditor(
                     PartFlowHeader(partFlow)
                     when (partFlow.step) {
                         PartEditorStep.SELECT -> {
+                            if (rig.layers.any { it.frameOwner == null && (it.mirroredFromId == activeLayer || layer.mirroredFromId == it.id) }) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("对称两侧完全同步", Modifier.weight(1f))
+                                    Switch(layer.syncPairedAll, { update(layer.copy(syncPairedAll = it)) })
+                                }
+                            }
                             Text("先选要设置的动作", style = MaterialTheme.typography.titleMedium)
                             PartTrigger.entries.forEach { trigger ->
                                 FlowChoice(trigger.label, trigger.description) {
