@@ -295,7 +295,8 @@ class LayeredPetPlayer private constructor(
                 canvas.scale(scale * pose.scaleX, scale * pose.scaleY)
                 canvas.translate(-pivotX, -pivotY)
             }
-            paint.alpha = (poseFor(layer).alpha.coerceIn(0f, 1f) * 255).toInt()
+            val bodyOpacity = if (TapNestClothing.isLinked(layer)) nodes["body"]?.let(::poseFor)?.alpha ?: 1f else 1f
+            paint.alpha = (TapNestClothing.combinedAlpha(layer, poseFor(layer).alpha, bodyOpacity) * 255).toInt()
             val source = sourceSizes[id] ?: Pair(picture.width, picture.height)
             val drawSize = TapNestClothing.drawingSize(layer, source.first, source.second, sourceSizes["body"])
             // Alternate frames inherit their default owner's bone skinning
