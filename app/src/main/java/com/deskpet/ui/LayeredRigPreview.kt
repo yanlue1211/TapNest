@@ -457,11 +457,14 @@ internal fun LayeredRigPreview(
                 return@Canvas
             }
         }
-        for (layer in rig.layers.sortedBy { it.zIndex }) {
+        for (layer in rig.layers.sortedBy { TapNestClothing.sortZ(it, nodes) }) {
             if (layer.id == "pickup_pose") continue
-            if (!showOtherParts && layer.id != selected && layer.frameOwner != selected) continue
+            if (!showOtherParts && layer.id != selected && layer.frameOwner != selected &&
+                !(selected == "body" && TapNestClothing.isLinked(layer))) continue
             if (!visibleLayer(layer, rig.headMode, face, touched, assets, selectedFrames)) continue
             val art = assets[layer.id] ?: continue
+            val drawSize = TapNestClothing.drawingSize(layer, art.width, art.height,
+                assets["body"]?.let { it.width to it.height })
             val ancestors = mutableListOf<TapNestLayer>()
             val visited = mutableSetOf<String>()
             var node: TapNestLayer? = layer
@@ -487,7 +490,7 @@ internal fun LayeredRigPreview(
                 native.translate(-pivotX, -pivotY)
             }
             paint.alpha = (poseFor(layer.id).alpha.coerceIn(0f, 1f) * 255).toInt()
-            val skinLayer = TapNestLayerActions.skinForAction(layer.frameOwner?.let(nodes::get) ?: layer, rig.layers, (now - previewStartedAt).coerceAtLeast(0L), touchElapsed)
+            val skinLayer = TapNestLayerActions.skinForAction(TapNestClothing.skinOwner(layer, nodes), rig.layers, (now - previewStartedAt).coerceAtLeast(0L), touchElapsed)
             val spring = mode == RigPreviewMode.TEST && skinLayer.idleSwing && skinLayer.idleFlexibleEnabled &&
                 skinLayer.bones.size >= 2 && skinLayer.swingMode == TapNestSwingMode.SPRING
             val resolution = if (spring) TapNestFlexibleMesh.SPRING_GRID else TapNestFlexibleMesh.GRID
@@ -509,14 +512,14 @@ internal fun LayeredRigPreview(
                 jointAngles != null && jointAngles.isNotEmpty()) {
                 val root = skinLayer.bones.first()
                 native.save()
-                native.rotate(jointAngles[0] * if (skinLayer.reflectedMotion) -1f else 1f, root.x.coerceIn(0f, 1f) * art.width,
-                    root.y.coerceIn(0f, 1f) * art.height)
+                native.rotate(jointAngles[0] * if (skinLayer.reflectedMotion) -1f else 1f, root.x.coerceIn(0f, 1f) * drawSize.first,
+                    root.y.coerceIn(0f, 1f) * drawSize.second)
                 native.drawBitmap(art.bitmap, null,
-                    RectF(0f, 0f, art.width.toFloat(), art.height.toFloat()), paint)
+                    RectF(0f, 0f, drawSize.first.toFloat(), drawSize.second.toFloat()), paint)
                 native.restore()
             } else {
                 val mesh = if (mode == RigPreviewMode.TEST) TapNestFlexibleMesh.vertices(
-                    if (impulseActive) skinLayer.copy(shapePreservation = 0f) else skinLayer, art.width, art.height, elapsed, resolution, jointAngles, extraAngles,
+                    if (impulseActive) skinLayer.copy(shapePreservation = 0f) else skinLayer, drawSize.first, drawSize.second, elapsed, resolution, jointAngles, extraAngles,
                     // Identical motion motor/mesh path as the floating overlay.
                     angleDriveAmplitude = if (spring && !impulseActive &&
                         skinLayer.idlePlane.enabled && !skinLayer.idlePlane.linear) 0f
@@ -525,7 +528,7 @@ internal fun LayeredRigPreview(
                 if (mesh != null) {
                     native.drawBitmapMesh(art.bitmap, resolution, resolution, mesh, 0, null, 0, paint)
                 } else native.drawBitmap(art.bitmap, null,
-                    RectF(0f, 0f, art.width.toFloat(), art.height.toFloat()), paint)
+                    RectF(0f, 0f, drawSize.first.toFloat(), drawSize.second.toFloat()), paint)
             }
             if (mode != RigPreviewMode.TEST && selected == layer.id) {
                 val accent = Paint(Paint.ANTI_ALIAS_FLAG).apply {
