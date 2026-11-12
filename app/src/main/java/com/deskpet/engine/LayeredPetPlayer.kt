@@ -248,7 +248,7 @@ class LayeredPetPlayer private constructor(
             }
             return p
         }
-        for (layer in drawingLayers) {
+        for (layer in drawingLayers.sortedBy { TapNestClothing.sortZ(it, nodes) }) {
             val id = layer.id
             val visible = when {
                 id == "pickup_pose" -> false // Dedicated art is visible only while held.
@@ -297,10 +297,11 @@ class LayeredPetPlayer private constructor(
             }
             paint.alpha = (poseFor(layer).alpha.coerceIn(0f, 1f) * 255).toInt()
             val source = sourceSizes[id] ?: Pair(picture.width, picture.height)
+            val drawSize = TapNestClothing.drawingSize(layer, source.first, source.second, sourceSizes["body"])
             // Alternate frames inherit their default owner's bone skinning
             // as well as the parent transform; changing a frame must not freeze
             // the wing/tail while its idle spring continues to run.
-            val skinLayer = TapNestLayerActions.skinForAction(layer.frameOwner?.let(nodes::get) ?: layer, rig.layers, now - launchedAtMs, elapsed)
+            val skinLayer = TapNestLayerActions.skinForAction(TapNestClothing.skinOwner(layer, nodes), rig.layers, now - launchedAtMs, elapsed)
             val spring = skinLayer.idleSwing && skinLayer.idleFlexibleEnabled && skinLayer.bones.size >= 2 &&
                 skinLayer.swingMode == TapNestSwingMode.SPRING
             val mesh = if (spring) TapNestFlexibleMesh.SPRING_GRID else TapNestFlexibleMesh.GRID
@@ -323,14 +324,14 @@ class LayeredPetPlayer private constructor(
                 // through mesh cells, preserving heavy artwork outlines exactly.
                 val root = skinLayer.bones.first()
                 canvas.save()
-                canvas.rotate(jointAngles[0] * if (skinLayer.reflectedMotion) -1f else 1f, root.x.coerceIn(0f, 1f) * source.first,
-                    root.y.coerceIn(0f, 1f) * source.second)
+                canvas.rotate(jointAngles[0] * if (skinLayer.reflectedMotion) -1f else 1f, root.x.coerceIn(0f, 1f) * drawSize.first,
+                    root.y.coerceIn(0f, 1f) * drawSize.second)
                 canvas.drawBitmap(picture, null,
-                    RectF(0f, 0f, source.first.toFloat(), source.second.toFloat()), paint)
+                    RectF(0f, 0f, drawSize.first.toFloat(), drawSize.second.toFloat()), paint)
                 canvas.restore()
             } else {
                 val flexible = if (held) null else TapNestFlexibleMesh.vertices(
-                    if (impulseActive) skinLayer.copy(shapePreservation = 0f) else skinLayer, source.first, source.second, now - launchedAtMs, mesh, jointAngles, extraAngles,
+                    if (impulseActive) skinLayer.copy(shapePreservation = 0f) else skinLayer, drawSize.first, drawSize.second, now - launchedAtMs, mesh, jointAngles, extraAngles,
                     // The spring motor already respects the configured angle
                     // window. Never divide its bounded output by the original
                     // overlarge slider amplitude a SECOND time in the mesh.
@@ -343,7 +344,7 @@ class LayeredPetPlayer private constructor(
                     canvas.drawBitmapMesh(picture, mesh, mesh, flexible, 0, null, 0, paint)
                 } else {
                     canvas.drawBitmap(picture, null,
-                        RectF(0f, 0f, source.first.toFloat(), source.second.toFloat()), paint)
+                        RectF(0f, 0f, drawSize.first.toFloat(), drawSize.second.toFloat()), paint)
                 }
             }
             canvas.restore()
