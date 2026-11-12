@@ -237,10 +237,12 @@ class LayeredPetPlayer private constructor(
             // A single-point or rigid limb rocks around its chosen pivot.
             // A multi-point limb is skinned by the mesh instead.
             if (node.idleSwing && (((node.idleBones ?: node.bones).size < 2 && (node.idleBoneChains ?: node.boneChains).none { it.bones.size >= 2 }) || !node.idleFlexibleEnabled)) {
-                val wave = sin(((now - launchedAtMs) / 1000.0 *
-                    node.idleSpeed.coerceIn(0.1f, 3f) * 2 * PI)).toFloat()
-                val swingSign = TapNestSymmetry.idleSwingSign(node)
-                val amount = wave * node.idleAmplitude.coerceIn(0f, 85f) * swingSign * if (node.reflectedMotion != node.idleStartReversed) -1f else 1f
+                val phase = (now - launchedAtMs) / 1000.0 *
+                    node.idleSpeed.coerceIn(0.1f, 3f) * 2 * PI
+                val swingSign = TapNestSymmetry.idleSwingSign(node) *
+                    if (node.reflectedMotion != node.idleStartReversed) -1f else 1f
+                val amount = TapNestSwingBounds.periodicDrive(phase,
+                    node.idleAmplitude.coerceIn(0f, 85f), node.idlePlane, swingSign)
                 val motion = if (node.idlePlane.enabled) TapNestLayerActions.planePose(amount, node.idlePlane, node.idleAmplitude.coerceIn(0f, 85f)) else TapNestPose(angle = amount)
                 p = p.copy(x = p.x + motion.x, y = p.y + motion.y, angle = p.angle + motion.angle)
             }
