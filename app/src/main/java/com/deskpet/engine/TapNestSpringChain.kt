@@ -51,16 +51,26 @@ class TapNestSpringChain {
         val outwardSign = (if ((if (dx >= 0f) 1 else -1) *
             (if (dy <= 0f) 1 else -1) >= 0) 1f else -1f) * startSign
         val oneSided = layer.swingRange == TapNestSwingRange.OUTWARD_ONLY
-        fun driver(timeMs: Double): Float {
-            val phase = driveOmega * timeMs / 1000.0
-            return if (oneSided) {
-                // 0..amplitude outward from the authored rest position.
-                (outwardSign * amplitude * 0.5 * (1.0 - kotlin.math.cos(phase))).toFloat()
-            } else (startSign * amplitude * sin(phase)).toFloat()
+        // Bound the MOTOR, not the final textured tail. If a 75° spring is
+        // driven into a 15° range and only clipped after spring integration,
+        // its hidden 75° inertia makes the visible tail stick to the boundary.
+        // Scaling each signed half-cycle keeps the same phase and changes only
+        // its reach; one-sided, reverse and asymmetric ranges all share it.
+        fun motor(phase: Double, targetAmplitude: Double): Float {
+            val raw = if (oneSided)
+                outwardSign * targetAmplitude * .5 * (1.0 - kotlin.math.cos(phase))
+            else startSign * targetAmplitude * sin(phase)
+            return TapNestSwingBounds.limitAngle(raw.toFloat(), layer.idlePlane,
+                targetAmplitude.toFloat())
         }
+        fun driver(timeMs: Double) = motor(driveOmega * timeMs / 1000.0, amplitude)
 
         val resetNeeded = lastLayer?.bones != layer.bones ||
-            lastLayer?.idleStartReversed != layer.idleStartReversed || count != orientations.size ||
+            lastLayer?.idleStartReversed != layer.idleStartReversed ||
+            lastLayer?.idlePlane != layer.idlePlane ||
+            lastLayer?.swingRange != layer.swingRange ||
+            lastLayer?.springVersion != layer.springVersion ||
+            lastLayer?.idleSpeed != layer.idleSpeed || count != orientations.size ||
             previousTimeMs < 0L || now < previousTimeMs ||
             now - previousTimeMs > 600L
         if (resetNeeded) {
@@ -87,10 +97,8 @@ class TapNestSpringChain {
                     driveAmplitude += (amplitude - driveAmplitude) * (1.0 - kotlin.math.exp(-8.0 * dt))
                 } else orientations[0] = driver(t)
                 for (i in (if (improved) 0 else 1) until count) {
-                    val target = if (i == 0) {
-                        if (oneSided) outwardSign * driveAmplitude * .5 * (1.0 - kotlin.math.cos(drivePhase))
-                        else startSign * driveAmplitude * sin(drivePhase)
-                    } else orientations[i - 1].toDouble()
+                    val target = if (i == 0) motor(drivePhase, driveAmplitude).toDouble()
+                        else orientations[i - 1].toDouble()
                     val omega = if (improved) springOmega *
                         (if (i == 0) 1.8 else 1.0 - .25 * i / count) else springOmega
                     val angle = orientations[i].toDouble()
@@ -99,12 +107,26 @@ class TapNestSpringChain {
                         2.0 * damping * omega * velocity
                     var newVelocity = (velocity + acceleration * dt).coerceIn(-550.0, 550.0)
                     var newAngle = (angle + newVelocity * dt).coerceIn(-100.0, 100.0)
+                    // Spring overshoot should rebound on contact rather than
+                    // spend dozens of frames at the same post-mesh hard limit.
+                    // Do not run this on unbounded/linear legacy motions.
+                    val plane = layer.idlePlane
+                    if (plane.enabled && !plane.linear) {
+                        val upper = plane.positiveLimit.coerceIn(0f, 180f).toDouble()
+                        val lower = -plane.negativeLimit.coerceIn(0f, 180f).toDouble()
+                        if (newAngle > upper) {
+                            newAngle = upper
+                            if (newVelocity > 0.0) newVelocity *= -.22
+                        } else if (newAngle < lower) {
+                            newAngle = lower
+                            if (newVelocity < 0.0) newVelocity *= -.22
+                        }
+                    }
                     if (oneSided) {
-                        // Keep all segments on their outward side of rest,
-                        // including under low damping / spring overshoot.
+                        // One-sided presets also rebound at their rest pose.
                         if (newAngle * outwardSign < 0.0) {
                             newAngle = 0.0
-                            if (newVelocity * outwardSign < 0.0) newVelocity = 0.0
+                            if (newVelocity * outwardSign < 0.0) newVelocity *= -.22
                         }
                     }
                     orientations[i] = newAngle.toFloat()
