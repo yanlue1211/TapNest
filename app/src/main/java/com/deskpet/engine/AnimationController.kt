@@ -84,6 +84,10 @@ class AnimationController(
     @Volatile private var layeredPickedUp = false
     // Window geometry follows the frame that has actually been published.
     @Volatile private var presentedLayeredPickedUp = false
+    // Android WindowManager may resize the surface one frame AFTER Compose has
+    // published a matching bitmap+viewport. Keep the tall viewport briefly
+    // while already displaying normal-size frames to avoid a stretched sitter.
+    private val pickupReleaseViewport = TapNestPickupReleaseViewport()
     /** Original-height bounds are retained during dragging so the head never jumps. */
     val normalPetHeight: Int
         get() = (baseH * s).toInt().coerceAtLeast(MIN_PET_SIZE_PX)
@@ -114,6 +118,7 @@ class AnimationController(
             ?.player?.pickupHeight ?: h
         layeredPickedUp = false
         presentedLayeredPickedUp = false
+        pickupReleaseViewport.cancel()
         // PNG originals and layered rigs often have substantial transparent
         // canvas above the character. The WindowManager window may need to move
         // further than safeBounds.top to get the DRAWN HEAD up to the top.
@@ -176,8 +181,13 @@ class AnimationController(
                     _frame.value = Frame(bitmap, ++frameSeq,
                         if (visual == null) (l as? PetEngine.PetLoader.Layered)?.player?.topInset ?: 0 else 0)
                     if (l is PetEngine.PetLoader.Layered && presentedLayeredPickedUp != layeredPickedUp) {
-                        presentedLayeredPickedUp = layeredPickedUp
-                        applyScale(publish = false)
+                        // First publish a few NORMAL bitmaps into the still-tall
+                        // window; shrinking its Android Surface while it still
+                        // holds a long pickup image is not atomic on all ROMs.
+                        if (layeredPickedUp || pickupReleaseViewport.canCollapseAfterNormalFrame()) {
+                            presentedLayeredPickedUp = layeredPickedUp
+                            applyScale(publish = false)
+                        }
                     }
                     publishPresentation()
                 }
@@ -259,6 +269,7 @@ class AnimationController(
         visualGeneration.incrementAndGet()
         layered.player.setPickedUp(held)
         layeredPickedUp = held
+        if (held) pickupReleaseViewport.cancel() else pickupReleaseViewport.beginRelease()
         if (held) layered.player.preparedPickupFrame?.let {
             _frame.value = Frame(it, ++frameSeq, baseTopInset)
             presentedLayeredPickedUp = true
@@ -310,6 +321,7 @@ class AnimationController(
         basePickupH = next.player.pickupHeight
         layeredPickedUp = false
         presentedLayeredPickedUp = false
+        pickupReleaseViewport.cancel()
         transparentTopFraction = top
         reset()
         _frame.value = Frame(first, ++frameSeq, baseTopInset)
