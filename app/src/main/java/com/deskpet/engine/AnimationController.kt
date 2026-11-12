@@ -51,6 +51,7 @@ class AnimationController(
     private val _h = MutableStateFlow(PetEngine.DEFAULT_PET_HEIGHT)
     val petHeight: StateFlow<Int> = _h
 
+    private val visualGeneration = java.util.concurrent.atomic.AtomicLong()
     @Volatile private var fi = 0
     @Volatile private var pc = 0
 
@@ -71,6 +72,8 @@ class AnimationController(
     private var s = 1f
     private var baseW = PetEngine.DEFAULT_PET_WIDTH
     private var baseH = PetEngine.DEFAULT_PET_HEIGHT
+    private var baseTopInset = 0
+    val renderTopInset: Int get() = (baseTopInset * s).toInt()
     private var basePickupH = PetEngine.DEFAULT_PET_HEIGHT
     @Volatile private var layeredPickedUp = false
     /** Original-height bounds are retained during dragging so the head never jumps. */
@@ -97,6 +100,7 @@ class AnimationController(
         val (w, h) = petEngine.getPetSize(active)
         baseW = w
         baseH = h
+        baseTopInset = (active as? PetEngine.PetLoader.Layered)?.player?.topInset ?: 0
         basePickupH = (active as? PetEngine.PetLoader.Layered)
             ?.player?.pickupHeight ?: h
         layeredPickedUp = false
@@ -108,7 +112,10 @@ class AnimationController(
             is PetEngine.PetLoader.Png ->
                 PetVisibleBounds.transparentTopFraction(active.bitmap)
             is PetEngine.PetLoader.Layered ->
-                PetVisibleBounds.transparentTopFraction(active.player.render())
+                active.player.render().let { frame ->
+                    ((PetVisibleBounds.transparentTopFraction(frame) * frame.height - baseTopInset) /
+                        baseH.coerceAtLeast(1)).coerceIn(0f, 1f)
+                }
             else -> 0f
         }
         frameSeq = 0
@@ -146,6 +153,7 @@ class AnimationController(
                     lifeInteraction = null
                     (l as? PetEngine.PetLoader.Layered)?.player?.lifeInteraction = null
                 }
+                val generation = visualGeneration.get()
                 val bitmap = withContext(Dispatchers.IO) {
                     val source = if (visual != null && !visual.expired()) visual.frame()
                     else petEngine.getCurrentFrame(l, _state.value, fi)
@@ -153,7 +161,7 @@ class AnimationController(
                         interaction.render(source, android.os.SystemClock.uptimeMillis()) else source
                 }
                 if (visual != null && visual.expired()) actionVisual = null
-                if (bitmap != null) {
+                if (bitmap != null && generation == visualGeneration.get()) {
                     _frame.value = Frame(bitmap, ++frameSeq)
                 }
                 fi++
@@ -226,8 +234,12 @@ class AnimationController(
     fun setLayeredPickedUp(held: Boolean) {
         if (held) cancelInteraction()
         val layered = (loader as? PetEngine.PetLoader.Layered) ?: return
+        visualGeneration.incrementAndGet()
         layered.player.setPickedUp(held)
         layeredPickedUp = held
+        if (held) layered.player.preparedPickupFrame?.let {
+            _frame.value = Frame(it, ++frameSeq)
+        }
         // Compose's overlay Box changes only its height; TOP/LEFT WindowManager
         // gravity + stable x/y keep the head at exactly its prior position.
         applyScale()
@@ -262,11 +274,15 @@ class AnimationController(
         val next = withContext(Dispatchers.IO) { petEngine.createLoader(p) as? PetEngine.PetLoader.Layered }
             ?: return@withLock false
         val first = withContext(Dispatchers.IO) { next.player.render() }
-        val top = withContext(Dispatchers.IO) { PetVisibleBounds.transparentTopFraction(first) }
+        val top = withContext(Dispatchers.IO) {
+            ((PetVisibleBounds.transparentTopFraction(first) * first.height - next.player.topInset) /
+                next.player.height.coerceAtLeast(1)).coerceIn(0f, 1f)
+        }
         stop()
         loader = next
         baseW = next.player.width
         baseH = next.player.height
+        baseTopInset = next.player.topInset
         basePickupH = next.player.pickupHeight
         layeredPickedUp = false
         transparentTopFraction = top

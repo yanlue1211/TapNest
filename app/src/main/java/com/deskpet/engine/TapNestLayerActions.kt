@@ -94,6 +94,29 @@ object TapNestLayerActions {
         }
     }
 
+    /** Extra transparent pixels ABOVE the authored canvas; authored coordinates never move. */
+    fun flightTopInset(rig: TapNestRig): Int {
+        val flight = rig.layers.filter { it.frameOwner == null && it.interactionConfigured &&
+            ((it.tapShake && !it.tapFlexible.enabled && it.tapMotion == TapNestPartMotion.HAT_POP) ||
+             (it.periodicEnabled && !it.periodicFlexible.enabled &&
+              it.periodicAction == TapNestPeriodicAction.SHAKE &&
+              (it.periodicMotion ?: it.tapMotion) == TapNestPartMotion.HAT_POP)) }
+            .maxOfOrNull { layer ->
+                // Account for cumulative parent scaling; cap malformed/cyclic rigs.
+                val visited = mutableSetOf<String>()
+                var parent = layer.parentId
+                var scale = 1f
+                while (parent != null && visited.add(parent) && visited.size <= 32) {
+                    val node = rig.layers.firstOrNull { it.id == parent } ?: break
+                    scale *= node.restScale.coerceIn(.1f, 4f)
+                    parent = node.parentId
+                }
+                (layer.hatFlightHeight.coerceIn(.08f, .4f) + .12f) *
+                    rig.canvasHeight * scale.coerceAtMost(4f)
+            } ?: return 0
+        return kotlin.math.ceil(flight.toDouble()).toInt().coerceIn(0, rig.canvasHeight * 3)
+    }
+
     fun frameLabel(owner: TapNestLayer, layers: List<TapNestLayer>, index: Int): String {
         val frame = if (index == 0) owner else layers.firstOrNull {
             it.frameOwner == owner.id && it.frameIndex == index
@@ -126,7 +149,7 @@ object TapNestLayerActions {
             owner.tapSwitchFrame && touchAgeMs in 0..999L -> owner.tapFrame
             // A periodic expression has higher priority than idle blinking,
             // otherwise the scene mixes two different action frames.
-            owner.periodicAction == TapNestPeriodicAction.SWITCH_FRAME &&
+            (owner.periodicAction == TapNestPeriodicAction.SWITCH_FRAME || owner.periodicSwitchFrame) &&
                 periodicElapsed(owner, allLayers, elapsedMs) != null &&
                 touchAgeMs >= 1800L -> owner.periodicFrame
             owner.idleBlinkEnabled && allowIdleBlink && touchAgeMs > 1400L &&

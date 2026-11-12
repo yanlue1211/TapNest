@@ -691,7 +691,7 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
             // 宠物位置镜像错位、拖拽方向相反、夹取越界。LEFT 对任何 locale 稳定
             gravity = Gravity.TOP or Gravity.LEFT
             x = wx.toInt()
-            y = wy.toInt()
+            y = (wy - anim.renderTopInset).toInt()
         }
         return try {
             wm.addView(cv, params)
@@ -723,7 +723,7 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         cv?.let { v ->
             (v.layoutParams as? WindowManager.LayoutParams)?.let { p ->
                 p.x = wx.toInt()
-                p.y = (wy + bounceOffset).toInt()
+                p.y = (wy + bounceOffset - anim.renderTopInset).toInt()
                 if (v is Live2DOverlayView) {
                     p.width = anim.petWidth.value
                     p.height = anim.petHeight.value

@@ -17,6 +17,7 @@ import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -79,6 +80,7 @@ fun LayeredPetEditor(
     var showBonesHelp by remember { mutableStateOf(false) }
     val pageScroll = rememberScrollState()
     var actionPage by remember(activeLayer) { mutableStateOf<String?>(null) }
+    var testRequest by remember { mutableIntStateOf(0) }
     val settingsScroll = rememberScrollState()
     val detailScroll = rememberScrollState()
     var dragUnlocked by remember(activeLayer) { mutableStateOf(false) }
@@ -171,6 +173,8 @@ fun LayeredPetEditor(
                 selectedBone = selectedBone,
                 showOtherParts = showOtherParts,
                 allowEditingDrag = dragUnlocked,
+                testRequest = testRequest,
+                testAction = actionPage,
                 onSelectBone = { selectedBone = it },
                 onSetBone = { index, bx, by ->
                     rig = rig.copy(layers = rig.layers.map { layer ->
@@ -199,7 +203,7 @@ fun LayeredPetEditor(
                         Row(Modifier.horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                             TextButton(onClick = { previewMode = RigPreviewMode.POSITION }) { Text("选择部位") }
-                            TextButton(onClick = { previewMode = RigPreviewMode.TEST }) { Text("测试动作") }
+                            TextButton(onClick = { previewMode = RigPreviewMode.TEST; testRequest++ }) { Text("测试动作") }
                             TextButton(onClick = { previewMode = RigPreviewMode.BONES; actionPage = "bones" }) { Text("编辑绑骨") }
                             TextButton(onClick = { previewMode = RigPreviewMode.PIVOT }) { Text("旋转中心") }
                             TextButton(onClick = { dragUnlocked = !dragUnlocked }) { Text(if (dragUnlocked) "锁定拖动" else "解锁拖动") }
@@ -640,15 +644,21 @@ fun LayeredPetEditor(
                 }
                 if (actionPage == null) FoldHeader("🖼️ C. 素材与动作帧", foldFrames) { foldFrames = !foldFrames }
                 if (foldFrames && actionPage == null) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    MotionFrameThumb(images[layer.id])
+                    Text("${layer.displayName.ifBlank { "默认帧" }} · 帧0", Modifier.weight(1f))
+                    TextButton(onClick = { pickingLayer = layer.id; picker.launch(arrayOf("image/png")) }) { Text("替换素材") }
+                }
                 Text("基础素材列表只放默认帧。此处可以为当前部位再传最多 3 张动作图；不上传也可以只用晃动。图片需与默认帧使用同一透明画布。",
                     style = MaterialTheme.typography.bodySmall)
                 val extraFrames = rig.layers.filter { it.frameOwner == layer.id }
                     .sortedBy { it.frameIndex }
                 extraFrames.forEach { frame ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
+                        MotionFrameThumb(images[frame.id])
                         OutlinedTextField(value = frame.displayName, onValueChange = { text ->
                             rig = rig.copy(layers = rig.layers.map { if (it.id == frame.id) it.copy(displayName = text.take(80)) else it })
-                        }, label = { Text("动作帧 ${frame.frameIndex} · 名称") }, modifier = Modifier.weight(1f))
+                        }, label = { Text("帧 ${frame.frameIndex} · ✏️ 名称") }, modifier = Modifier.weight(1f))
                         TextButton(onClick = {
                             pickingLayer = frame.id
                             picker.launch(arrayOf("image/png"))
@@ -786,6 +796,10 @@ fun LayeredPetEditor(
                                 label = { Text("短暂换帧") })
                         }
                         if (layer.periodicAction == TapNestPeriodicAction.SHAKE) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("动作同时切换帧", Modifier.weight(1f))
+                                Switch(layer.periodicSwitchFrame, { update(layer.copy(periodicSwitchFrame = it)) })
+                            }
                             Text("🌙 闲置时偶尔动作类型（与点触独立）",
                                 style = MaterialTheme.typography.bodySmall)
                             TapNestPartMotion.entries.chunked(2).forEach { row ->
@@ -806,7 +820,7 @@ fun LayeredPetEditor(
                                 }
                             }
                         }
-                        if (layer.periodicAction == TapNestPeriodicAction.SWITCH_FRAME) {
+                        if (layer.periodicAction == TapNestPeriodicAction.SWITCH_FRAME || layer.periodicSwitchFrame) {
                             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                                 for (n in 1..3) FilterChip(
                                     selected = layer.periodicFrame == n,
@@ -910,7 +924,7 @@ fun LayeredPetEditor(
                         )
                         FilterChip(
                             selected = layer.swingMode == TapNestSwingMode.SPRING,
-                            onClick = { update(layer.copy(swingMode = TapNestSwingMode.SPRING)) },
+                            onClick = { update(layer.copy(swingMode = TapNestSwingMode.SPRING, springVersion = 2)) },
                             label = { Text("🌀 弹簧惯性") }
                         )
                     }
@@ -1258,4 +1272,25 @@ private fun ImpulseSettings(value: TapNestImpulse, update: (TapNestImpulse) -> U
         BindingSlider("抖动次数", value.count.toFloat(), 1f, 6f) { update(value.copy(count = it.toInt())) }
         BindingSlider("持续时间（毫秒）", value.durationMs.toFloat(), 200f, 3000f) { update(value.copy(durationMs = it.toLong())) }
     }
+}
+
+@Composable
+private fun MotionFrameThumb(uri: Uri?) {
+    val context = LocalContext.current
+    val bitmap by produceState<android.graphics.Bitmap?>(null, uri) {
+        value = withContext(Dispatchers.IO) {
+            runCatching {
+                if (uri == null) return@runCatching null
+                val bounds = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+                context.contentResolver.openInputStream(uri)?.use { android.graphics.BitmapFactory.decodeStream(it, null, bounds) }
+                var sample = 1
+                while (kotlin.math.max(bounds.outWidth, bounds.outHeight) / sample > 80) sample *= 2
+                context.contentResolver.openInputStream(uri)?.use {
+                    android.graphics.BitmapFactory.decodeStream(it, null, android.graphics.BitmapFactory.Options().apply { inSampleSize = sample })
+                }
+            }.getOrNull()
+        }
+    }
+    val image = remember(bitmap) { bitmap?.asImageBitmap() }
+    image?.let { androidx.compose.foundation.Image(it, "动作帧缩略图", Modifier.size(40.dp)) }
 }

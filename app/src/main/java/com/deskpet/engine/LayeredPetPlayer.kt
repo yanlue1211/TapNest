@@ -37,12 +37,18 @@ class LayeredPetPlayer private constructor(
             .toInt().coerceIn(height, 2048)
     } else height
 
+    val topInset: Int = kotlin.math.ceil(TapNestLayerActions.flightTopInset(rig).toDouble() *
+        width / rig.canvasWidth.coerceAtLeast(1)).toInt()
+
     // A published Bitmap must never be cleared while the UI still draws it.
     // Two triple buffers avoid resizing/recycling frames during a drag.
-    private val frames = Array(3) { Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888) }
+    private val frames = Array(3) { Bitmap.createBitmap(width, height + topInset, Bitmap.Config.ARGB_8888) }
     private val pickupFrames = if (pickupHeight > height)
-        Array(3) { Bitmap.createBitmap(width, pickupHeight, Bitmap.Config.ARGB_8888) }
+        Array(3) { Bitmap.createBitmap(width, pickupHeight + topInset, Bitmap.Config.ARGB_8888) }
     else frames
+    /** Immutable first held frame, decoded/composited/upload-prepared during load only. */
+    internal var preparedPickupFrame: Bitmap? = null
+        private set
     private var frameIndex = 0
     private val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
     private val nodes = rig.layers.associateBy { it.id }
@@ -91,6 +97,7 @@ class LayeredPetPlayer private constructor(
         if (rig.pickupArtworkEnabled && pictures.containsKey("pickup_pose")) {
             setPickedUp(true)
             repeat(3) { render().prepareToDraw() }
+            preparedPickupFrame = render().copy(Bitmap.Config.ARGB_8888, false)?.also { it.prepareToDraw() }
             setPickedUp(false)
         }
     }
@@ -106,6 +113,7 @@ class LayeredPetPlayer private constructor(
         val frame = if (pickupPicture != null) pickupFrames[frameIndex] else frames[frameIndex]
         val canvas = Canvas(frame)
         canvas.drawColor(android.graphics.Color.TRANSPARENT, android.graphics.PorterDuff.Mode.CLEAR)
+        canvas.translate(0f, topInset.toFloat())
         val sx = width.toFloat() / rig.canvasWidth.coerceAtLeast(1)
         val sy = height.toFloat() / rig.canvasHeight.coerceAtLeast(1)
         val pickupAngle = if (held) TapNestPickupMotion.angle(

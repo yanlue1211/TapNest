@@ -97,6 +97,8 @@ data class TapNestLayer(
     val swingMode: TapNestSwingMode = TapNestSwingMode.DELAY,
     /** Higher means a softer spring, not a larger static deflection. */
     val springSoftness: Float = 0.72f,
+    /** Opt-in integrator; old saves retain their original spring response. */
+    val springVersion: Int = 1,
     /** Damping ratio: low values add overshoot; high values settle quickly. */
     val springDamping: Float = 0.40f,
     /** 0: freely bend the skin, 1: preserve the original stroke as a rigid shape. */
@@ -123,6 +125,8 @@ data class TapNestLayer(
     val periodicIntervalSeconds: Float = 7f,
     val periodicAction: TapNestPeriodicAction = TapNestPeriodicAction.SHAKE,
     val periodicFrame: Int = 1,
+    /** Additional frame switch alongside SHAKE; legacy SWITCH_FRAME stays valid. */
+    val periodicSwitchFrame: Boolean = false,
     /** Left/right ear and wing pairs share one idle action clock unless disabled. */
     val syncPairedPeriodic: Boolean = true,
     val idleBlinkEnabled: Boolean = false,

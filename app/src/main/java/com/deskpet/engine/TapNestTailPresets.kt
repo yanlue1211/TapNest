@@ -38,12 +38,22 @@ object TapNestTailPresets {
             "身体左边或右边的细长斜猫尾；在同一侧柔和摇摆、保留跟随感。",
             listOf(0, 22, 44, 66, 88), 55f, 0.44f, 0.90f, 0.38f, 0.28f,
             TapNestSwingRange.OUTWARD_ONLY)
+    ) + listOf(
+        TapNestTailPreset("soft_ear", "🐶 柔软狗耳", "低幅度、缓慢跟随；不会改变已绑点位。",
+            listOf(0, 33, 66, 100), 8f, .35f, .75f, .6f, .15f, TapNestSwingRange.CENTERED),
+        TapNestTailPreset("happy_tail", "🐕 开心摇尾巴", "连续轻快摇动，尖端保留拖尾。",
+            listOf(0, 33, 66, 100), 30f, .7f, .8f, .45f, .15f, TapNestSwingRange.CENTERED),
+        TapNestTailPreset("soft_wing", "🪽 轻柔翅膀", "小幅柔和摆动，保留手动方向设置。",
+            listOf(0, 33, 66, 100), 12f, .45f, .6f, .7f, .2f, TapNestSwingRange.CENTERED),
+        TapNestTailPreset("ribbon", "🎀 飘带自然摆动", "慢速、柔软，末端自然落后。",
+            listOf(0, 25, 50, 75, 100), 18f, .3f, .9f, .5f, .1f, TapNestSwingRange.CENTERED)
     )
 
     fun applySettings(layer: TapNestLayer, preset: TapNestTailPreset): TapNestLayer =
         layer.copy(
             idleSwing = true,
             swingMode = TapNestSwingMode.SPRING,
+            springVersion = if (preset.id in setOf("soft_ear", "happy_tail", "soft_wing", "ribbon")) 2 else layer.springVersion,
             swingRange = preset.swingRange,
             idleAmplitude = preset.amplitude,
             idleSpeed = preset.speed,

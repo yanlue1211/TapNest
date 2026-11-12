@@ -19,6 +19,8 @@ class TapNestSpringChain {
     private var previousTimeMs = -1L
     private var orientations = FloatArray(0)
     private var angularVelocities = FloatArray(0)
+    private var drivePhase = 0.0
+    private var driveAmplitude = 0.0
 
     fun reset() {
         previousTimeMs = -1L
@@ -60,6 +62,8 @@ class TapNestSpringChain {
             previousTimeMs < 0L || now < previousTimeMs ||
             now - previousTimeMs > 600L
         if (resetNeeded) {
+            drivePhase = driveOmega * now / 1000.0
+            driveAmplitude = amplitude
             val initial = driver(now.toDouble())
             orientations = FloatArray(count) { initial }
             angularVelocities = FloatArray(count)
@@ -75,13 +79,22 @@ class TapNestSpringChain {
             val start = previousTimeMs.toDouble()
             for (step in 1..steps) {
                 val t = start + step.toDouble() / steps * (now - previousTimeMs)
-                orientations[0] = driver(t)
-                for (i in 1 until count) {
-                    val target = orientations[i - 1].toDouble()
+                val improved = layer.springVersion >= 2
+                if (improved) {
+                    drivePhase += driveOmega * dt
+                    driveAmplitude += (amplitude - driveAmplitude) * (1.0 - kotlin.math.exp(-8.0 * dt))
+                } else orientations[0] = driver(t)
+                for (i in (if (improved) 0 else 1) until count) {
+                    val target = if (i == 0) {
+                        if (oneSided) outwardSign * driveAmplitude * .5 * (1.0 - kotlin.math.cos(drivePhase))
+                        else driveAmplitude * sin(drivePhase)
+                    } else orientations[i - 1].toDouble()
+                    val omega = if (improved) springOmega *
+                        (if (i == 0) 1.8 else 1.0 - .25 * i / count) else springOmega
                     val angle = orientations[i].toDouble()
                     val velocity = angularVelocities[i].toDouble()
-                    val acceleration = springOmega * springOmega * (target - angle) -
-                        2.0 * damping * springOmega * velocity
+                    val acceleration = omega * omega * (target - angle) -
+                        2.0 * damping * omega * velocity
                     var newVelocity = (velocity + acceleration * dt).coerceIn(-550.0, 550.0)
                     var newAngle = (angle + newVelocity * dt).coerceIn(-100.0, 100.0)
                     if (oneSided) {

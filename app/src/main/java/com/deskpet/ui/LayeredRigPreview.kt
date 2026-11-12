@@ -98,6 +98,8 @@ internal fun LayeredRigPreview(
     selectedBone: Int, showOtherParts: Boolean = true,
     allowEditingDrag: Boolean = false,
     pickupPreview: Boolean = false,
+    testRequest: Int = 0,
+    testAction: String? = null,
     onSelectLayer: (String) -> Unit,
     onDragLayer: (Float, Float) -> Unit,
     onSetPivot: (Float, Float) -> Unit,
@@ -153,6 +155,18 @@ internal fun LayeredRigPreview(
         }
     }
 
+    LaunchedEffect(testRequest) {
+        if (testRequest > 0) {
+            val now = SystemClock.uptimeMillis()
+            if (testAction == "periodic") {
+                val layer = rig.layers.firstOrNull { it.id == selected }
+                previewStartedAt = now - ((layer?.periodicIntervalSeconds ?: 7f) * 1000).toLong()
+                tappedAt = -10000L
+            } else if (testAction == "tap") tappedAt = now
+            clock = now
+        }
+    }
+
     val newestRig by rememberUpdatedState(rig)
     val newestAssets by rememberUpdatedState(assets)
     val newestSelect by rememberUpdatedState(onSelectLayer)
@@ -162,9 +176,15 @@ internal fun LayeredRigPreview(
     val newestBoneSelect by rememberUpdatedState(onSelectBone)
     val newestBoneIndex by rememberUpdatedState(selectedBone)
 
+    val insetUnits = TapNestLayerActions.flightTopInset(rig)
+    val insetDp = (270f * insetUnits / rig.canvasHeight.coerceAtLeast(1)).dp
+    val density = androidx.compose.ui.platform.LocalDensity.current
+    val insetPx = with(density) { insetDp.toPx() }
+    val logicalViewport = IntSize(viewport.width, (viewport.height - insetPx).toInt().coerceAtLeast(1))
+
     val dragModifier = if (allowEditingDrag &&
         (mode == RigPreviewMode.POSITION || mode == RigPreviewMode.BONES))
-        Modifier.pointerInput(selected, mode) {
+        Modifier.pointerInput(selected, mode, insetPx, logicalViewport) {
             var dragBone = -1
             detectDragGestures(
                 onDragStart = { point ->
@@ -174,7 +194,7 @@ internal fun LayeredRigPreview(
                         val art = newestAssets[selected]
                         dragBone = -1
                         if (layer != null && art != null && layer.bones.isNotEmpty()) {
-                            val local = previewLocalPoint(point, viewport, current, layer, newestAssets)
+                            val local = previewLocalPoint(point.copy(y = point.y - insetPx), logicalViewport, current, layer, newestAssets)
                             val px = local.x / art.width
                             val py = local.y / art.height
                             val chosen = layer.bones.indices.minByOrNull { i ->
@@ -202,7 +222,7 @@ internal fun LayeredRigPreview(
                         val art = newestAssets[selected]
                         if (dragBone >= 0 && layer != null && art != null &&
                             dragBone < layer.bones.size) {
-                            val local = previewLocalPoint(change.position, viewport, current, layer, newestAssets)
+                            val local = previewLocalPoint(change.position.copy(y = change.position.y - insetPx), logicalViewport, current, layer, newestAssets)
                             newestBone(dragBone,
                                 (local.x / art.width).coerceIn(0f, 1f),
                                 (local.y / art.height).coerceIn(0f, 1f))
@@ -210,7 +230,7 @@ internal fun LayeredRigPreview(
                     } else {
                         val factor = min(
                             viewport.width / current.canvasWidth.coerceAtLeast(1).toFloat(),
-                            viewport.height / current.canvasHeight.coerceAtLeast(1).toFloat()
+                            logicalViewport.height / current.canvasHeight.coerceAtLeast(1).toFloat()
                         ).coerceAtLeast(0.01f)
                         newestMove(amount.x / factor, amount.y / factor)
                     }
@@ -234,11 +254,11 @@ internal fun LayeredRigPreview(
     else 270.dp
 
     Canvas(
-        Modifier.fillMaxWidth().height(previewHeight).clip(RoundedCornerShape(18.dp))
+        Modifier.fillMaxWidth().height(previewHeight + insetDp).clip(RoundedCornerShape(18.dp))
             .background(Color(0xFFE9F8EF))
             .onSizeChanged { viewport = it }
             .then(dragModifier)
-            .pointerInput(mode, selected, showOtherParts) {
+            .pointerInput(mode, selected, showOtherParts, insetPx, logicalViewport) {
                 detectTapGestures(
                     onTap = { point ->
                         val current = newestRig
@@ -256,7 +276,7 @@ internal fun LayeredRigPreview(
                                         !visibleLayer(layer, current.headMode, head, false,
                                             pictures, defaultFrames))
                                         return@firstOrNull false
-                                    val local = previewLocalPoint(point, viewport, current, layer, pictures)
+                                    val local = previewLocalPoint(point.copy(y = point.y - insetPx), logicalViewport, current, layer, pictures)
                                     val x = local.x / art.width * art.bitmap.width
                                     val y = local.y / art.height * art.bitmap.height
                                     if (x < 0 || y < 0 || x >= art.bitmap.width || y >= art.bitmap.height)
@@ -269,7 +289,7 @@ internal fun LayeredRigPreview(
                                 val layer = current.layers.firstOrNull { it.id == selected }
                                 val art = pictures[selected]
                                 if (layer != null && art != null) {
-                                    val local = previewLocalPoint(point, viewport, current, layer, pictures)
+                                    val local = previewLocalPoint(point.copy(y = point.y - insetPx), logicalViewport, current, layer, pictures)
                                     newestPivot((local.x / art.width).coerceIn(0f, 1f),
                                         (local.y / art.height).coerceIn(0f, 1f))
                                 }
@@ -278,7 +298,7 @@ internal fun LayeredRigPreview(
                                 val layer = current.layers.firstOrNull { it.id == selected }
                                 val art = pictures[selected]
                                 if (layer != null && art != null && layer.bones.isNotEmpty()) {
-                                    val local = previewLocalPoint(point, viewport, current, layer, pictures)
+                                    val local = previewLocalPoint(point.copy(y = point.y - insetPx), logicalViewport, current, layer, pictures)
                                     val nx = (local.x / art.width).coerceIn(0f, 1f)
                                     val ny = (local.y / art.height).coerceIn(0f, 1f)
                                     val nearest = layer.bones.indices.minByOrNull { i ->
@@ -377,7 +397,7 @@ internal fun LayeredRigPreview(
         }
         native.save()
         native.translate((size.width - rig.canvasWidth * factor) / 2f,
-            (baselineHeightPx - rig.canvasHeight * factor) / 2f)
+            insetPx + (baselineHeightPx - rig.canvasHeight * factor) / 2f)
         native.scale(factor, factor)
         if (mode == RigPreviewMode.TEST && !pickupPreview && rig.idleBreathingEnabled &&
             touchElapsed >= 1800L) {

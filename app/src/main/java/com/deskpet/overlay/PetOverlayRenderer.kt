@@ -28,7 +28,7 @@ fun PetOverlayRenderer(
     // 不 remember 就是每秒 5 个没必要的分配（像素数据不复制，但包装对象和
     // 绘制描述符会进垃圾堆）。按帧序号缓存，位图本身由引擎双缓冲复用。
     val image = remember(frame) { frame?.bitmap?.asImageBitmap() }
-    Box(modifier.size(with(d) { w.toDp() }, with(d) { h.toDp() }), Alignment.TopStart) {
+    Box(modifier.size(with(d) { w.toDp() }, with(d) { (h + anim.renderTopInset).toDp() }), Alignment.TopStart) {
         Canvas(Modifier.fillMaxSize()) {
             image?.let {
                 // A pickup/resume size change can precede the next 30 FPS frame

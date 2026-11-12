@@ -47,6 +47,16 @@ class TapNestMotionV2Test {
         assertFalse(old.periodicFlexible.enabled)
     }
 
+    @Test fun hatReservationDoesNotChangeAuthoredCanvasOrMotion() {
+        val hat = TapNestLayer("hat", "hat.png", interactionConfigured = true,
+            tapShake = true, tapMotion = TapNestPartMotion.HAT_POP, hatFlightHeight = .4f)
+        val rig = TapNestRig(canvasWidth = 512, canvasHeight = 512, layers = listOf(hat))
+        assertTrue(TapNestLayerActions.flightTopInset(rig) >= 205)
+        assertEquals(512, rig.canvasHeight)
+        assertEquals(-204.8f, TapNestLayerActions.motionPose(hat, 345L).y, .01f)
+        assertEquals(0, TapNestLayerActions.flightTopInset(rig.copy(layers = listOf(hat.copy(tapShake = false)))))
+    }
+
     @Test fun changingUnrelatedSettingsDoesNotResetSpringHistory() {
         val layer = ear.copy(idleSwing = true, swingMode = TapNestSwingMode.SPRING)
         val a = TapNestSpringChain(); val b = TapNestSpringChain()

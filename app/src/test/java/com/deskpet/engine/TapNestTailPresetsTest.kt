@@ -5,13 +5,13 @@ import org.junit.Test
 
 class TapNestTailPresetsTest {
     @Test fun allFourPresetsHaveExpectedPointCountAndRanges() {
-        assertEquals(4, TapNestTailPresets.ALL.size)
-        assertEquals(listOf(4, 5, 4, 5), TapNestTailPresets.ALL.map { it.bonePercentages.size })
+        assertEquals(8, TapNestTailPresets.ALL.size)
+        assertEquals(listOf(4, 5, 4, 5), TapNestTailPresets.ALL.take(4).map { it.bonePercentages.size })
         assertEquals(listOf(TapNestSwingRange.CENTERED, TapNestSwingRange.CENTERED,
             TapNestSwingRange.OUTWARD_ONLY, TapNestSwingRange.OUTWARD_ONLY),
-            TapNestTailPresets.ALL.map { it.swingRange })
+            TapNestTailPresets.ALL.take(4).map { it.swingRange })
         assertTrue(TapNestTailPresets.ALL.all { it.bonePercentages.first() == 0 &&
-            it.bonePercentages.last() in 85..90 && it.bonePercentages == it.bonePercentages.sorted() })
+            it.bonePercentages.last() in 85..100 && it.bonePercentages == it.bonePercentages.sorted() })
     }
 
     @Test fun dogPresetMatchesHandTunedPictureValues() {
