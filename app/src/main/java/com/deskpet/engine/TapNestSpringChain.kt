@@ -45,7 +45,7 @@ class TapNestSpringChain {
         // Android screen coordinates are x-right, y-down.
         val first = layer.bones.first()
         val last = layer.bones.last()
-        val dx = last.x - first.x
+        val dx = (last.x - first.x) * if (layer.reflectedMotion) -1f else 1f
         val dy = last.y - first.y
         val outwardSign = if ((if (dx >= 0f) 1 else -1) *
             (if (dy <= 0f) 1 else -1) >= 0) 1f else -1f

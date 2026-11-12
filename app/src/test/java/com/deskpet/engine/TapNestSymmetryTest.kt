@@ -91,4 +91,26 @@ class TapNestSymmetryTest {
             assertEquals(separate.reflectedMotion, synced.reflectedMotion)
         }
     }
+    @Test fun reflectedPlanesAndOneSidedSpringKeepTheSameDrive() {
+        for (linear in listOf(false, true)) {
+            val plane = TapNestMotionPlane(true, linear, 35f, 12f, 37f)
+            val source = TapNestLayer("ribbon", "", idleSwing = true,
+                bones = listOf(TapNestBonePoint(.2f, .2f), TapNestBonePoint(.4f, .7f)),
+                idlePlane = plane, tapPlane = plane, periodicPlane = plane,
+                swingMode = TapNestSwingMode.SPRING, swingRange = TapNestSwingRange.OUTWARD_ONLY)
+            val other = TapNestSymmetry.independentArtwork(TapNestSymmetry.mirroredGroup(
+                source, emptyList(), "ribbon_copy", "飘带").single())
+            val drive = TapNestSpringChain().step(source, 210L)
+            val reflectedDrive = TapNestSpringChain().step(other, 210L)
+            assertArrayEquals(drive, reflectedDrive, .001f)
+            val a = TapNestFlexibleMesh.vertices(source, 100, 100, 210L, 10, drive)!!
+            val b = TapNestFlexibleMesh.vertices(other, 100, 100, 210L, 10, reflectedDrive)!!
+            for (row in 0..10) for (col in 0..10) {
+                val i = (row * 11 + col) * 2
+                val j = (row * 11 + 10 - col) * 2
+                assertEquals(100f - a[i], b[j], .01f)
+                assertEquals(a[i + 1], b[j + 1], .01f)
+            }
+        }
+    }
 }
