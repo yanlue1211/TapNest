@@ -37,8 +37,19 @@ class LayeredPetPlayer private constructor(
             .toInt().coerceIn(height, 2048)
     } else height
 
-    val topInset: Int = kotlin.math.ceil(TapNestLayerActions.flightTopInset(rig).toDouble() *
-        width / rig.canvasWidth.coerceAtLeast(1)).toInt()
+    // Always reserve upper room for the ±8° whole-pet pickup sway, including
+    // an ear that already reaches y=0. The inset is shared by the normal and
+    // held buffers, so no resize of the head or one-frame jump is possible.
+    val topInset: Int = kotlin.math.ceil(maxOf(
+        TapNestLayerActions.flightTopInset(rig),
+        TapNestPickupCanvas.pickupTopClearance(
+            rig.canvasWidth, rig.canvasHeight,
+            if (rig.pickupArtworkEnabled && pictures.containsKey("pickup_pose"))
+                sourceSizes["pickup_pose"]?.first ?: rig.canvasWidth else rig.canvasWidth,
+            if (rig.pickupArtworkEnabled && pictures.containsKey("pickup_pose"))
+                rig.layers.firstOrNull { it.id == "pickup_pose" }?.restScale ?: 1f else 1f
+        )
+    ).toDouble() * width / rig.canvasWidth.coerceAtLeast(1)).toInt()
 
     // A published Bitmap must never be cleared while the UI still draws it.
     // Two triple buffers avoid resizing/recycling frames during a drag.
