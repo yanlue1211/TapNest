@@ -34,4 +34,12 @@ class TapNestTapSequenceTest {
         assertEquals(owner.id, TapNestLayerActions.currentFrame(owner, layers, 0L, 1800L, available, rapidTapAngryFrameId = frame.id))
         assertEquals(owner.id, TapNestLayerActions.currentFrame(owner, layers, 0L, 10L, setOf(owner.id), rapidTapAngryFrameId = frame.id))
     }
+    @Test fun alternativeFramePinsItsLegacyHeadOwnerInsteadOfCyclingAway() {
+        val rig = TapNestRig(canvasWidth = 64, canvasHeight = 64,
+            rapidTapAngryFrameId = "head_0_f1", layers = listOf(
+                TapNestLayer("head_0", ""),
+                TapNestLayer("head_0_f1", "", frameOwner = "head_0", frameIndex = 1)))
+        assertEquals(0, TapNestLayerActions.legacyAngryExpression(rig, setOf("head_0_f1")))
+        assertNull(TapNestLayerActions.legacyAngryExpression(rig, emptySet()))
+    }
 }

@@ -252,9 +252,11 @@ object TapNestLayerActions {
     fun legacyAngryExpression(rig: TapNestRig, availableIds: Set<String>): Int? {
         val id = rig.rapidTapAngryFrameId ?: return null
         val prefix = if (rig.headMode == TapNestHeadMode.FULL_HEAD) "head_" else "face_"
-        return id.removePrefix(prefix).toIntOrNull()?.takeIf {
-            id.startsWith(prefix) && it in 0..3 && id in availableIds &&
-                rig.layers.any { layer -> layer.id == id && layer.frameOwner == null }
+        val target = rig.layers.firstOrNull { it.id == id } ?: return null
+        val ownerId = target.frameOwner ?: id
+        return ownerId.removePrefix(prefix).toIntOrNull()?.takeIf {
+            ownerId.startsWith(prefix) && it in 0..3 && id in availableIds &&
+                rig.layers.any { layer -> layer.id == ownerId && layer.frameOwner == null }
         }
     }
 
