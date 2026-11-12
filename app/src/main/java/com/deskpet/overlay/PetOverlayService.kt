@@ -215,6 +215,7 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
                 formPanel = null
                 if (petId == pet.id) {
                     if (!anim.replaceLayered(pet)) error("形态素材加载失败")
+                    updatePosition()
                     if (formId != null) {
                         touchLineIndex = 0
                         speechJob?.cancel()
@@ -272,6 +273,7 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         val ns = (savedScale * zoom).coerceIn(0.2f, 5f)
         // clamp 截断后实际生效的比例，位置补偿必须用它，否则锚点会漂
         val applied = if (savedScale > 0f) ns / savedScale else 1f
+        val canvasFocusY = focusY - anim.renderTopInset
         savedScale = ns
         // 先更新尺寸（petWidth 状态同步生效），后续 clampPosition 才能用新尺寸
         // 把放大后的窗口夹回屏幕内，而不是放行一帧溢出
@@ -297,7 +299,7 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
             // 把窗口左上角反向平移 focus*(1-applied)，手指夹住的点保持不动。
             // 旧实现只改大小不补位置，放大时宠物朝右下"逃"、缩小时朝左上"缩"。
             wx += focusX * (1f - applied)
-            wy += focusY * (1f - applied)
+            wy += canvasFocusY * (1f - applied)
             updatePosition()
         }
         auto?.onUserTouch()
