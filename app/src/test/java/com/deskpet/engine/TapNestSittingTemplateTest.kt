@@ -25,7 +25,8 @@ class TapNestSittingTemplateTest {
         val starter = TapNestTemplates.manual()
         assertEquals(TapNestTemplates.MANUAL, starter.templateId)
         assertTrue(starter.layers.all { it.image.isBlank() })
-        assertEquals(setOf("body"), starter.layers.map { it.id }.toSet())
+        assertEquals(setOf("body", TapNestClothing.ID), starter.layers.map { it.id }.toSet())
+        assertEquals("", starter.layers.first { it.bodyLinkedClothing }.image)
         assertTrue(starter.layers.none { it.id.contains("bow") || it.id.contains("eye") ||
             it.id.contains("hair") })
     }
