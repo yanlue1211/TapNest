@@ -35,13 +35,13 @@ import kotlin.math.PI
 import kotlin.math.sin
 
 internal enum class RigPreviewMode { POSITION, PIVOT, BONES, RANGE, TEST }
-private data class PreviewAsset(val bitmap: Bitmap, val width: Int, val height: Int)
+internal data class PreviewAsset(val bitmap: Bitmap, val width: Int, val height: Int)
 
 /**
  * The art's natural (pre-downsampling) pixel dimensions define pivots/coordinates.
  * This is shared by touch hit-testing, anchor positioning and the preview renderer.
  */
-private fun previewLocalPoint(
+internal fun previewLocalPoint(
     point: Offset, viewport: IntSize, rig: TapNestRig, layer: TapNestLayer,
     assets: Map<String, PreviewAsset>
 ): Offset {
@@ -50,7 +50,6 @@ private fun previewLocalPoint(
         viewport.height / rig.canvasHeight.coerceAtLeast(1).toFloat()
     ).coerceAtLeast(0.001f)
     var x = (point.x - (viewport.width - rig.canvasWidth * factor) / 2f) / factor
-    if (layer.mirrorX) x = rig.canvasWidth - x
     var y = (point.y - (viewport.height - rig.canvasHeight * factor) / 2f) / factor
     val nodes = rig.layers.associateBy { it.id }
     val ancestors = mutableListOf<TapNestLayer>()
@@ -62,6 +61,8 @@ private fun previewLocalPoint(
     }
     // Invert the root-to-child transforms in that same order.
     for (joint in ancestors.asReversed()) {
+        // Undo each inherited reflection only after undoing its ancestors.
+        if (TapNestSymmetry.reflectsLocalCoordinates(joint)) x = rig.canvasWidth - x
         val art = assets[joint.id]
         val px = joint.pivotX.coerceIn(0f, 1f) * (art?.width ?: rig.canvasWidth)
         val py = joint.pivotY.coerceIn(0f, 1f) * (art?.height ?: rig.canvasHeight)
@@ -236,11 +237,13 @@ internal fun LayeredRigPreview(
                                 (local.y / art.height).coerceIn(0f, 1f))
                         }
                     } else {
-                        val factor = min(
-                            viewport.width / current.canvasWidth.coerceAtLeast(1).toFloat(),
-                            logicalViewport.height / current.canvasHeight.coerceAtLeast(1).toFloat()
-                        ).coerceAtLeast(0.01f)
-                        newestMove(amount.x / factor, amount.y / factor)
+                        val layer = current.layers.firstOrNull { it.id == selected }
+                        if (layer != null) {
+                            val space = layer.copy(x = 0f, y = 0f, pivotX = 0f, pivotY = 0f, restScale = 1f)
+                            val to = previewLocalPoint(change.position.copy(y = change.position.y - insetPx), logicalViewport, current, space, newestAssets)
+                            val from = previewLocalPoint((change.position - amount).let { it.copy(y = it.y - insetPx) }, logicalViewport, current, space, newestAssets)
+                            newestMove(to.x - from.x, to.y - from.y)
+                        }
                     }
                 }
             )
@@ -462,12 +465,11 @@ internal fun LayeredRigPreview(
                 node = node.parentId?.let(nodes::get)
             }
             native.save()
-            val reflectionOwner = layer.frameOwner?.let(nodes::get) ?: layer
-            if (reflectionOwner.mirrorX) {
-                native.translate(rig.canvasWidth.toFloat(), 0f)
-                native.scale(-1f, 1f)
-            }
             for (joint in ancestors.asReversed()) {
+                if (TapNestSymmetry.reflectsLocalCoordinates(joint)) {
+                    native.translate(rig.canvasWidth.toFloat(), 0f)
+                    native.scale(-1f, 1f)
+                }
                 val parentArt = assets[joint.id]
                 val pivotX = joint.pivotX.coerceIn(0f, 1f) * (parentArt?.width ?: rig.canvasWidth)
                 val pivotY = joint.pivotY.coerceIn(0f, 1f) * (parentArt?.height ?: rig.canvasHeight)

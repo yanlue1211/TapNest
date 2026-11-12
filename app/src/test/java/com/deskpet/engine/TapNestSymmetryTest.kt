@@ -21,6 +21,7 @@ class TapNestSymmetryTest {
         assertTrue(right.mirrorX)
         assertEquals(source.x, right.x, .001f)
         assertEquals(source.bones, right.bones)
+        assertEquals(source.parentId, right.parentId)
         assertEquals(source.idleAmplitude, right.idleAmplitude, .001f)
         assertEquals(source.tapSwitchFrame, right.tapSwitchFrame)
         assertEquals(source.periodicEnabled, right.periodicEnabled)

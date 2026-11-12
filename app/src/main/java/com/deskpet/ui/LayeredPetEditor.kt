@@ -255,7 +255,7 @@ fun LayeredPetEditor(
                 onDragLayer = { dx, dy ->
                     rig = rig.copy(layers = rig.layers.map { layer ->
                         if (layer.id == activeLayer)
-                            layer.copy(x = (layer.x + if (layer.mirrorX) -dx else dx).coerceIn(-2048f, 2048f),
+                            layer.copy(x = (layer.x + dx).coerceIn(-2048f, 2048f),
                                 y = (layer.y + dy).coerceIn(-2048f, 2048f))
                         else layer
                     })

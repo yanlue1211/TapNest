@@ -271,13 +271,12 @@ class LayeredPetPlayer private constructor(
                 breath.scaleX, breath.scaleY, rig.canvasWidth * .5f, rig.canvasHeight * .88f)
             if (held) canvas.rotate(pickupAngle,
                 rig.canvasWidth * .5f, 0f)
-            // Reflect once around the whole character, including bones and alternate frames.
-            val reflectionOwner = layer.frameOwner?.let(nodes::get) ?: layer
-            if (reflectionOwner.mirrorX) {
-                canvas.translate(rig.canvasWidth.toFloat(), 0f)
-                canvas.scale(-1f, 1f)
-            }
+            // Parent transforms stay outside the child's local reflection (P * R * L).
             for (part in chain.asReversed()) {
+                if (TapNestSymmetry.reflectsLocalCoordinates(part)) {
+                    canvas.translate(rig.canvasWidth.toFloat(), 0f)
+                    canvas.scale(-1f, 1f)
+                }
                 val pose = poseFor(part)
                 val original = sourceSizes[part.id]
                 val pivotX = part.pivotX.coerceIn(0f, 1f) * (original?.first ?: rig.canvasWidth)

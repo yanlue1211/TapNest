@@ -249,4 +249,70 @@ class LayeredPetPlayerTest {
         assertTrue("The alternative frame must actually be drawn", blueRows.isNotEmpty())
         assertTrue("The alternative frame must move along with the bounce", blueRows.first() < 20)
     }
+    @Test fun mirroredPartsInheritParentTransformsBeforeTheirOwnReflection() {
+        png("parent_body.png", Color.GREEN)
+        val transparent = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888)
+        tmp.newFile("carrier.png").outputStream().use { transparent.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        fun art(name: String, color: Int): Bitmap {
+            val bitmap = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888)
+            android.graphics.Canvas(bitmap).drawRect(20f, 22f, 26f, 28f, android.graphics.Paint().apply { this.color = color })
+            tmp.newFile(name).outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            return bitmap
+        }
+        val ear = art("attached_ear.png", Color.BLUE)
+        val alt = art("attached_ear_alt.png", Color.CYAN)
+        val cases = listOf(
+            TapNestLayer("carrier", "carrier.png", x = 7f, y = 3f),
+            TapNestLayer("carrier", "carrier.png", x = 3f, y = 2f, restScale = .8f),
+            TapNestLayer("carrier", "carrier.png", idleSwing = true, idleFlexibleEnabled = false, idleAmplitude = 20f, idleSpeed = .5f),
+            TapNestLayer("carrier", "carrier.png", x = 7f, mirrorX = true))
+        cases.forEachIndexed { index, carrier ->
+            for (useFrame in listOf(false, true)) {
+                val part = TapNestLayer("ear_right", "attached_ear.png", parentId = carrier.id,
+                    mirrorX = index != 3, zIndex = 1, interactionConfigured = true, tapSwitchFrame = useFrame)
+                val frame = TapNestLayer("ear_right_f1", "attached_ear_alt.png", parentId = part.id,
+                    frameOwner = part.id, frameIndex = 1, mirrorX = true, zIndex = 1)
+                val rig = TapNestRig(canvasWidth = 64, canvasHeight = 64, templateId = TapNestTemplates.MANUAL,
+                    layers = listOf(TapNestLayer("body", "parent_body.png"), carrier, part, frame))
+                val cfg = tmp.newFile("parent_${index}_${useFrame}.json").apply { writeText(Json.encodeToString(rig)) }
+                val player = requireNotNull(LayeredPetPlayer.load(cfg))
+                if (useFrame) player.tap()
+                android.os.SystemClock.sleep(500L)
+                val actual = player.render()
+                val expected = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888)
+                val canvas = android.graphics.Canvas(expected)
+                canvas.drawColor(Color.GREEN)
+                if (carrier.mirrorX) { canvas.translate(64f, 0f); canvas.scale(-1f, 1f) }
+                val scale = carrier.restScale
+                canvas.translate(carrier.x + 32f * scale, carrier.y + 32f * scale)
+                canvas.rotate(if (carrier.idleSwing) 20f else 0f)
+                canvas.scale(scale, scale)
+                canvas.translate(-32f, -32f)
+                if (part.mirrorX) { canvas.translate(64f, 0f); canvas.scale(-1f, 1f) }
+                if (!carrier.idleSwing) {
+                    val matrix = android.graphics.Matrix()
+                    canvas.getMatrix(matrix)
+                    val mapped = floatArrayOf(22f, 24f)
+                    matrix.mapPoints(mapped)
+                    val assets = rig.layers.associate { it.id to com.deskpet.ui.PreviewAsset(transparent, 64, 64) }
+                    val local = com.deskpet.ui.previewLocalPoint(androidx.compose.ui.geometry.Offset(mapped[0], mapped[1]),
+                        androidx.compose.ui.unit.IntSize(64, 64), rig, part, assets)
+                    assertEquals(22f, local.x, .001f)
+                    assertEquals(24f, local.y, .001f)
+                }
+                canvas.drawBitmap(if (useFrame) alt else ear, null, android.graphics.RectF(0f, 0f, 64f, 64f),
+                    android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG or android.graphics.Paint.FILTER_BITMAP_FLAG))
+                val expectedPixels = IntArray(4096); val actualPixels = IntArray(4096)
+                expected.getPixels(expectedPixels, 0, 64, 0, 0, 64, 64)
+                actual.getPixels(actualPixels, 0, 64, 0, 0, 64, 64)
+                expectedPixels.indices.forEach { pixel ->
+                    val a = expectedPixels[pixel]; val b = actualPixels[pixel]
+                    val difference = maxOf(kotlin.math.abs(Color.red(a) - Color.red(b)),
+                        kotlin.math.abs(Color.green(a) - Color.green(b)), kotlin.math.abs(Color.blue(a) - Color.blue(b)),
+                        kotlin.math.abs(Color.alpha(a) - Color.alpha(b)))
+                    assertTrue("parent case $index, alternative=$useFrame, pixel=$pixel", difference <= 2)
+                }
+            }
+        }
+    }
 }

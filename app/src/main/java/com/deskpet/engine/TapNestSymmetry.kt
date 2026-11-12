@@ -11,6 +11,9 @@ package com.deskpet.engine
  * do not silently overwrite the other side.
  */
 object TapNestSymmetry {
+    /** A frame inherits its owner's reflection; never reflect it a second time. */
+    fun reflectsLocalCoordinates(layer: TapNestLayer): Boolean = layer.mirrorX && layer.frameOwner == null
+
     /**
      * The original one-point wing animation contains a legacy _left / _right
      * sign convention. A fully reflected copy already mirrors its motion in
