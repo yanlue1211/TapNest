@@ -13,6 +13,8 @@ import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.annotation.GraphicsMode
+import kotlinx.coroutines.test.setMain
+import kotlinx.coroutines.test.resetMain
 import kotlinx.serialization.encodeToString
 import kotlinx.serialization.json.Json
 import java.io.File
@@ -147,4 +149,70 @@ class LayeredPetPlayerTest {
         org.junit.Assert.assertNull(player.lifeInteraction)
     }
 
+    @Test fun fifthTapUsesUploadedAngryFrameAndPickupResetsTheStreak() {
+        png("angry_body.png", Color.GREEN)
+        png("normal_head.png", Color.RED)
+        png("angry_head.png", Color.BLUE)
+        val rig = TapNestRig(canvasWidth = 64, canvasHeight = 64,
+            templateId = TapNestTemplates.MANUAL, rapidTapAngryFrameId = "head_f1",
+            layers = listOf(TapNestLayer("body", "angry_body.png"),
+                TapNestLayer("head", "normal_head.png", zIndex = 1),
+                TapNestLayer("head_f1", "angry_head.png", zIndex = 1,
+                    parentId = "head", frameOwner = "head", frameIndex = 1)))
+        val cfg = tmp.newFile("angry_rig.json").apply { writeText(Json.encodeToString(rig)) }
+        val player = requireNotNull(LayeredPetPlayer.load(cfg))
+        repeat(4) {
+            player.tap()
+            assertEquals(Color.RED, player.render().getPixel(32, 32))
+        }
+        player.tap()
+        assertEquals(Color.BLUE, player.render().getPixel(32, 32))
+        android.os.SystemClock.sleep(1800L)
+        assertEquals(Color.RED, player.render().getPixel(32, 32))
+        player.setPickedUp(true)
+        player.setPickedUp(false)
+        player.tap()
+        assertEquals(Color.RED, player.render().getPixel(32, 32))
+    }
+
+    @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
+    @Test fun releaseNeverShrinksTheWindowWhileTheHeldFrameIsStillPublished() {
+        png("release_body.png", Color.GREEN)
+        val heldArt = tmp.newFile("release_held.png")
+        Bitmap.createBitmap(64, 144, Bitmap.Config.ARGB_8888).let { bitmap ->
+            bitmap.eraseColor(Color.BLUE)
+            heldArt.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+            bitmap.recycle()
+        }
+        val rig = TapNestRig(canvasWidth = 64, canvasHeight = 64, pickupArtworkEnabled = true,
+            layers = listOf(TapNestLayer("body", "release_body.png"),
+                TapNestLayer("pickup_pose", "release_held.png")))
+        val cfg = tmp.newFile("release_rig.json").apply { writeText(Json.encodeToString(rig)) }
+        val dispatcher = kotlinx.coroutines.test.StandardTestDispatcher()
+        kotlinx.coroutines.Dispatchers.setMain(dispatcher)
+        val job = kotlinx.coroutines.SupervisorJob()
+        val scope = kotlinx.coroutines.CoroutineScope(job + dispatcher)
+        try {
+            val controller = AnimationController(PetEngine(SpritesheetParser(), GifRenderer()), scope)
+            assertTrue(controller.load(com.deskpet.data.model.PetInfo("release", com.deskpet.data.model.PetType.LAYERED,
+                "release", petJsonPath = cfg.absolutePath, spritesheetPath = "")))
+            val normalHeight = controller.petHeight.value
+            controller.setLayeredPickedUp(true)
+            val heldHeight = controller.petHeight.value
+            assertTrue(heldHeight > normalHeight)
+            val heldFrame = controller.currentFrame.value!!
+            controller.setLayeredPickedUp(false)
+            // Main dispatcher has not rendered the replacement frame yet.
+            assertEquals(heldHeight, controller.petHeight.value)
+            assertEquals(heldFrame, controller.currentFrame.value)
+            controller.setScale(2f)
+            assertEquals(heldHeight * 2, controller.petHeight.value)
+            controller.setLayeredPickedUp(true)
+            assertEquals(heldHeight * 2, controller.petHeight.value)
+            controller.stop()
+        } finally {
+            job.cancel()
+            kotlinx.coroutines.Dispatchers.resetMain()
+        }
+    }
 }

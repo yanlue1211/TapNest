@@ -80,14 +80,28 @@ class LayeredPetPlayer private constructor(
     }
     private val launchedAtMs = SystemClock.uptimeMillis()
 
-    fun tap() {
+    private val tapSequence = TapNestTapSequence()
+    @Volatile private var rapidTapAngry = false
+    fun recordPhysicalTap(): Boolean {
+        val now = SystemClock.uptimeMillis()
+        rapidTapAngry = tapSequence.tap(now)
+        if (rapidTapAngry) tappedAtMs = now
+        return rapidTapAngry && rig.rapidTapAngryFrameId in pictures.keys
+    }
+
+    fun tap(countForBurst: Boolean = true) {
         lifeInteraction = null
+        if (countForBurst) recordPhysicalTap()
         expression = if (rig.tapExpression in 0..3) rig.tapExpression else (expression % 3) + 1
         tappedAtMs = SystemClock.uptimeMillis()
     }
 
     fun setPickedUp(held: Boolean) {
-        if (held) lifeInteraction = null
+        if (held) {
+            lifeInteraction = null
+            tapSequence.reset()
+            rapidTapAngry = false
+        }
         if (held && !pickedUp) pickedUpAtMs = SystemClock.uptimeMillis()
         pickedUp = held
     }
@@ -157,6 +171,8 @@ class LayeredPetPlayer private constructor(
             reacting -> interaction?.expression(now)?.takeIf { frame ->
                 pictures.containsKey((if (rig.headMode == TapNestHeadMode.FULL_HEAD) "head_" else "face_") + frame)
             } ?: naturalExpression()
+            elapsed < 1800 && rapidTapAngry -> TapNestLayerActions.legacyAngryExpression(
+                rig, pictures.keys) ?: expression.coerceIn(0, 3)
             elapsed < 1800 -> expression.coerceIn(0, 3)
             rig.blinkExpression in 0..3 && idleBlinking -> rig.blinkExpression
             else -> naturalExpression()
@@ -178,7 +194,8 @@ class LayeredPetPlayer private constructor(
             .associate { owner ->
                 owner.id to if (held || reacting) owner.id else TapNestLayerActions.currentFrame(
                     owner, rig.layers, sceneElapsed, elapsed, pictures.keys,
-                    allowIdleBlink = !periodicScene
+                    allowIdleBlink = !periodicScene,
+                    rapidTapAngryFrameId = rig.rapidTapAngryFrameId.takeIf { rapidTapAngry }
                 )
             }
 

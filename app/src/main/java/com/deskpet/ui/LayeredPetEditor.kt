@@ -77,6 +77,7 @@ fun LayeredPetEditor(
     var partPresetMenu by remember { mutableStateOf(false) }
     var pendingRemoveLayerId by remember { mutableStateOf<String?>(null) }
     var pickupSettingsOpen by remember { mutableStateOf(false) }
+    var rapidTapSettingsOpen by remember { mutableStateOf(false) }
     var showSettings by remember(editingPet?.id, formId) { mutableStateOf(false) }
     var showOtherParts by remember { mutableStateOf(true) }
     var showBonesHelp by remember { mutableStateOf(false) }
@@ -542,6 +543,35 @@ fun LayeredPetEditor(
                 }) { Text("＋ 添加选中的部位") }
                 Text("两侧可分别创建，也可调好一侧后使用「↔ 镜像复制」；镜像复制后换上自己画的新 PNG，会取消这张默认图的镜像并保留骨骼设置。",
                     style = MaterialTheme.typography.bodySmall)
+            }
+            FoldHeader("😠 连续戳五下 · 生气表情", rapidTapSettingsOpen) {
+                rapidTapSettingsOpen = !rapidTapSettingsOpen
+            }
+            if (rapidTapSettingsOpen) {
+                Text("相邻两次点触间隔小于 3 秒，连续第 5 下起显示生气表情；停戳约 1.8 秒恢复。拎起后重新计数。")
+                val prefix = if (rig.headMode == TapNestHeadMode.FULL_HEAD) "head_" else "face_"
+                val candidates = rig.layers.filter { layer -> images[layer.id] != null &&
+                    (layer.frameOwner != null || (layer.id.startsWith(prefix) && layer.id.removePrefix(prefix).toIntOrNull() in 0..3)) }
+                fun label(id: String?): String {
+                    if (id == null) return "关闭"
+                    val selected = rig.layers.firstOrNull { it.id == id } ?: return "所选图片已移除，请重新选择"
+                    val owner = selected.frameOwner?.let { ownerId -> rig.layers.firstOrNull { it.id == ownerId } }
+                    return if (owner != null) "${owner.displayName.ifBlank { owner.id }} · ${TapNestLayerActions.frameLabel(owner, rig.layers, selected.frameIndex)}"
+                        else selected.displayName.ifBlank { selected.id }
+                }
+                var angryMenu by remember { mutableStateOf(false) }
+                Box {
+                    OutlinedButton(onClick = { angryMenu = true }) { Text("生气表情：${label(rig.rapidTapAngryFrameId)} ▾") }
+                    DropdownMenu(angryMenu, { angryMenu = false }) {
+                        DropdownMenuItem(text = { Text("关闭") }, onClick = { rig = rig.copy(rapidTapAngryFrameId = null); angryMenu = false })
+                        candidates.forEach { frame ->
+                            DropdownMenuItem(text = { Text(label(frame.id)) }, onClick = {
+                                rig = rig.copy(rapidTapAngryFrameId = frame.id); angryMenu = false
+                            })
+                        }
+                    }
+                }
+                if (candidates.isEmpty()) Text("请先给头部或表情图层上传一张生气动作帧，再到这里选择。")
             }
             FoldHeader("🪁 长按拎起效果", pickupSettingsOpen) {
                 pickupSettingsOpen = !pickupSettingsOpen

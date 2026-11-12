@@ -137,6 +137,8 @@ internal fun LayeredRigPreview(
     }
     var viewport by remember { mutableStateOf(IntSize.Zero) }
     var expression by remember { mutableIntStateOf(0) }
+    val tapSequence = remember(rig.rapidTapAngryFrameId) { TapNestTapSequence() }
+    var rapidTapAngry by remember(rig.rapidTapAngryFrameId) { mutableStateOf(false) }
     var tappedAt by remember { mutableLongStateOf(-10000L) }
     var clock by remember { mutableLongStateOf(SystemClock.uptimeMillis()) }
     val springChains = remember { mutableMapOf<String, TapNestSpringChain>() }
@@ -153,6 +155,8 @@ internal fun LayeredRigPreview(
         } else {
             tappedAt = -10000L
             expression = 0
+            tapSequence.reset()
+            rapidTapAngry = false
             clock = SystemClock.uptimeMillis()
         }
     }
@@ -338,6 +342,7 @@ internal fun LayeredRigPreview(
                             RigPreviewMode.TEST -> {
                                 expression = if (newestRig.tapExpression in 0..3) newestRig.tapExpression else (expression % 3) + 1
                                 tappedAt = SystemClock.uptimeMillis()
+                                rapidTapAngry = tapSequence.tap(tappedAt)
                                                 }
                         }
                     },
@@ -363,6 +368,8 @@ internal fun LayeredRigPreview(
         val idleBlinking = mode == RigPreviewMode.TEST && !periodicScene &&
             TapNestBlink.isBlinking(sceneElapsed)
         val expressionIndex = when {
+            mode == RigPreviewMode.TEST && touchElapsed in 0..1799L && rapidTapAngry ->
+                TapNestLayerActions.legacyAngryExpression(rig, assets.keys) ?: expression
             mode == RigPreviewMode.TEST && touchElapsed in 0..1799L -> expression
             mode == RigPreviewMode.TEST && rig.blinkExpression in 0..3 &&
                 idleBlinking -> rig.blinkExpression
@@ -375,7 +382,8 @@ internal fun LayeredRigPreview(
         val selectedFrames = rig.layers.filter { it.frameOwner == null }.associate { owner ->
             owner.id to if (mode == RigPreviewMode.TEST)
                 TapNestLayerActions.currentFrame(owner, rig.layers,
-                    sceneElapsed, touchElapsed, assets.keys, allowIdleBlink = !periodicScene)
+                    sceneElapsed, touchElapsed, assets.keys, allowIdleBlink = !periodicScene,
+                    rapidTapAngryFrameId = rig.rapidTapAngryFrameId.takeIf { rapidTapAngry })
                 else owner.id
         }
         fun poseFor(id: String): TapNestPose {

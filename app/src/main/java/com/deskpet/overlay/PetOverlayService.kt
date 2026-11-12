@@ -340,6 +340,7 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
             onDoubleTap = ::onDoubleTap,
             onHoldMenu = ::onHoldMenu,
             onHoldClose = ::onHoldClose,
+            onPhysicalTap = { anim.recordLayeredPhysicalTap() },
             isCodexPet = anim::isCodexPet,
             onScale = ::onScale,
             onDragStart = {

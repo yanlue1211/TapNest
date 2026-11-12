@@ -25,7 +25,8 @@ class GestureHandler(
     private val onDragEnd: () -> Unit = {},
     private val onDragStart: () -> Unit = {},
     private val onHoldMenu: () -> Unit = {},
-    private val onHoldClose: () -> Unit = {}
+    private val onHoldClose: () -> Unit = {},
+    private val onPhysicalTap: () -> Unit = {}
 ) {
 
     /**
@@ -103,6 +104,7 @@ class GestureHandler(
                         val down = awaitFirstDown(requireUnconsumed = false)
                         val start = down.position
                         val began = down.uptimeMillis
+                        var ended = began
                         var moved = false
                         var multiTouch = false
                         var pressed = true
@@ -117,6 +119,7 @@ class GestureHandler(
                         try {
                             do {
                                 val event = awaitPointerEvent()
+                                ended = event.changes.maxOfOrNull { it.uptimeMillis } ?: ended
                                 if (event.changes.count { it.pressed } > 1 || pinching)
                                     multiTouch = true
                                 if (event.changes.any {
@@ -127,6 +130,8 @@ class GestureHandler(
                         } finally { closeTimer.cancel() }
                         val action = HoldGesturePolicy.action(
                             SystemClock.uptimeMillis() - began, moved, multiTouch || pinching)
+                        if (!closed && !moved && !multiTouch && !pinching &&
+                            HoldGesturePolicy.isShortTap(ended - began)) onPhysicalTap()
                         if (!closed && action == HoldGesturePolicy.Action.MENU) onHoldMenu()
                     }
                 }

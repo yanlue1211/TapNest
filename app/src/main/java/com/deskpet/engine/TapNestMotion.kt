@@ -20,6 +20,8 @@ data class TapNestRig(
     val pickupArtworkEnabled: Boolean = false,
     val blinkExpression: Int = -1,
     val tapExpression: Int = -1,
+    /** Optional uploaded frame for five consecutive taps, each gap strictly <3s. */
+    val rapidTapAngryFrameId: String? = null,
     /** Map frame index to a mood; no labels means preserve legacy default face. */
     val expressionEmotions: Map<Int, TapNestEmotion> = emptyMap(),
     val layers: List<TapNestLayer> = emptyList(),

@@ -64,4 +64,21 @@ class GestureHandlerComposeTest {
         assertEquals("拖动不能误弹换装", 0, menus)
         assertEquals("拖动不能误关闭", 0, closes)
     }
+    @Test fun everyShortReleaseCountsEvenWhenTheTapDetectorGroupsDoubleTaps() {
+        var physicalTaps = 0
+        val gestures = GestureHandler(
+            onDrag = { _, _, _ -> }, onTap = {}, onDoubleTap = {},
+            isCodexPet = { false }, onPhysicalTap = { physicalTaps++ })
+        compose.setContent { Box(Modifier.size(200.dp).testTag("pet").then(gestures.modifier)) }
+        compose.onNodeWithTag("pet").performTouchInput {
+            repeat(5) {
+                down(center)
+                advanceEventTime(40L)
+                up()
+                advanceEventTime(120L)
+            }
+        }
+        compose.waitForIdle()
+        assertEquals(5, physicalTaps)
+    }
 }

@@ -76,6 +76,8 @@ class AnimationController(
     val renderTopInset: Int get() = (baseTopInset * s).toInt()
     private var basePickupH = PetEngine.DEFAULT_PET_HEIGHT
     @Volatile private var layeredPickedUp = false
+    // Window geometry follows the frame that has actually been published.
+    @Volatile private var presentedLayeredPickedUp = false
     /** Original-height bounds are retained during dragging so the head never jumps. */
     val normalPetHeight: Int
         get() = (baseH * s).toInt().coerceAtLeast(MIN_PET_SIZE_PX)
@@ -104,6 +106,7 @@ class AnimationController(
         basePickupH = (active as? PetEngine.PetLoader.Layered)
             ?.player?.pickupHeight ?: h
         layeredPickedUp = false
+        presentedLayeredPickedUp = false
         // PNG originals and layered rigs often have substantial transparent
         // canvas above the character. The WindowManager window may need to move
         // further than safeBounds.top to get the DRAWN HEAD up to the top.
@@ -165,6 +168,10 @@ class AnimationController(
                 if (bitmap != null && generation == visualGeneration.get()) {
                     _frame.value = Frame(bitmap, ++frameSeq,
                         if (visual == null) (l as? PetEngine.PetLoader.Layered)?.player?.topInset ?: 0 else 0)
+                    if (l is PetEngine.PetLoader.Layered && presentedLayeredPickedUp != layeredPickedUp) {
+                        presentedLayeredPickedUp = layeredPickedUp
+                        applyScale()
+                    }
                 }
                 fi++
                 val tf = petEngine.getFrameCount(l, _state.value)
@@ -232,19 +239,26 @@ class AnimationController(
     fun isCodexPet() = loader is PetEngine.PetLoader.CodexPet
     fun isLayeredPet() = loader is PetEngine.PetLoader.Layered
     fun isLive2DPet() = loader is PetEngine.PetLoader.Live2D
-    fun tapLayeredPet() { cancelInteraction(); (loader as? PetEngine.PetLoader.Layered)?.player?.tap() }
+    fun tapLayeredPet() { cancelInteraction(); (loader as? PetEngine.PetLoader.Layered)?.player?.tap(countForBurst = false) }
+    fun recordLayeredPhysicalTap() {
+        if ((loader as? PetEngine.PetLoader.Layered)?.player?.recordPhysicalTap() == true)
+            cancelInteraction()
+    }
     fun setLayeredPickedUp(held: Boolean) {
         if (held) cancelInteraction()
         val layered = (loader as? PetEngine.PetLoader.Layered) ?: return
+        if (layeredPickedUp == held) return
         visualGeneration.incrementAndGet()
         layered.player.setPickedUp(held)
         layeredPickedUp = held
         if (held) layered.player.preparedPickupFrame?.let {
             _frame.value = Frame(it, ++frameSeq, baseTopInset)
+            presentedLayeredPickedUp = true
+            applyScale()
         }
-        // Compose's overlay Box changes only its height; TOP/LEFT WindowManager
-        // gravity + stable x/y keep the head at exactly its prior position.
-        applyScale()
+        // On release, keep the long canvas until a matching normal frame exists.
+        // Wake the renderer now; stale in-flight frames are rejected by generation.
+        start()
     }
     fun cancelInteraction() {
         interactionGeneration.incrementAndGet()
@@ -287,6 +301,7 @@ class AnimationController(
         baseTopInset = next.player.topInset
         basePickupH = next.player.pickupHeight
         layeredPickedUp = false
+        presentedLayeredPickedUp = false
         transparentTopFraction = top
         reset()
         applyScale()
@@ -301,7 +316,7 @@ class AnimationController(
 
     private fun applyScale() {
         _w.value = (baseW * s).toInt().coerceAtLeast(MIN_PET_SIZE_PX)
-        _h.value = ((if (layeredPickedUp) basePickupH else baseH) * s)
+        _h.value = ((if (presentedLayeredPickedUp) basePickupH else baseH) * s)
             .toInt().coerceAtLeast(MIN_PET_SIZE_PX)
     }
 }

@@ -219,8 +219,13 @@ object TapNestLayerActions {
     fun currentFrame(
         owner: TapNestLayer, allLayers: List<TapNestLayer>,
         elapsedMs: Long, touchAgeMs: Long, availableIds: Set<String>,
-        allowIdleBlink: Boolean = true
+        allowIdleBlink: Boolean = true,
+        rapidTapAngryFrameId: String? = null
     ): String {
+        if (touchAgeMs in 0..1799L && rapidTapAngryFrameId in availableIds) {
+            allLayers.firstOrNull { it.id == rapidTapAngryFrameId && it.frameOwner == owner.id }
+                ?.let { return it.id }
+        }
         if (!owner.interactionConfigured) return owner.id
         val requested = when {
             owner.tapSwitchFrame && touchAgeMs in 0..999L -> owner.tapFrame
@@ -244,6 +249,15 @@ object TapNestLayerActions {
      * Without this check, head_0_f1 (blink/periodic frame) can be drawn
      * ON TOP of an active head_2 expression, producing a mixed face.
      */
+    fun legacyAngryExpression(rig: TapNestRig, availableIds: Set<String>): Int? {
+        val id = rig.rapidTapAngryFrameId ?: return null
+        val prefix = if (rig.headMode == TapNestHeadMode.FULL_HEAD) "head_" else "face_"
+        return id.removePrefix(prefix).toIntOrNull()?.takeIf {
+            id.startsWith(prefix) && it in 0..3 && id in availableIds &&
+                rig.layers.any { layer -> layer.id == id && layer.frameOwner == null }
+        }
+    }
+
     fun ownerVisible(ownerId: String, visibleFace: String, headMode: TapNestHeadMode): Boolean =
         when {
             ownerId == "head_blank" -> headMode == TapNestHeadMode.BLANK_HEAD_WITH_FACE
