@@ -152,7 +152,7 @@ fun LayeredPetEditor(
 
     BackHandler(!busy) { back() }
     Scaffold(topBar = {
-        TopAppBar(title = { Text(if (showSettings) "⚙️ 当前部位 · 动作帧" else
+        TopAppBar(title = { Text(if (showSettings) "⚙️ ${rig.layers.firstOrNull { it.id == activeLayer }?.displayName?.ifBlank { activeLayer } ?: activeLayer}" else
                 if (editingPet == null) "🌱 创建第一形态" else if (formForEdit != null) "🦴 编辑形态 · ${formForEdit.name}" else "🦴 重新编辑 · ${editingPet.displayName}") },
             navigationIcon = { TextButton(onClick = {
                 back()
@@ -175,7 +175,7 @@ fun LayeredPetEditor(
                 onSetBone = { index, bx, by ->
                     rig = rig.copy(layers = rig.layers.map { layer ->
                         if (layer.id == activeLayer) layer.copy(bones = layer.bones.mapIndexed { i, bone ->
-                            if (i == index) TapNestBonePoint(bx, by) else bone
+                            if (i == index) bone.copy(x = bx, y = by) else bone
                         }) else layer
                     })
                 },
@@ -627,18 +627,18 @@ fun LayeredPetEditor(
                 if (actionPage == null) {
                     Text("🎮 B. 动作与互动", style = MaterialTheme.typography.titleMedium)
                     MotionEntry("👆 点触互动", layer.tapShake || layer.tapSwitchFrame,
-                        if (layer.tapFlexible.enabled) "柔性绑骨 · ${layer.tapFlexible.scope} · ${layer.tapFlexible.count} 次" else "整体动作 / 换帧",
+                        if (layer.tapFlexible.enabled) "柔性绑骨 · ${when(layer.tapFlexible.scope) { TapNestMotionScope.TIP -> "只抖尖端"; TapNestMotionScope.DISTAL -> "中后段"; TapNestMotionScope.WHOLE -> "整段" }} · ${layer.tapFlexible.count} 次" else "整体动作 / 换帧",
                         { update(layer.copy(interactionConfigured = true, tapShake = it,
                             tapSwitchFrame = if (it) layer.tapSwitchFrame else false)) }, { actionPage = "tap" })
                     MotionEntry("⏰ 定时动作", layer.periodicEnabled, "每 ${layer.periodicIntervalSeconds} 秒",
                         { update(layer.copy(interactionConfigured = true, periodicEnabled = it)) }, { actionPage = "periodic" })
-                    MotionEntry("🌿 持续轻摆", layer.idleSwing, "${layer.swingMode} · ${layer.idleAmplitude}°",
+                    MotionEntry("🌿 持续轻摆", layer.idleSwing, "${if (layer.swingMode == TapNestSwingMode.SPRING) "柔性弹簧" else "原版延迟"} · ${layer.idleAmplitude}°",
                         { update(layer.copy(idleSwing = it)) }, { actionPage = "swing" })
                     if (rig.layers.any { it.frameOwner == layer.id }) MotionEntry("😉 自动眨眼", layer.idleBlinkEnabled,
                         TapNestLayerActions.frameLabel(layer, rig.layers, layer.blinkFrame),
                         { update(layer.copy(interactionConfigured = true, idleBlinkEnabled = it)) }, { actionPage = "blink" })
                 }
-                FoldHeader("🖼️ C. 素材与动作帧", foldFrames) { foldFrames = !foldFrames }
+                if (actionPage == null) FoldHeader("🖼️ C. 素材与动作帧", foldFrames) { foldFrames = !foldFrames }
                 if (foldFrames && actionPage == null) {
                 Text("基础素材列表只放默认帧。此处可以为当前部位再传最多 3 张动作图；不上传也可以只用晃动。图片需与默认帧使用同一透明画布。",
                     style = MaterialTheme.typography.bodySmall)
