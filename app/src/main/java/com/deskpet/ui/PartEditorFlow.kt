@@ -19,11 +19,59 @@ internal data class PartEditorFlow(
     fun back() = if (history.isEmpty()) this else copy(step = history.last(), history = history.dropLast(1))
 }
 
+internal data class ActionFrameUploadPlan(val rig: TapNestRig, val imageIds: List<String>)
+
+internal data class ActionFrameUpload(val ownerId: String, val trigger: PartTrigger? = null, val angry: Boolean = false) {
+    /** Called only after a successful file selection; cancellation cannot allocate empty frames. */
+    fun apply(rig: TapNestRig): ActionFrameUploadPlan {
+        val owner = requireNotNull(rig.layers.firstOrNull { it.id == ownerId && it.frameOwner == null }) { "目标部位已移除" }
+        val frame = TapNestFrames.newFrame(owner, rig.layers, if (angry) "生气表情" else trigger?.frameLabel() ?: "动作图片")
+        var layers = rig.layers + frame
+        val imageIds = mutableListOf(frame.id)
+        if (trigger != null) layers = layers.map { if (it.id == owner.id) trigger.withFrame(it, frame.frameIndex) else it }
+        if (trigger != null && owner.syncPairedAll) {
+            rig.layers.filter { other -> other.frameOwner == null && other.syncPairedAll &&
+                (other.mirroredFromId == owner.id || owner.mirroredFromId == other.id) &&
+                other.mirrorX != owner.mirrorX && other.reflectedMotion == owner.reflectedMotion
+            }.forEach { other ->
+                if (layers.none { it.frameOwner == other.id && it.frameIndex == frame.frameIndex }) {
+                    require(layers.size < TapNestFrames.MAX_LAYERS) { "镜像两侧一起添加后会超过素材上限" }
+                    require(layers.count { it.frameOwner == other.id } < TapNestFrames.MAX_ACTION_FRAMES)
+                    val partner = frame.copy(id = TapNestFrames.frameId(other.id, frame.frameIndex, layers.map { it.id }.toSet()),
+                        frameOwner = other.id, parentId = other.id, zIndex = other.zIndex, mirroredFromId = frame.id)
+                    layers = layers + partner
+                    imageIds.add(partner.id)
+                }
+                layers = layers.map { if (it.id == other.id) trigger.withFrame(it, frame.frameIndex) else it }
+            }
+        }
+        return ActionFrameUploadPlan(rig.copy(layers = layers,
+            rapidTapAngryFrameId = if (angry) frame.id else rig.rapidTapAngryFrameId), imageIds)
+    }
+}
+
 internal enum class PartTrigger(val label: String, val description: String) {
     IDLE("⏰ 闲置抖动", "隔一段时间摇晃、换帧，也可同时触发"),
     TAP("👆 点触互动", "被戳时摇晃、换帧，也可同时触发"),
     CONTINUOUS("🌿 持续轻摆", "一直缓慢摇动"),
     BLINK("😉 自动眨眼", "偶尔切换到眨眼帧");
+
+    fun frame(layer: TapNestLayer): Int = when (this) {
+        TAP -> layer.tapFrame
+        BLINK -> layer.blinkFrame
+        else -> layer.periodicFrame
+    }
+    fun withFrame(layer: TapNestLayer, index: Int): TapNestLayer = when (this) {
+        TAP -> layer.copy(tapFrame = index)
+        BLINK -> layer.copy(blinkFrame = index)
+        else -> layer.copy(periodicFrame = index)
+    }
+    fun frameLabel(): String = when (this) {
+        TAP -> "戳动表情"
+        BLINK -> "眨眼表情"
+        IDLE -> "闲置表情"
+        else -> "动作图片"
+    }
 
     fun startReversed(layer: TapNestLayer) = when (this) {
         TAP -> layer.tapStartReversed

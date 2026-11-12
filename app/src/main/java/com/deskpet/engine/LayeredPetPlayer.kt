@@ -352,7 +352,7 @@ class LayeredPetPlayer private constructor(
             val formDialogues = forms?.let { collection ->
                 (collection.forms.firstOrNull { it.id == collection.activeFormId } ?: collection.forms.first()).tapDialogues
             }?.let(com.deskpet.data.model.TapDialogue::sanitize)
-            if (rig.canvasWidth !in 1..4096 || rig.canvasHeight !in 1..4096 || rig.layers.size > 48) return null
+            if (rig.canvasWidth !in 1..4096 || rig.canvasHeight !in 1..4096 || rig.layers.size > TapNestFrames.MAX_LAYERS) return null
             val dir = configFile.parentFile ?: return null
             val entries = mutableMapOf<String, Bitmap>()
             val sourceSizes = mutableMapOf<String, Pair<Int, Int>>()

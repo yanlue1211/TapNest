@@ -315,4 +315,19 @@ class LayeredPetPlayerTest {
             }
         }
     }
+    @Test fun moreThanThreeFramesAndMoreThanFortyEightLayersLoadAndPlayTheSelectedImage() {
+        png("many_default.png", Color.RED)
+        png("many_blink.png", Color.BLUE)
+        val owner = TapNestLayer("custom_head", "many_default.png", zIndex = 1,
+            interactionConfigured = true, tapSwitchFrame = true, tapFrame = 20)
+        val frames = (1..20).map { n -> TapNestLayer("custom_head_f$n", "many_blink.png",
+            frameOwner = owner.id, frameIndex = n, parentId = owner.id, zIndex = 1, pivotX = 0f, pivotY = 0f) }
+        val extras = (1..30).map { TapNestLayer("empty_part_$it", "") }
+        val rig = TapNestRig(canvasWidth = 64, canvasHeight = 64, templateId = TapNestTemplates.MANUAL,
+            layers = listOf(TapNestLayer("body", "many_default.png"), owner) + frames + extras)
+        val cfg = tmp.newFile("many_frames.json").apply { writeText(Json.encodeToString(rig)) }
+        val player = requireNotNull(LayeredPetPlayer.load(cfg))
+        player.tap()
+        assertEquals(Color.BLUE, player.render().getPixel(32, 32))
+    }
 }

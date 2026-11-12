@@ -91,7 +91,7 @@ object TapNestForms {
         val parsed = json.decodeFromString<TapNestFormCollection>(file.readText())
         if (parsed.forms.isEmpty() || parsed.forms.size > 24 ||
             parsed.forms.map { it.id }.distinct().size != parsed.forms.size ||
-            parsed.forms.any { it.rig.layers.size > 48 ||
+            parsed.forms.any { it.rig.layers.size > TapNestFrames.MAX_LAYERS ||
                 !it.id.matches(Regex("[A-Za-z][A-Za-z0-9_]{0,35}")) }) return null
         parsed
     }.getOrNull()

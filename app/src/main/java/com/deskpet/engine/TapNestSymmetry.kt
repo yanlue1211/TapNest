@@ -112,9 +112,12 @@ object TapNestSymmetry {
             id = newId, image = "", displayName = newDisplayName,
             mirrorX = !source.mirrorX, mirroredFromId = source.id
         )
+        val usedIds = frames.map { it.id }.toMutableSet().apply { add(newId) }
         val alternateFrames = frames.filter { it.frameOwner == source.id }.map { frame ->
+            val frameId = TapNestFrames.frameId(newId, frame.frameIndex, usedIds)
+            usedIds.add(frameId)
             frame.copy(
-                id = "${newId}_f${frame.frameIndex}", image = "",
+                id = frameId, image = "",
                 displayName = "", frameOwner = newId, parentId = newId,
                 mirrorX = !frame.mirrorX, mirroredFromId = frame.id
             )

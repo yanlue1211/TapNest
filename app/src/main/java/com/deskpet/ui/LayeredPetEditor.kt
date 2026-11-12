@@ -119,8 +119,17 @@ fun LayeredPetEditor(
         }
     }
     var pickingLayer by remember { mutableStateOf("") }
+    var pendingActionUpload by remember { mutableStateOf<ActionFrameUpload?>(null) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
-        if (uri != null && pickingLayer.isNotEmpty()) {
+        val pending = pendingActionUpload
+        pendingActionUpload = null
+        if (uri != null && pending != null) {
+            runCatching { pending.apply(rig) }.onSuccess { plan ->
+                rig = plan.rig
+                plan.imageIds.forEach { images[it] = uri }
+                error = null
+            }.onFailure { error = it.message ?: "无法添加动作图片" }
+        } else if (uri != null && pickingLayer.isNotEmpty()) {
             val previous = images[pickingLayer]
             // A fresh PNG on a mirrored copy is already drawn for its own side.
             // Unmirror only this image's owner; retain the copied rig and bones.
@@ -413,7 +422,7 @@ fun LayeredPetEditor(
                                     }
                                     val copied = TapNestSymmetry.mirroredGroup(
                                         original, rig.layers, oppositeId, oppositeName)
-                                    if (rig.layers.size + copied.size > 48) {
+                                    if (rig.layers.size + copied.size > TapNestFrames.MAX_LAYERS) {
                                         error = "图层已达到上限，无法复制"
                                     } else {
                                         copied.forEach { part ->
@@ -531,8 +540,8 @@ fun LayeredPetEditor(
                             parentId = if (kind == "hat" && rig.headMode == TapNestHeadMode.BLANK_HEAD_WITH_FACE)
                                 "head_blank" else TapNestTemplates.newPart(id, z).parentId
                         ))
-                        if (rig.layers.size + created.size > 48) {
-                            error = "图层已满（最多 48 层，包含动作帧）"
+                        if (rig.layers.size + created.size > TapNestFrames.MAX_LAYERS) {
+                            error = "图层已满（最多 ${TapNestFrames.MAX_LAYERS} 层，包含动作帧）"
                         } else {
                             rig = rig.copy(layers = rig.layers + created)
                             activeLayer = created.first().id
@@ -571,7 +580,31 @@ fun LayeredPetEditor(
                         }
                     }
                 }
-                if (candidates.isEmpty()) Text("请先给头部或表情图层上传一张生气动作帧，再到这里选择。")
+                var angryOwnerChoice by remember { mutableStateOf<String?>(null) }
+                var angryOwnerMenu by remember { mutableStateOf(false) }
+                val currentAngry = rig.layers.firstOrNull { it.id == rig.rapidTapAngryFrameId }
+                val angryOwner = rig.layers.firstOrNull { it.id == angryOwnerChoice && it.frameOwner == null }
+                    ?: currentAngry?.let { f -> f.frameOwner?.let { id -> rig.layers.firstOrNull { it.id == id } } ?: f }
+                    ?: rig.layers.firstOrNull { it.id == prefix + "0" }
+                    ?: rig.layers.firstOrNull { it.frameOwner == null && it.id.startsWith("head") }
+                    ?: rig.layers.firstOrNull { it.id == "body" }
+                Box {
+                    TextButton(onClick = { angryOwnerMenu = true }) { Text("图片用于：${angryOwner?.let { owner -> owner.displayName.ifBlank { owner.id } } ?: "请选择部位"} ▾") }
+                    DropdownMenu(angryOwnerMenu, { angryOwnerMenu = false }) {
+                        rig.layers.filter { it.frameOwner == null && it.id != "pickup_pose" }.forEach { owner ->
+                            DropdownMenuItem(text = { Text(owner.displayName.ifBlank { owner.id }) }, onClick = {
+                                angryOwnerChoice = owner.id; angryOwnerMenu = false
+                            })
+                        }
+                    }
+                }
+                OutlinedButton(onClick = {
+                    if (angryOwner != null) {
+                        pickingLayer = ""; pendingActionUpload = ActionFrameUpload(angryOwner.id, angry = true)
+                        picker.launch(arrayOf("image/png"))
+                    }
+                }, enabled = angryOwner != null && rig.layers.size < TapNestFrames.MAX_LAYERS) { Text("＋ 直接上传生气表情并使用") }
+                Text("也可以在上面复用已有图片。上传新图片后自动用于五连戳。", style = MaterialTheme.typography.bodySmall)
             }
             FoldHeader("🪁 长按拎起效果", pickupSettingsOpen) {
                 pickupSettingsOpen = !pickupSettingsOpen
@@ -757,65 +790,60 @@ fun LayeredPetEditor(
                             }
                         }
                         PartEditorStep.FRAME, PartEditorStep.MATERIAL -> {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    MotionFrameThumb(images[layer.id])
-                    Text("${layer.displayName.ifBlank { "默认帧" }} · 帧0", Modifier.weight(1f))
-                    TextButton(onClick = { pickingLayer = layer.id; picker.launch(arrayOf("image/png")) }) { Text("替换素材") }
-                }
-                Text("基础素材列表只放默认帧。此处可以为当前部位再传最多 3 张动作图；不上传也可以只用晃动。图片需与默认帧使用同一透明画布。",
-                    style = MaterialTheme.typography.bodySmall)
-                val extraFrames = rig.layers.filter { it.frameOwner == layer.id }
-                    .sortedBy { it.frameIndex }
-                extraFrames.forEach { frame ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        MotionFrameThumb(images[frame.id])
-                        OutlinedTextField(value = frame.displayName, onValueChange = { text ->
-                            rig = rig.copy(layers = rig.layers.map { if (it.id == frame.id) it.copy(displayName = text.take(80)) else it })
-                        }, label = { Text("帧 ${frame.frameIndex} · ✏️ 名称") }, modifier = Modifier.weight(1f))
-                        TextButton(onClick = {
-                            pickingLayer = frame.id
-                            picker.launch(arrayOf("image/png"))
-                        }) { Text(if (images[frame.id] == null) "上传图片" else "替换图片 ✓") }
-                        TextButton(onClick = {
-                            images.remove(frame.id)
-                            rig = rig.copy(layers = rig.layers.filterNot { it.id == frame.id })
-                        }) { Text("移除") }
-                    }
-                }
-                TextButton(onClick = {
-                    val next = (1..3).firstOrNull { n ->
-                        extraFrames.none { it.frameIndex == n }
-                    }
-                    if (next != null && rig.layers.size < 48) {
-                        val frameId = "${layer.id}_f${next}"
-                        if (frameId.matches(Regex("[A-Za-z][A-Za-z0-9_]{0,34}")) &&
-                            rig.layers.none { it.id == frameId }) {
-                            rig = rig.copy(layers = rig.layers + TapNestLayer(
-                                id = frameId, image = "", frameOwner = layer.id,
-                                frameIndex = next, parentId = layer.id,
-                                pivotX = 0f, pivotY = 0f, zIndex = layer.zIndex
-                            ))
-                        } else error = "图层名太长，无法添加动作帧；请缩短部位名称"
-                    }
-                }, enabled = extraFrames.size < 3) { Text("＋ 给本默认帧添加动作帧") }
-
+                            val extraFrames = rig.layers.filter { it.frameOwner == layer.id }.sortedBy { it.frameIndex }
                             if (partFlow.step == PartEditorStep.FRAME) {
-                                Text("选择这次动作使用的帧")
-                                val target = when(partFlow.trigger) { PartTrigger.TAP -> layer.tapFrame; PartTrigger.BLINK -> layer.blinkFrame; else -> layer.periodicFrame }
-                                extraFrames.forEach { frame ->
-                                    FilterChip(target == frame.frameIndex, {
-                                        update(when(partFlow.trigger) {
-                                            PartTrigger.TAP -> layer.copy(tapFrame = frame.frameIndex)
-                                            PartTrigger.BLINK -> layer.copy(blinkFrame = frame.frameIndex)
-                                            else -> layer.copy(periodicFrame = frame.frameIndex)
-                                        })
-                                    }, label = { Text(TapNestLayerActions.frameLabel(layer, rig.layers, frame.frameIndex)) })
+                                val target = partFlow.trigger.frame(layer)
+                                val selectedFrame = extraFrames.firstOrNull { it.frameIndex == target }
+                                Text("${partFlow.trigger.frameLabel()} · 在这里直接上传", style = MaterialTheme.typography.titleMedium)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    MotionFrameThumb(selectedFrame?.let { images[it.id] })
+                                    Text(if (selectedFrame != null && images[selectedFrame.id] != null)
+                                        "当前：${TapNestLayerActions.frameLabel(layer, rig.layers, target)}" else "还没有为这个动作设置图片")
                                 }
-                                Text("帧编号和内部绑定不会因为改名而改变。", style = MaterialTheme.typography.bodySmall)
-                                Button(onClick = { go(partFlow.trigger.afterFrame(layer)) }, enabled = extraFrames.any { it.frameIndex == target && images[it.id] != null }) {
+                                OutlinedButton(onClick = {
+                                    pickingLayer = ""
+                                    pendingActionUpload = ActionFrameUpload(layer.id, partFlow.trigger)
+                                    picker.launch(arrayOf("image/png"))
+                                }, enabled = extraFrames.size < TapNestFrames.MAX_ACTION_FRAMES && rig.layers.size < TapNestFrames.MAX_LAYERS) {
+                                    Text("＋ 上传${partFlow.trigger.frameLabel()}图片并使用")
+                                }
+                                Text("上传后自动绑定到当前动作。不同动作可以各传各的图片；已有帧和其他动作的绑定会保留。图片请使用与默认帧相同的透明画布。", style = MaterialTheme.typography.bodySmall)
+                                var existingMenu by remember(activeLayer, partFlow.trigger) { mutableStateOf(false) }
+                                Box {
+                                    TextButton(onClick = { existingMenu = true }, enabled = extraFrames.isNotEmpty()) { Text("也可以复用已有图片 ▾") }
+                                    DropdownMenu(existingMenu, { existingMenu = false }) {
+                                        extraFrames.filter { images[it.id] != null }.forEach { frame ->
+                                            DropdownMenuItem(text = { Text(TapNestLayerActions.frameLabel(layer, rig.layers, frame.frameIndex)) }, onClick = {
+                                                update(partFlow.trigger.withFrame(layer, frame.frameIndex)); existingMenu = false
+                                            })
+                                        }
+                                    }
+                                }
+                                if (extraFrames.size >= TapNestFrames.MAX_ACTION_FRAMES) Text("本部位已达到 ${TapNestFrames.MAX_ACTION_FRAMES} 张；可复用已有图片，或到素材管理整理。")
+                                Button(onClick = { go(partFlow.trigger.afterFrame(layer)) }, enabled = selectedFrame?.let { images[it.id] != null } == true) {
                                     Text(if (partFlow.trigger.afterFrame(layer) == PartEditorStep.ANCHOR) "下一步：设置摇晃 →" else "下一步 →")
                                 }
                             } else {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    MotionFrameThumb(images[layer.id])
+                                    Text("${layer.displayName.ifBlank { "默认帧" }} · 帧0", Modifier.weight(1f))
+                                    TextButton(onClick = { pickingLayer = layer.id; picker.launch(arrayOf("image/png")) }) { Text("替换素材") }
+                                }
+                                Text("本部位动作图片 ${extraFrames.size}/${TapNestFrames.MAX_ACTION_FRAMES}。各动作页可以直接上传，这里仅用于统一改名、替换和整理。", style = MaterialTheme.typography.bodySmall)
+                                extraFrames.forEach { frame ->
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        MotionFrameThumb(images[frame.id])
+                                        OutlinedTextField(frame.displayName, { text -> rig = rig.copy(layers = rig.layers.map {
+                                            if (it.id == frame.id) it.copy(displayName = text.take(80)) else it
+                                        }) }, label = { Text("帧 ${frame.frameIndex} · 名称") }, modifier = Modifier.weight(1f))
+                                        TextButton(onClick = { pickingLayer = frame.id; picker.launch(arrayOf("image/png")) }) { Text("替换") }
+                                        TextButton(onClick = { images.remove(frame.id); rig = rig.copy(layers = rig.layers.filterNot { it.id == frame.id }) }) { Text("移除") }
+                                    }
+                                }
+                                TextButton(onClick = {
+                                    pickingLayer = ""; pendingActionUpload = ActionFrameUpload(layer.id)
+                                    picker.launch(arrayOf("image/png"))
+                                }, enabled = extraFrames.size < TapNestFrames.MAX_ACTION_FRAMES && rig.layers.size < TapNestFrames.MAX_LAYERS) { Text("＋ 上传动作图片") }
                                 OutlinedTextField(layer.displayName, { update(layer.copy(displayName = it.take(80))) }, label = { Text("默认帧名称") })
                                 Button(onClick = { go(PartEditorStep.SUMMARY) }) { Text("完成素材设置 →") }
                             }

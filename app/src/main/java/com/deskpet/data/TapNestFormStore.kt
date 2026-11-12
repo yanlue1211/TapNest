@@ -11,6 +11,7 @@ import com.deskpet.engine.TapNestForm
 import com.deskpet.engine.TapNestFormAssets
 import com.deskpet.engine.TapNestFormCollection
 import com.deskpet.engine.TapNestForms
+import com.deskpet.engine.TapNestFrames
 import com.deskpet.engine.TapNestRig
 import com.deskpet.engine.TapNestTemplates
 import kotlinx.serialization.json.Json
@@ -114,7 +115,7 @@ class TapNestFormStore(private val context: Context) {
                  inputs: Map<String, Uri>): PetInfo = synchronized(writeLock) {
         val forms = load(pet)
         val previous = forms.forms.firstOrNull { it.id == id } ?: error("形态不存在")
-        require(rig.layers.size <= 48)
+        require(rig.layers.size <= TapNestFrames.MAX_LAYERS)
         val home = dir(pet)
         val created = mutableListOf<File>()
         try {
