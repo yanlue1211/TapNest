@@ -516,7 +516,10 @@ internal fun LayeredRigPreview(
             } else {
                 val mesh = if (mode == RigPreviewMode.TEST) TapNestFlexibleMesh.vertices(
                     if (impulseActive) skinLayer.copy(shapePreservation = 0f) else skinLayer, art.width, art.height, elapsed, resolution, jointAngles, extraAngles,
-                    angleDriveAmplitude = TapNestLayerActions.activeFlexibleDriveAmplitude(
+                    // Identical motion motor/mesh path as the floating overlay.
+                    angleDriveAmplitude = if (spring && !impulseActive &&
+                        skinLayer.idlePlane.enabled && !skinLayer.idlePlane.linear) 0f
+                    else TapNestLayerActions.activeFlexibleDriveAmplitude(
                         skinLayer, rig.layers, elapsed, touchElapsed)) else null
                 if (mesh != null) {
                     native.drawBitmapMesh(art.bitmap, resolution, resolution, mesh, 0, null, 0, paint)
