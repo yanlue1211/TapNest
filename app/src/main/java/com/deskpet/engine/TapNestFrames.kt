@@ -17,7 +17,7 @@ object TapNestFrames {
         require(existing.size < MAX_ACTION_FRAMES) { "当前部位已有 $MAX_ACTION_FRAMES 张动作图，可先在素材管理中整理" }
         val index = (1..MAX_ACTION_FRAMES).first { n -> existing.none { it.frameIndex == n } }
         return TapNestLayer(frameId(owner.id, index, layers.map { it.id }.toSet()), "",
-            displayName = name, frameOwner = owner.id, frameIndex = index, parentId = owner.id,
+            displayName = if (name.isBlank()) "" else "$name $index", frameOwner = owner.id, frameIndex = index, parentId = owner.id,
             pivotX = 0f, pivotY = 0f, zIndex = owner.zIndex)
     }
 }

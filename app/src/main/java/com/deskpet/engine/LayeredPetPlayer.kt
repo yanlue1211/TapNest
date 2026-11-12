@@ -166,7 +166,16 @@ class LayeredPetPlayer private constructor(
             }
         val idleBlinking = !periodicScene && !held && !reacting &&
             TapNestBlink.isBlinking(sceneElapsed)
-        val activeExpression = when {
+        val selectedFrameByOwner = rig.layers.filter { it.frameOwner == null }
+            .associate { owner ->
+                owner.id to if (held || reacting) owner.id else TapNestLayerActions.currentFrame(
+                    owner, rig.layers, sceneElapsed, elapsed, pictures.keys,
+                    allowIdleBlink = !periodicScene,
+                    rapidTapAngryFrameId = rig.rapidTapAngryFrameId.takeIf { rapidTapAngry }
+                )
+            }
+
+        val baseExpression = when {
             held -> naturalExpression() // No additional expression/animation controls while lifted.
             reacting -> interaction?.expression(now)?.takeIf { frame ->
                 pictures.containsKey((if (rig.headMode == TapNestHeadMode.FULL_HEAD) "head_" else "face_") + frame)
@@ -177,6 +186,11 @@ class LayeredPetPlayer private constructor(
             rig.blinkExpression in 0..3 && idleBlinking -> rig.blinkExpression
             else -> naturalExpression()
         }
+        val forcedAngry = elapsed < 1800 && rapidTapAngry &&
+            TapNestLayerActions.legacyAngryExpression(rig, pictures.keys) != null
+        val activeExpression = if (!held && !reacting && !forcedAngry)
+            TapNestLayerActions.legacyActionExpression(rig, selectedFrameByOwner, baseExpression) ?: baseExpression
+            else baseExpression
         val shown = when (rig.headMode) {
             TapNestHeadMode.FULL_HEAD -> {
                 val slot = "head_$activeExpression"
@@ -190,14 +204,6 @@ class LayeredPetPlayer private constructor(
         val breath = if (rig.idleBreathingEnabled && !held && !reacting &&
             elapsed >= 1800L) TapNestBreathing.pose(sceneElapsed, rig.idleBreathingStrength)
             else null
-        val selectedFrameByOwner = rig.layers.filter { it.frameOwner == null }
-            .associate { owner ->
-                owner.id to if (held || reacting) owner.id else TapNestLayerActions.currentFrame(
-                    owner, rig.layers, sceneElapsed, elapsed, pictures.keys,
-                    allowIdleBlink = !periodicScene,
-                    rapidTapAngryFrameId = rig.rapidTapAngryFrameId.takeIf { rapidTapAngry }
-                )
-            }
 
         // Parent transformations are evaluated even when a parent image is hidden or optional.
         // Drawing uses a shared canvas coordinate system so cropped PNGs keep their natural size.

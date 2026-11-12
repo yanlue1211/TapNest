@@ -250,6 +250,15 @@ object TapNestLayerActions {
      * Without this check, head_0_f1 (blink/periodic frame) can be drawn
      * ON TOP of an active head_2 expression, producing a mixed face.
      */
+    /** An active alternative face must not be hidden by legacy automatic head cycling. */
+    fun legacyActionExpression(rig: TapNestRig, selected: Map<String, String>, preferred: Int): Int? {
+        val prefix = if (rig.headMode == TapNestHeadMode.FULL_HEAD) "head_" else "face_"
+        val active = rig.layers.filter { owner -> owner.frameOwner == null && owner.id.startsWith(prefix) &&
+            selected[owner.id]?.let { it != owner.id } == true
+        }.mapNotNull { it.id.removePrefix(prefix).toIntOrNull()?.takeIf { n -> n in 0..3 } }
+        return preferred.takeIf { it in active } ?: active.firstOrNull()
+    }
+
     fun legacyAngryExpression(rig: TapNestRig, availableIds: Set<String>): Int? {
         val id = rig.rapidTapAngryFrameId ?: return null
         val prefix = if (rig.headMode == TapNestHeadMode.FULL_HEAD) "head_" else "face_"

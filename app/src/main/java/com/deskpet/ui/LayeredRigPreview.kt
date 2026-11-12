@@ -370,7 +370,7 @@ internal fun LayeredRigPreview(
             }
         val idleBlinking = mode == RigPreviewMode.TEST && !periodicScene &&
             TapNestBlink.isBlinking(sceneElapsed)
-        val expressionIndex = when {
+        val baseExpressionIndex = when {
             mode == RigPreviewMode.TEST && touchElapsed in 0..1799L && rapidTapAngry ->
                 TapNestLayerActions.legacyAngryExpression(rig, assets.keys) ?: expression
             mode == RigPreviewMode.TEST && touchElapsed in 0..1799L -> expression
@@ -378,9 +378,6 @@ internal fun LayeredRigPreview(
                 idleBlinking -> rig.blinkExpression
             else -> 0
         }
-        val facePrefix = if (rig.headMode == TapNestHeadMode.FULL_HEAD) "head_" else "face_"
-        val chosen = facePrefix + expressionIndex
-        val face = if (assets.containsKey(chosen)) chosen else facePrefix + "0"
         val nodes = rig.layers.associateBy { it.id }
         val selectedFrames = rig.layers.filter { it.frameOwner == null }.associate { owner ->
             owner.id to if (mode == RigPreviewMode.TEST)
@@ -389,6 +386,13 @@ internal fun LayeredRigPreview(
                     rapidTapAngryFrameId = rig.rapidTapAngryFrameId.takeIf { rapidTapAngry })
                 else owner.id
         }
+        val forcedAngry = mode == RigPreviewMode.TEST && touchElapsed in 0..1799L && rapidTapAngry &&
+            TapNestLayerActions.legacyAngryExpression(rig, assets.keys) != null
+        val expressionIndex = if (forcedAngry) baseExpressionIndex else
+            TapNestLayerActions.legacyActionExpression(rig, selectedFrames, baseExpressionIndex) ?: baseExpressionIndex
+        val facePrefix = if (rig.headMode == TapNestHeadMode.FULL_HEAD) "head_" else "face_"
+        val chosen = facePrefix + expressionIndex
+        val face = if (assets.containsKey(chosen)) chosen else facePrefix + "0"
         fun poseFor(id: String): TapNestPose {
             val phase = if (mode == RigPreviewMode.TEST) clock else 0L
             var pose = TapNestPose()
