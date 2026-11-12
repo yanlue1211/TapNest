@@ -241,7 +241,7 @@ class LayeredPetPlayer private constructor(
                     node.idleSpeed.coerceIn(0.1f, 3f) * 2 * PI)).toFloat()
                 val swingSign = TapNestSymmetry.idleSwingSign(node)
                 val amount = wave * node.idleAmplitude.coerceIn(0f, 85f) * swingSign * if (node.reflectedMotion != node.idleStartReversed) -1f else 1f
-                val motion = if (node.idlePlane.enabled) TapNestLayerActions.planePose(amount, node.idlePlane) else TapNestPose(angle = amount)
+                val motion = if (node.idlePlane.enabled) TapNestLayerActions.planePose(amount, node.idlePlane, node.idleAmplitude.coerceIn(0f, 85f)) else TapNestPose(angle = amount)
                 p = p.copy(x = p.x + motion.x, y = p.y + motion.y, angle = p.angle + motion.angle)
             }
             return p
@@ -328,7 +328,9 @@ class LayeredPetPlayer private constructor(
                 canvas.restore()
             } else {
                 val flexible = if (held) null else TapNestFlexibleMesh.vertices(
-                    if (impulseActive) skinLayer.copy(shapePreservation = 0f) else skinLayer, source.first, source.second, now - launchedAtMs, mesh, jointAngles, extraAngles
+                    if (impulseActive) skinLayer.copy(shapePreservation = 0f) else skinLayer, source.first, source.second, now - launchedAtMs, mesh, jointAngles, extraAngles,
+                    angleDriveAmplitude = TapNestLayerActions.activeFlexibleDriveAmplitude(
+                        skinLayer, rig.layers, now - launchedAtMs, elapsed)
                 )
                 if (flexible != null) {
                     canvas.drawBitmapMesh(picture, mesh, mesh, flexible, 0, null, 0, paint)

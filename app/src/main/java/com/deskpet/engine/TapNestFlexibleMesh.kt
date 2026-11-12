@@ -83,12 +83,13 @@ object TapNestFlexibleMesh {
 
     fun vertices(layer: TapNestLayer, width: Int, height: Int, elapsedMs: Long,
                  mesh: Int = GRID, jointAngles: FloatArray? = null,
-                 extraAngles: List<FloatArray?> = emptyList()): FloatArray? {
-        val main = singleVertices(layer, width, height, elapsedMs, mesh, jointAngles)
+                 extraAngles: List<FloatArray?> = emptyList(),
+                 angleDriveAmplitude: Float? = null): FloatArray? {
+        val main = singleVertices(layer, width, height, elapsedMs, mesh, jointAngles, angleDriveAmplitude)
         if (layer.boneChains.isEmpty() && layer.boneRegion == TapNestBoneRegion()) return main
         if (width !in 1..4096 || height !in 1..4096 || mesh !in 2..32) return null
         val deformations = listOf(main) + layer.boneChains.mapIndexed { i, chain ->
-            singleVertices(chain.asLayer(layer), width, height, elapsedMs, mesh, extraAngles.getOrNull(i))
+            singleVertices(chain.asLayer(layer), width, height, elapsedMs, mesh, extraAngles.getOrNull(i), angleDriveAmplitude)
         }
         if (deformations.all { it == null }) return null
         val regions = listOf(layer.boneRegion) + layer.boneChains.map { it.region }
@@ -116,7 +117,8 @@ object TapNestFlexibleMesh {
     }
 
     private fun singleVertices(layer: TapNestLayer, width: Int, height: Int, elapsedMs: Long,
-                 mesh: Int = GRID, jointAngles: FloatArray? = null): FloatArray? {
+                 mesh: Int = GRID, jointAngles: FloatArray? = null,
+                 angleDriveAmplitude: Float? = null): FloatArray? {
         if ((!layer.idleSwing && jointAngles == null) || (!layer.idleFlexibleEnabled && jointAngles == null) || layer.bones.size !in 2..8 ||
             width !in 1..4096 || height !in 1..4096 || mesh !in 2..32) return null
         val base = layer.bones.map { Point(it.x.coerceIn(0f, 1f) * width,
@@ -138,9 +140,10 @@ object TapNestFlexibleMesh {
                 val axis = Math.toRadians(plane.axisDegrees.toDouble()).toFloat()
                 (source.x + offset * cos(axis)) to (source.y + offset * sin(axis))
             } else {
-                val bounded = if (plane.enabled) accumulated.coerceIn(
-                    -Math.toRadians(plane.negativeLimit.coerceIn(0f, 180f).toDouble()).toFloat(),
-                    Math.toRadians(plane.positiveLimit.coerceIn(0f, 180f).toDouble()).toFloat()) else accumulated
+                val bounded = if (plane.enabled) Math.toRadians(TapNestSwingBounds.limitAngle(
+                    Math.toDegrees(accumulated.toDouble()).toFloat(), plane,
+                    angleDriveAmplitude ?: layer.idleAmplitude.coerceIn(0f, 85f),
+                    softStop = true).toDouble()).toFloat() else accumulated
                 moveSegment(source.x, source.y, bounded, direction)
             }
             transformed.add(transformed.last() + Point(dx, dy))
