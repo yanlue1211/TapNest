@@ -66,6 +66,14 @@ class TapNestClothingTest {
             clothing.copy(bodyLinkedClothing = false), 300, 700, 512 to 512))
     }
 
+    @Test fun outfitInheritsBodyFadeWithoutChangingOrdinaryLayers() {
+        val linked = TapNestTemplates.manual().layers.first { it.bodyLinkedClothing }
+        assertEquals(.25f, TapNestClothing.combinedAlpha(linked, .5f, .5f), .0001f)
+        assertEquals(.5f, TapNestClothing.combinedAlpha(
+            linked.copy(bodyLinkedClothing = false), .5f, .25f), .0001f)
+        assertEquals(0f, TapNestClothing.combinedAlpha(linked, 1f, 0f), .0001f)
+    }
+
     @Test fun missingBodyAndExistingCustomLayersAreNotClobbered() {
         val withoutBody = TapNestRig(canvasWidth = 64, canvasHeight = 64,
             layers = listOf(TapNestLayer("head_0", "head.png")))
