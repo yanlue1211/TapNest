@@ -51,7 +51,7 @@ enum class TapNestPartMotion { NOD, BOUNCE, FLAP, TWITCH, HAT_POP }
 enum class TapNestPeriodicAction { SHAKE, SWITCH_FRAME }
 
 @Serializable
-enum class TapNestMotionScope { WHOLE, DISTAL, TIP }
+enum class TapNestMotionScope { WHOLE, DISTAL, TIP, UPPER, MIDDLE, LOWER }
 
 @Serializable
 data class TapNestImpulse(

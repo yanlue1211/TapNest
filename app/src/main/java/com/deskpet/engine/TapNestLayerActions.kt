@@ -57,6 +57,23 @@ object TapNestLayerActions {
         return (elapsedMs % interval).takeIf { it < periodicPulseDuration(layer) }
     }
 
+    /** Arc length, rather than point index, defines the quarter boundaries. */
+    fun scopeWeight(layer: TapNestLayer, segment: Int, scope: TapNestMotionScope): Float {
+        val lengths = layer.bones.zipWithNext { a, b ->
+            kotlin.math.hypot((b.x - a.x) * 1.0, (b.y - a.y) * 1.0).toFloat()
+        }
+        val total = lengths.sum()
+        if (total < .00001f) return 0f
+        val u = lengths.take(segment + 1).sum() / total
+        val start = when (scope) {
+            TapNestMotionScope.UPPER -> .25f
+            TapNestMotionScope.MIDDLE -> .5f
+            TapNestMotionScope.LOWER -> .75f
+            else -> 0f
+        }
+        return ((u - start) / (1f - start)).coerceIn(0f, 1f)
+    }
+
     /** Shared skinning input. A tap replaces the timed impulse, never accumulates it. */
     fun jointAngles(layer: TapNestLayer, layers: List<TapNestLayer>, sceneMs: Long,
                     touchMs: Long, idle: FloatArray?): FloatArray? {
@@ -68,7 +85,11 @@ object TapNestLayerActions {
             FloatArray(source.size) { i ->
                 idleAbsolute += source[i]
                 val u = if (source.size == 1) 1f else i.toFloat() / (source.size - 1)
-                val weight = if (layer.idleScope == TapNestMotionScope.TIP) u * u * u else u
+                val weight = when (layer.idleScope) {
+                    TapNestMotionScope.TIP -> u * u * u
+                    TapNestMotionScope.UPPER, TapNestMotionScope.MIDDLE, TapNestMotionScope.LOWER -> scopeWeight(layer, i, layer.idleScope)
+                    else -> u
+                }
                 val current = idleAbsolute * weight
                 (current - previous).also { previous = current }
             } else source
@@ -96,6 +117,7 @@ object TapNestLayerActions {
         val absolute = FloatArray(count) { i ->
             val u = (i + 1f) / count
             val weight = when (action.scope) {
+                TapNestMotionScope.UPPER, TapNestMotionScope.MIDDLE, TapNestMotionScope.LOWER -> scopeWeight(layer, i, action.scope)
                 TapNestMotionScope.WHOLE -> u
                 TapNestMotionScope.DISTAL -> ((u - .25f) / .75f).coerceIn(0f, 1f).let { it * it }
                 TapNestMotionScope.TIP -> if (count == 1) 1f else (i.toFloat() / (count - 1)).let { it * it * it }

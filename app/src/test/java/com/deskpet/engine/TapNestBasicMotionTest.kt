@@ -17,6 +17,14 @@ class TapNestBasicMotionTest {
         assertNotEquals(TapNestLayerActions.motionPose(part, 100L),
             TapNestLayerActions.motionPose(part.copy(tapFlexible = part.tapFlexible.copy(speed = 5f)), 100L))
     }
+    @Test fun quarterScopesFollowLengthRatherThanPointCount() {
+        val part = TapNestLayer("ribbon", "r.png", bones = listOf(
+            TapNestBonePoint(.5f, 0f), TapNestBonePoint(.5f, .1f),
+            TapNestBonePoint(.5f, .5f), TapNestBonePoint(.5f, 1f)))
+        assertEquals(0f, TapNestLayerActions.scopeWeight(part, 0, TapNestMotionScope.MIDDLE), .001f)
+        assertEquals(0f, TapNestLayerActions.scopeWeight(part, 1, TapNestMotionScope.MIDDLE), .001f)
+        assertEquals(1f, TapNestLayerActions.scopeWeight(part, 2, TapNestMotionScope.MIDDLE), .001f)
+    }
     @Test fun tapEditingDoesNotAlterPeriodicLegacyPose() {
         val part = TapNestLayer("wing_left", "wing.png", tapBasicConfigured = true,
             tapFlexible = TapNestImpulse(amplitude = 40f))

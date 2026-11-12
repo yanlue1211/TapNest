@@ -815,6 +815,9 @@ fun LayeredPetEditor(
 
                             if (layer.bones.size >= 2) {
                                 if (partFlow.trigger == PartTrigger.CONTINUOUS) {
+                                    listOf(TapNestMotionScope.WHOLE, TapNestMotionScope.UPPER, TapNestMotionScope.MIDDLE, TapNestMotionScope.LOWER).forEach { scope ->
+                                        FilterChip(layer.idleScope == scope, { update(layer.copy(idleScope = scope)) }, label = { Text(when(scope) { TapNestMotionScope.WHOLE -> "从根部开始"; TapNestMotionScope.UPPER -> "从中上开始"; TapNestMotionScope.MIDDLE -> "从中部开始"; else -> "从中下开始" }) })
+                                    }
                                     BindingSlider("柔软度", layer.springSoftness, 0f, 1f) { update(layer.copy(springSoftness = it)) }
                                     BindingSlider("阻尼", layer.springDamping, .1f, 1.3f) { update(layer.copy(springDamping = it)) }
                                     BindingSlider("保形", layer.shapePreservation, 0f, 1f) { update(layer.copy(shapePreservation = it)) }
@@ -1052,9 +1055,9 @@ private fun ImpulseSettings(value: TapNestImpulse, showEnable: Boolean = true, u
         Switch(value.enabled, { update(value.copy(enabled = it)) })
     }
     if (value.enabled) {
-        TapNestMotionScope.entries.forEach { scope ->
+        listOf(TapNestMotionScope.WHOLE, TapNestMotionScope.UPPER, TapNestMotionScope.MIDDLE, TapNestMotionScope.LOWER).forEach { scope ->
             FilterChip(value.scope == scope, { update(value.copy(scope = scope)) }, label = {
-                Text(when(scope) { TapNestMotionScope.WHOLE -> "整段运动"; TapNestMotionScope.DISTAL -> "中后段运动"; TapNestMotionScope.TIP -> "只抖尖端" })
+                Text(when(scope) { TapNestMotionScope.WHOLE -> "整段运动"; TapNestMotionScope.DISTAL -> "中后段运动"; TapNestMotionScope.TIP -> "只抖尖端"; TapNestMotionScope.UPPER -> "从中上开始"; TapNestMotionScope.MIDDLE -> "从中部开始"; TapNestMotionScope.LOWER -> "从中下开始" })
             })
         }
         BindingSlider("柔软度", value.softness, 0f, 1f) { update(value.copy(softness = it)) }
