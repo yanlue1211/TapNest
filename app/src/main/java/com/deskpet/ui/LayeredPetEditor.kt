@@ -741,7 +741,7 @@ fun LayeredPetEditor(
                             layer.hatFlightHeight, 0.08f, 0.40f) {
                             update(layer.copy(hatFlightHeight = it))
                         }
-                        Text("默认飞起约画布高度的 22%，约为旧动画的 4 倍。顶部空间需要同时匹配预览与悬浮窗口。",
+                        Text("顶部透明空间会按飞起高度预留，原始素材及脑袋位置保持不变。",
                             style = MaterialTheme.typography.bodySmall)
                     }
                     if (layer.tapSwitchFrame) {

@@ -50,7 +50,11 @@ object TapNestLayerActions {
             .minByOrNull { if (it.id.endsWith("_left")) 0 else 1 }
             ?: return null
         if (!layer.interactionConfigured) return null
-        return periodicElapsed(driver, elapsedMs)
+        if (elapsedMs < 0L) return null
+        val interval = (driver.periodicIntervalSeconds.coerceIn(1f, 120f) * 1000).toLong()
+            .coerceAtLeast(maxOf(periodicPulseDuration(layer), periodicPulseDuration(partner)) + 1L)
+        if (elapsedMs < interval) return null
+        return (elapsedMs % interval).takeIf { it < periodicPulseDuration(layer) }
     }
 
     /** Shared skinning input. A tap replaces the timed impulse, never accumulates it. */

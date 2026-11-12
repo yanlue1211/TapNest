@@ -28,7 +28,7 @@ internal class LifeInteractionAnimation(
     }
     fun expression(now: Long): Int? = settings.expressions.getOrNull(stage(now))?.takeIf { it in 0..3 }
 
-    fun render(source: Bitmap, now: Long): Bitmap {
+    fun render(source: Bitmap, now: Long, topInset: Int = 0): Bitmap {
         if (!active(now)) return source
         val existing = surfaces
         val buffers = if (existing != null && existing[0].width == source.width &&
@@ -39,13 +39,17 @@ internal class LifeInteractionAnimation(
         val out = buffers[cursor]
         val c = Canvas(out)
         c.drawColor(Color.TRANSPARENT, PorterDuff.Mode.CLEAR)
-        val w = source.width.toFloat(); val h = source.height.toFloat()
+        val w = source.width.toFloat()
+        val padding = topInset.coerceIn(0, source.height - 1).toFloat()
+        val h = source.height - padding
+        c.translate(0f, padding)
         val t = elapsed(now); val phase = stage(now)
         val p = when (phase) { 0 -> t / 500f; 1 -> (t - 500f) / middle; else -> (t - 500f - middle) / end }.coerceIn(0f, 1f)
         // A short smooth inset reserves space even for edge-to-edge PNG art.
         // Both ends sample identity; no persistent position/scale is modified.
         val envelope = min(t / 180f, (duration - t) / 180f).coerceIn(0f, 1f)
-        val top = topFraction ?: PetVisibleBounds.transparentTopFraction(source).also { topFraction = it }
+        val top = topFraction ?: ((PetVisibleBounds.transparentTopFraction(source) * source.height - padding) /
+            h).coerceIn(0f, 1f).also { topFraction = it }
         val inset = if (top >= .18f) .08f else .32f
         val fit = 1f - inset * envelope
         val wave = sin(p * PI).toFloat()
@@ -64,7 +68,7 @@ internal class LifeInteractionAnimation(
         c.translate(w * .5f, h * .5f + y)
         c.rotate(angle)
         c.scale(fit * (1f + squash), fit * (1f - squash))
-        c.drawBitmap(source, -w * .5f, -h * .5f, paint)
+        c.drawBitmap(source, -w * .5f, -h * .5f - padding, paint)
         c.restore()
         val size = min(w, h) * .14f
         fun effect(text: String, x: Float, yCenter: Float, scale: Float = 1f, alpha: Float = 1f) {

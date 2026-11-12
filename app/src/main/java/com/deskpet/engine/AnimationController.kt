@@ -158,7 +158,8 @@ class AnimationController(
                     val source = if (visual != null && !visual.expired()) visual.frame()
                     else petEngine.getCurrentFrame(l, _state.value, fi)
                     if (source != null && interaction != null)
-                        interaction.render(source, android.os.SystemClock.uptimeMillis()) else source
+                        interaction.render(source, android.os.SystemClock.uptimeMillis(),
+                            if (visual == null) (l as? PetEngine.PetLoader.Layered)?.player?.topInset ?: 0 else 0) else source
                 }
                 if (visual != null && visual.expired()) actionVisual = null
                 if (bitmap != null && generation == visualGeneration.get()) {
