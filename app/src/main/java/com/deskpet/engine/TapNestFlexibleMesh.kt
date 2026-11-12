@@ -70,7 +70,13 @@ object TapNestFlexibleMesh {
         return FloatArray(count) { index ->
             val weight = if (index == 0) rootWeight else distalWeight
             val delayedTime = time - index * lagSeconds
-            (amplitude * weight * sin(omega * delayedTime)).toFloat()
+            if (TapNestSwingBounds.hasOnlyOneSide(layer.idlePlane)) {
+                // Shape the source wave before weighting the chain. Otherwise
+                // the positive sine half gets clipped to zero for 50% of time.
+                TapNestSwingBounds.limitAngle(TapNestSwingBounds.periodicDrive(
+                    omega * delayedTime, layer.idleAmplitude.coerceIn(0f, 40f), layer.idlePlane),
+                    layer.idlePlane, layer.idleAmplitude.coerceIn(0f, 40f)) * weight
+            } else (amplitude * weight * sin(omega * delayedTime)).toFloat()
         }
     }
 
