@@ -119,8 +119,6 @@ data class TapNestLayer(
     val image: String,
     /** Human-readable label, including Chinese; id remains safe ASCII for local filenames. */
     val displayName: String = "",
-    /** Opt-in outfit PNG: follows the body's transform, clips and mesh directly. */
-    val bodyLinkedClothing: Boolean = false,
     /** Reflect the whole part across the character canvas' vertical centre. */
     val mirrorX: Boolean = false,
     /** Reflect the drive when the artwork has already been drawn for this side. */
@@ -206,7 +204,9 @@ data class TapNestLayer(
     val syncPairedPeriodic: Boolean = true,
     val syncPairedAll: Boolean = false,
     val idleBlinkEnabled: Boolean = false,
-    val blinkFrame: Int = 1
+    val blinkFrame: Int = 1,
+    /** Optional outfit overlay. Appended so old positional constructors stay valid. */
+    val bodyLinkedClothing: Boolean = false
 )
 
 @Serializable
