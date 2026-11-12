@@ -864,7 +864,7 @@ fun LayeredPetEditor(
                 FoldHeader("🐾 弹簧参数预设", foldTailPreset) { foldTailPreset = !foldTailPreset }
                 if (foldTailPreset) {
                 var chosenTailPreset by remember(activeLayer) {
-                    mutableStateOf(TapNestTailPresets.ALL.first())
+                    mutableStateOf(TapNestTailPresets.ALL.firstOrNull { it.id == layer.idlePresetId } ?: TapNestTailPresets.ALL.first())
                 }
                 var tailPresetMenu by remember(activeLayer) { mutableStateOf(false) }
                 Box {
@@ -915,6 +915,11 @@ fun LayeredPetEditor(
                 FoldHeader("🎐 晃动方式和参数", foldSwing) { foldSwing = !foldSwing }
                 if (foldSwing) {
                 if (layer.idleSwing) {
+                    TapNestMotionScope.entries.forEach { range ->
+                        FilterChip(layer.idleScope == range, { update(layer.copy(idleScope = range)) }, label = {
+                            Text(when(range) { TapNestMotionScope.WHOLE -> "整段运动"; TapNestMotionScope.DISTAL -> "中后段运动"; TapNestMotionScope.TIP -> "仅尖端运动" })
+                        })
+                    }
                     Text("晃动方式", fontWeight = FontWeight.SemiBold)
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         FilterChip(
@@ -1260,6 +1265,11 @@ private fun ImpulseSettings(value: TapNestImpulse, update: (TapNestImpulse) -> U
         Switch(value.enabled, { update(value.copy(enabled = it)) })
     }
     if (value.enabled) {
+        Row(Modifier.horizontalScroll(rememberScrollState())) {
+            TextButton(onClick = { update(TapNestImpulse(enabled = true)) }) { Text("✨ 只抖尖端") }
+            TextButton(onClick = { update(TapNestImpulse(enabled = true, amplitude = 9f, count = 1, damping = .65f)) }) { Text("🐶 轻抖耳尖") }
+            TextButton(onClick = { update(TapNestImpulse(enabled = true, scope = TapNestMotionScope.WHOLE, amplitude = 35f, count = 1, durationMs = 900L)) }) { Text("🐕 快速甩尾") }
+        }
         TapNestMotionScope.entries.forEach { scope ->
             FilterChip(value.scope == scope, { update(value.copy(scope = scope)) }, label = {
                 Text(when(scope) { TapNestMotionScope.WHOLE -> "整段运动"; TapNestMotionScope.DISTAL -> "中后段运动"; TapNestMotionScope.TIP -> "只抖尖端" })

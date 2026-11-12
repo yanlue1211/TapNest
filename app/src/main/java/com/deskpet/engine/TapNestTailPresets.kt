@@ -52,6 +52,7 @@ object TapNestTailPresets {
     fun applySettings(layer: TapNestLayer, preset: TapNestTailPreset): TapNestLayer =
         layer.copy(
             idleSwing = true,
+            idlePresetId = preset.id,
             swingMode = TapNestSwingMode.SPRING,
             springVersion = if (preset.id in setOf("soft_ear", "happy_tail", "soft_wing", "ribbon")) 2 else layer.springVersion,
             swingRange = preset.swingRange,

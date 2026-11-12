@@ -60,7 +60,19 @@ object TapNestLayerActions {
     /** Shared skinning input. A tap replaces the timed impulse, never accumulates it. */
     fun jointAngles(layer: TapNestLayer, layers: List<TapNestLayer>, sceneMs: Long,
                     touchMs: Long, idle: FloatArray?): FloatArray? {
-        if (!layer.interactionConfigured || layer.bones.size !in 2..8) return idle
+        val source = idle ?: if (layer.idleSwing && layer.idleScope != TapNestMotionScope.WHOLE)
+            TapNestFlexibleMesh.segmentAngles(layer, sceneMs) else null
+        var previous = 0f
+        var idleAbsolute = 0f
+        val base = if (source != null && layer.idleScope != TapNestMotionScope.WHOLE)
+            FloatArray(source.size) { i ->
+                idleAbsolute += source[i]
+                val u = if (source.size == 1) 1f else i.toFloat() / (source.size - 1)
+                val weight = if (layer.idleScope == TapNestMotionScope.TIP) u * u * u else u
+                val current = idleAbsolute * weight
+                (current - previous).also { previous = current }
+            } else source
+        if (!layer.interactionConfigured || layer.bones.size !in 2..8) return base
         val timed = periodicElapsed(layer, layers, sceneMs)
         val action: TapNestImpulse
         val age: Long
@@ -72,7 +84,7 @@ object TapNestLayerActions {
                 layer.periodicFlexible.enabled && timed != null && touchMs >= 1800L -> {
                 action = layer.periodicFlexible; age = timed
             }
-            else -> return idle
+            else -> return base
         }
         val count = layer.bones.size - 1
         val duration = action.durationMs.coerceIn(200L, 3000L).toDouble()
@@ -92,9 +104,12 @@ object TapNestLayerActions {
             (action.amplitude.coerceIn(0f, 55f) * weight * envelope *
                 kotlin.math.sin(2 * kotlin.math.PI * cycles * progress - lag)).toFloat()
         }
+        var idleTotal = 0f
+        var previousTotal = 0f
         return FloatArray(count) { i ->
-            ((idle?.getOrNull(i) ?: 0f) + absolute[i] -
-                (if (i == 0) 0f else absolute[i - 1])).coerceIn(-65f, 65f)
+            idleTotal += base?.getOrNull(i) ?: 0f
+            val total = (idleTotal + absolute[i]).coerceIn(-95f, 95f)
+            (total - previousTotal).also { previousTotal = total }
         }
     }
 

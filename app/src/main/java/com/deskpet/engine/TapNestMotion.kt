@@ -90,6 +90,8 @@ data class TapNestLayer(
     val restScale: Float = 1f,
     val bones: List<TapNestBonePoint> = emptyList(),
     val idleSwing: Boolean = false,
+    val idleScope: TapNestMotionScope = TapNestMotionScope.WHOLE,
+    val idlePresetId: String = "",
     val idleAmplitude: Float = 10f,
     val idleSpeed: Float = 0.7f,
     /** Time (seconds) that each successive flexible segment trails its parent. */
