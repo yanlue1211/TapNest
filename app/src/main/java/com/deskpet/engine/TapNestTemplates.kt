@@ -17,6 +17,7 @@ object TapNestTemplates {
     /** IDs retained strictly to label older saved character rigs. Not a selectable template. */
     private val legacySlots: List<TapNestSlotSpec> = listOf(
         TapNestSlotSpec("body", "身体（静态）", false),
+        TapNestSlotSpec(TapNestClothing.ID, "服装 · 跟随身体"),
         TapNestSlotSpec("tail", "尾巴（坐姿后侧，单图摇摆）"),
         TapNestSlotSpec("wing_0", "翅膀 · 平时"),
         TapNestSlotSpec("wing_1", "翅膀 · 戳动"),
