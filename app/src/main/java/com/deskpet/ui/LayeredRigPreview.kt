@@ -407,7 +407,7 @@ internal fun LayeredRigPreview(
                 if (mode == RigPreviewMode.TEST) pose = TapNestMotion.sample(
                     it, id, if (it.loop) phase else touchElapsed.coerceAtLeast(0L))
             }
-            if (mode == RigPreviewMode.TEST && layer?.idleSwing == true && (layer.bones.size < 2 || !layer.idleFlexibleEnabled)) {
+            if (mode == RigPreviewMode.TEST && layer?.idleSwing == true && (((layer.idleBones ?: layer.bones).size < 2 && (layer.idleBoneChains ?: layer.boneChains).none { it.bones.size >= 2 }) || !layer.idleFlexibleEnabled)) {
                 val angle = sin((phase / 1000.0 * layer.idleSpeed.coerceIn(0.1f, 3f) *
                     2 * PI)).toFloat() * layer.idleAmplitude.coerceIn(0f, 85f)
                 val swingSign = TapNestSymmetry.idleSwingSign(layer)
@@ -483,8 +483,14 @@ internal fun LayeredRigPreview(
             } else null
             val jointAngles = if (mode == RigPreviewMode.TEST && !pickupPreview) TapNestLayerActions.jointAngles(
                 skinLayer, rig.layers, elapsed, touchElapsed, idleAngles) else null
+            val extraAngles = skinLayer.boneChains.mapIndexed { index, chain ->
+                val child = chain.asLayer(skinLayer)
+                val idle = if (mode == RigPreviewMode.TEST && !pickupPreview && child.idleSwing && child.idleFlexibleEnabled && child.swingMode == TapNestSwingMode.SPRING && child.bones.size >= 2)
+                    springChains.getOrPut("${skinLayer.id}#${index}") { TapNestSpringChain() }.step(child, elapsed) else null
+                if (mode == RigPreviewMode.TEST && !pickupPreview) TapNestLayerActions.jointAngles(child, rig.layers, elapsed, touchElapsed, idle) else null
+            }
             val impulseActive = jointAngles !== idleAngles
-            if (spring && !impulseActive && !skinLayer.idlePlane.enabled && skinLayer.shapePreservation >= 0.999f &&
+            if (spring && skinLayer.boneChains.isEmpty() && skinLayer.boneRegion == TapNestBoneRegion() && !impulseActive && !skinLayer.idlePlane.enabled && skinLayer.shapePreservation >= 0.999f &&
                 skinLayer.bones.all { it.swingDirection == TapNestBoneSwingDirection.AUTO } &&
                 jointAngles != null && jointAngles.isNotEmpty()) {
                 val root = skinLayer.bones.first()
@@ -496,7 +502,7 @@ internal fun LayeredRigPreview(
                 native.restore()
             } else {
                 val mesh = if (mode == RigPreviewMode.TEST) TapNestFlexibleMesh.vertices(
-                    if (impulseActive) skinLayer.copy(shapePreservation = 0f) else skinLayer, art.width, art.height, elapsed, resolution, jointAngles) else null
+                    if (impulseActive) skinLayer.copy(shapePreservation = 0f) else skinLayer, art.width, art.height, elapsed, resolution, jointAngles, extraAngles) else null
                 if (mesh != null) {
                     native.drawBitmapMesh(art.bitmap, resolution, resolution, mesh, 0, null, 0, paint)
                 } else native.drawBitmap(art.bitmap, null,
@@ -533,6 +539,11 @@ internal fun LayeredRigPreview(
                             reference - motionPlane.negativeLimit, motionPlane.negativeLimit + motionPlane.positiveLimit, true, accent)
                         accent.alpha = 255
                     }
+                }
+                if (mode == RigPreviewMode.BONES && layer.boneRegion != TapNestBoneRegion()) {
+                    accent.style = Paint.Style.STROKE
+                    native.drawRect(layer.boneRegion.left * art.width, layer.boneRegion.top * art.height,
+                        layer.boneRegion.right * art.width, layer.boneRegion.bottom * art.height, accent)
                 }
                 if (mode == RigPreviewMode.BONES && layer.bones.isNotEmpty()) {
                     val track = Paint(Paint.ANTI_ALIAS_FLAG).apply {

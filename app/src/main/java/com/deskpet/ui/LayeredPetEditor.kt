@@ -67,6 +67,7 @@ fun LayeredPetEditor(
     var busy by remember { mutableStateOf(false) }
     var workingPet by remember(editingPet?.id, formId) { mutableStateOf(editingPet) }
     var activeLayer by remember { mutableStateOf("body") }
+    var selectedChain by remember(activeLayer) { mutableIntStateOf(0) }
     var selectedBone by remember(activeLayer) { mutableIntStateOf(0) }
     val editorRequester = remember { BringIntoViewRequester() }
     var previewMode by remember(editingPet?.id, formId) { mutableStateOf(RigPreviewMode.POSITION) }
@@ -217,7 +218,12 @@ fun LayeredPetEditor(
                 Surface(tonalElevation = 2.dp) {
                     Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
             LayeredRigPreview(
-                rig = rig.copy(layers = rig.layers.map { if (it.id == activeLayer) it.copy(bones = partFlow.trigger.bones(it)) else it }),
+                rig = rig.copy(layers = rig.layers.map {
+                    if (it.id == activeLayer && previewMode == RigPreviewMode.BONES) {
+                        val chain = partFlow.trigger.chains(it).getOrNull(selectedChain - 1)
+                        it.copy(bones = chain?.bones ?: partFlow.trigger.bones(it), boneRegion = chain?.region ?: it.boneRegion)
+                    } else it
+                }),
                 uris = images.toMap(),
                 selected = activeLayer,
                 mode = previewMode,
@@ -233,9 +239,15 @@ fun LayeredPetEditor(
                 onSelectBone = { selectedBone = it },
                 onSetBone = { index, bx, by ->
                     rig = rig.copy(layers = rig.layers.map { layer ->
-                        if (layer.id == activeLayer) partFlow.trigger.withBones(layer, partFlow.trigger.bones(layer).mapIndexed { i, bone ->
-                            if (i == index) bone.copy(x = bx, y = by) else bone
-                        }) else layer
+                        if (layer.id == activeLayer) {
+                            if (selectedChain > 0 && partFlow.trigger.chains(layer).getOrNull(selectedChain - 1) != null)
+                                partFlow.trigger.withChains(layer, partFlow.trigger.chains(layer).mapIndexed { ci, chain ->
+                                    if (ci == selectedChain - 1) chain.copy(bones = chain.bones.mapIndexed { i, bone -> if (i == index) bone.copy(x = bx, y = by) else bone }) else chain
+                                })
+                            else partFlow.trigger.withBones(layer, partFlow.trigger.bones(layer).mapIndexed { i, bone ->
+                                if (i == index) bone.copy(x = bx, y = by) else bone
+                            })
+                        } else layer
                     })
                 },
                 onSelectLayer = { id -> activeLayer = id },
@@ -614,10 +626,15 @@ fun LayeredPetEditor(
             } // Basic default-frame upload page
             if (showSettings) {
                 val original = rig.layers.firstOrNull { it.id == activeLayer }
-                val layer = original?.copy(bones = partFlow.trigger.bones(original))
+                val editingChain = if (partFlow.step == PartEditorStep.BONES && original != null) partFlow.trigger.chains(original).getOrNull(selectedChain - 1) else null
+                val layer = original?.copy(bones = editingChain?.bones ?: partFlow.trigger.bones(original))
                 if (layer != null && original != null) {
                     fun update(p: TapNestLayer) {
-                        val next = if (partFlow.trigger.separate(original)) {
+                        val next = if (editingChain != null) {
+                            partFlow.trigger.withChains(p.copy(bones = original.bones), partFlow.trigger.chains(original).mapIndexed { i, chain ->
+                                if (i == selectedChain - 1) chain.copy(bones = p.bones) else chain
+                            })
+                        } else if (partFlow.trigger.separate(original)) {
                             partFlow.trigger.withBones(p.copy(bones = original.bones), p.bones)
                         } else p
                         rig = rig.copy(layers = rig.layers.map {
@@ -807,6 +824,44 @@ fun LayeredPetEditor(
                             }
                         }
                         PartEditorStep.BONES -> {
+                            val chains = partFlow.trigger.chains(original)
+                            Row(Modifier.horizontalScroll(rememberScrollState())) {
+                                FilterChip(selectedChain == 0, { selectedChain = 0; selectedBone = 0 }, label = { Text("骨链①") })
+                                chains.forEachIndexed { i, chain ->
+                                    FilterChip(selectedChain == i + 1, { selectedChain = i + 1; selectedBone = 0 }, label = { Text(chain.name) })
+                                }
+                                TextButton(onClick = {
+                                    val next = partFlow.trigger.withChains(original, chains + TapNestBoneChain(name = "骨链${chains.size + 2}", bones = listOf(TapNestBonePoint(layer.pivotX, layer.pivotY))))
+                                    rig = rig.copy(layers = rig.layers.map { if (it.id == activeLayer) next else it })
+                                    selectedChain = chains.size + 1; selectedBone = 0
+                                }, enabled = chains.size < 3) { Text("＋ 骨链") }
+                            }
+                            if (editingChain != null) {
+                                OutlinedTextField(editingChain.name, { name ->
+                                    val next = partFlow.trigger.withChains(original, chains.mapIndexed { i, chain -> if (i == selectedChain - 1) chain.copy(name = name.take(40)) else chain })
+                                    rig = rig.copy(layers = rig.layers.map { if (it.id == activeLayer) next else it })
+                                }, label = { Text("骨链名称") })
+                                TextButton(onClick = {
+                                    val next = partFlow.trigger.withChains(original, chains.filterIndexed { i, _ -> i != selectedChain - 1 })
+                                    rig = rig.copy(layers = rig.layers.map { if (it.id == activeLayer) next else it })
+                                    selectedChain = 0; selectedBone = 0
+                                }) { Text("删除这条骨链") }
+                            }
+                            var showRegion by remember(activeLayer, selectedChain) { mutableStateOf(false) }
+                            TextButton(onClick = { showRegion = !showRegion }) { Text(if (showRegion) "收起影响区域" else "设置这条骨链的影响区域 →") }
+                            if (showRegion) {
+                                val region = editingChain?.region ?: original.boneRegion
+                                fun changeRegion(value: TapNestBoneRegion) {
+                                    val next = if (editingChain == null) original.copy(boneRegion = value) else partFlow.trigger.withChains(original,
+                                        chains.mapIndexed { i, chain -> if (i == selectedChain - 1) chain.copy(region = value) else chain })
+                                    rig = rig.copy(layers = rig.layers.map { if (it.id == activeLayer) next else it })
+                                }
+                                Text("每条飘带分别框定区域，领结中心留在区域外。数值为图片比例。")
+                                BindingSlider("左边界", region.left, 0f, (region.right - .01f).coerceAtLeast(.01f)) { changeRegion(region.copy(left = it)) }
+                                BindingSlider("右边界", region.right, (region.left + .01f).coerceAtMost(.99f), 1f) { changeRegion(region.copy(right = it)) }
+                                BindingSlider("上边界", region.top, 0f, (region.bottom - .01f).coerceAtLeast(.01f)) { changeRegion(region.copy(top = it)) }
+                                BindingSlider("下边界", region.bottom, (region.top + .01f).coerceAtMost(.99f), 1f) { changeRegion(region.copy(bottom = it)) }
+                            }
                             Text("在上方完整角色上放置控制点", style = MaterialTheme.typography.titleMedium)
                             Text("P1 放耳根，后面的点沿耳朵排到耳尖。点选下方编号，再拖上方橙色点。")
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -853,6 +908,32 @@ fun LayeredPetEditor(
                         color = MaterialTheme.colorScheme.primary)
                 }
 
+                            if (editingChain != null) {
+                                var showChainDirection by remember(activeLayer, selectedChain) { mutableStateOf(false) }
+                                TextButton(onClick = { showChainDirection = !showChainDirection }) { Text("这条骨链的独立方向与范围 →") }
+                                if (showChainDirection) {
+                                    val plane = editingChain.plane
+                                    fun changeChainPlane(value: TapNestMotionPlane) {
+                                        val next = partFlow.trigger.withChains(original, chains.mapIndexed { i, chain -> if (i == selectedChain - 1) chain.copy(plane = value) else chain })
+                                        rig = rig.copy(layers = rig.layers.map { if (it.id == activeLayer) next else it })
+                                    }
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("单独设置方向", Modifier.weight(1f))
+                                        Switch(plane.enabled, { changeChainPlane(plane.copy(enabled = it)) })
+                                    }
+                                    if (plane.enabled) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Text("沿直线弯动", Modifier.weight(1f))
+                                            Switch(plane.linear, { changeChainPlane(plane.copy(linear = it)) })
+                                        }
+                                        if (plane.linear) BindingSlider("方向角度", plane.axisDegrees, -180f, 180f) { changeChainPlane(plane.copy(axisDegrees = it)) }
+                                        else {
+                                            BindingSlider("逆时针范围", plane.negativeLimit, 0f, 180f) { changeChainPlane(plane.copy(negativeLimit = it)) }
+                                            BindingSlider("顺时针范围", plane.positiveLimit, 0f, 180f) { changeChainPlane(plane.copy(positiveLimit = it)) }
+                                        }
+                                    }
+                                }
+                            }
                             if (layer.bones.size >= 2) {
                                 if (partFlow.trigger == PartTrigger.CONTINUOUS) {
                                     listOf(TapNestMotionScope.WHOLE, TapNestMotionScope.UPPER, TapNestMotionScope.MIDDLE, TapNestMotionScope.LOWER).forEach { scope ->

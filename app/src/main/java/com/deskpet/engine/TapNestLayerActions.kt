@@ -75,7 +75,12 @@ object TapNestLayerActions {
             layer.periodicEnabled && layer.periodicFlexible.enabled && touchMs >= 1800L && periodicElapsed(layer, layers, sceneMs) != null -> layer.periodicPlane
             else -> layer.idlePlane
         }
-        return if (points === layer.bones && plane == layer.idlePlane) layer else layer.copy(bones = points, idlePlane = plane)
+        val chains = when {
+            layer.tapShake && layer.tapFlexible.enabled && touchMs in 0 until tapMotionDuration(layer) -> layer.tapBoneChains
+            layer.periodicEnabled && layer.periodicFlexible.enabled && touchMs >= 1800L && periodicElapsed(layer, layers, sceneMs) != null -> layer.periodicBoneChains
+            else -> layer.idleBoneChains
+        } ?: layer.boneChains
+        return if (points === layer.bones && plane == layer.idlePlane && chains === layer.boneChains) layer else layer.copy(bones = points, idlePlane = plane, boneChains = chains)
     }
 
     /** Arc length, rather than point index, defines the quarter boundaries. */
@@ -242,7 +247,8 @@ object TapNestLayerActions {
     fun motionPose(layer: TapNestLayer, motionAgeMs: Long,
                    periodic: Boolean = false, canvasHeight: Int = 512): TapNestPose {
         if ((if (periodic) layer.periodicFlexible else layer.tapFlexible).enabled &&
-            (if (periodic) layer.periodicBones ?: layer.bones else layer.tapBones ?: layer.bones).size >= 2) return TapNestPose()
+            ((if (periodic) layer.periodicBones ?: layer.bones else layer.tapBones ?: layer.bones).size >= 2 ||
+                (if (periodic) layer.periodicBoneChains ?: layer.boneChains else layer.tapBoneChains ?: layer.boneChains).any { it.bones.size >= 2 })) return TapNestPose()
         val selected = if (periodic) layer.periodicMotion ?: layer.tapMotion else layer.tapMotion
         // A mirrored clone already reverses the canvas. Use the source-side
         // clip sign to prevent reflecting left/right flap directions twice.

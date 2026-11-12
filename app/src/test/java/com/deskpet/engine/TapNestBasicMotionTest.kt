@@ -42,4 +42,30 @@ class TapNestBasicMotionTest {
         assertEquals(TapNestPose(), TapNestLayerActions.planePose(0f, plane))
     }
 
+    @Test fun separateRibbonRegionLeavesOtherSideAndBowCenterFixed() {
+        val extra = TapNestBoneChain(bones = listOf(TapNestBonePoint(.75f, .4f), TapNestBonePoint(.75f, .9f)),
+            region = TapNestBoneRegion(.6f, .4f, .95f, .95f))
+        val layer = TapNestLayer("bow", "b.png", idleSwing = true, boneChains = listOf(extra))
+        val result = TapNestFlexibleMesh.vertices(layer, 100, 100, 100L, 20, extraAngles = listOf(floatArrayOf(30f)))!!
+        val left = (15 * 21 + 5) * 2
+        assertEquals(25f, result[left], .001f)
+        assertEquals(75f, result[left + 1], .001f)
+        val right = (15 * 21 + 15) * 2
+        assertTrue(kotlin.math.abs(result[right] - 75f) > 1f)
+        val center = (8 * 21 + 10) * 2
+        assertEquals(50f, result[center], .001f)
+        assertEquals(40f, result[center + 1], .001f)
+    }
+
+    @Test fun synchronizationPreservesPartnerArtworkAndPlacement() {
+        val source = TapNestLayer("ear_left", "l.png", idleSpeed = 1.8f, tapFlexible = TapNestImpulse(amplitude = 32f))
+        val target = TapNestLayer("ear_right", "r.png", x = 80f, mirrorX = true, mirroredFromId = source.id)
+        val synced = TapNestSymmetry.synchronizedMotion(source, target)
+        assertEquals(target.image, synced.image)
+        assertEquals(target.x, synced.x)
+        assertEquals(target.mirrorX, synced.mirrorX)
+        assertEquals(source.tapFlexible, synced.tapFlexible)
+        assertEquals(source.idleSpeed, synced.idleSpeed)
+    }
+
 }

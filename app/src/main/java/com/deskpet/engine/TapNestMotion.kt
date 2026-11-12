@@ -54,6 +54,21 @@ enum class TapNestPeriodicAction { SHAKE, SWITCH_FRAME }
 enum class TapNestMotionScope { WHOLE, DISTAL, TIP, UPPER, MIDDLE, LOWER }
 
 @Serializable
+data class TapNestBoneRegion(val left: Float = 0f, val top: Float = 0f, val right: Float = 1f, val bottom: Float = 1f)
+
+@Serializable
+data class TapNestBoneChain(
+    val name: String = "飘带",
+    val bones: List<TapNestBonePoint> = emptyList(),
+    val region: TapNestBoneRegion = TapNestBoneRegion(),
+    val plane: TapNestMotionPlane = TapNestMotionPlane()
+) {
+    fun asLayer(layer: TapNestLayer) = layer.copy(bones = bones,
+        tapBones = null, periodicBones = null, idleBones = null, boneChains = emptyList(),
+        idlePlane = if (plane.enabled) plane else layer.idlePlane)
+}
+
+@Serializable
 data class TapNestMotionPlane(
     val enabled: Boolean = false,
     val linear: Boolean = false,
@@ -100,6 +115,11 @@ data class TapNestLayer(
     val restScale: Float = 1f,
     val bones: List<TapNestBonePoint> = emptyList(),
     val tapBones: List<TapNestBonePoint>? = null,
+    val boneRegion: TapNestBoneRegion = TapNestBoneRegion(),
+    val boneChains: List<TapNestBoneChain> = emptyList(),
+    val tapBoneChains: List<TapNestBoneChain>? = null,
+    val periodicBoneChains: List<TapNestBoneChain>? = null,
+    val idleBoneChains: List<TapNestBoneChain>? = null,
     val tapPlane: TapNestMotionPlane = TapNestMotionPlane(),
     val periodicPlane: TapNestMotionPlane = TapNestMotionPlane(),
     val idlePlane: TapNestMotionPlane = TapNestMotionPlane(),

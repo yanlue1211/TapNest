@@ -74,7 +74,48 @@ object TapNestFlexibleMesh {
         }
     }
 
+    private fun regionWeight(region: TapNestBoneRegion, x: Float, y: Float): Float {
+        if (x < region.left || x > region.right || y < region.top || y > region.bottom) return 0f
+        if (region == TapNestBoneRegion()) return 1f
+        val distance = minOf(x - region.left, region.right - x, y - region.top, region.bottom - y)
+        return (distance / .025f).coerceIn(0f, 1f)
+    }
+
     fun vertices(layer: TapNestLayer, width: Int, height: Int, elapsedMs: Long,
+                 mesh: Int = GRID, jointAngles: FloatArray? = null,
+                 extraAngles: List<FloatArray?> = emptyList()): FloatArray? {
+        val main = singleVertices(layer, width, height, elapsedMs, mesh, jointAngles)
+        if (layer.boneChains.isEmpty() && layer.boneRegion == TapNestBoneRegion()) return main
+        if (width !in 1..4096 || height !in 1..4096 || mesh !in 2..32) return null
+        val deformations = listOf(main) + layer.boneChains.mapIndexed { i, chain ->
+            singleVertices(chain.asLayer(layer), width, height, elapsedMs, mesh, extraAngles.getOrNull(i))
+        }
+        if (deformations.all { it == null }) return null
+        val regions = listOf(layer.boneRegion) + layer.boneChains.map { it.region }
+        val result = FloatArray((mesh + 1) * (mesh + 1) * 2)
+        for (row in 0..mesh) for (col in 0..mesh) {
+            val x = col.toFloat() / mesh
+            val y = row.toFloat() / mesh
+            val index = (row * (mesh + 1) + col) * 2
+            val px = x * width
+            val py = y * height
+            var dx = 0f; var dy = 0f; var total = 0f
+            deformations.forEachIndexed { i, vertices ->
+                if (vertices != null) {
+                    val weight = regionWeight(regions[i], x, y)
+                    dx += (vertices[index] - px) * weight
+                    dy += (vertices[index + 1] - py) * weight
+                    total += weight
+                }
+            }
+            val divisor = total.coerceAtLeast(1f)
+            result[index] = px + dx / divisor
+            result[index + 1] = py + dy / divisor
+        }
+        return result
+    }
+
+    private fun singleVertices(layer: TapNestLayer, width: Int, height: Int, elapsedMs: Long,
                  mesh: Int = GRID, jointAngles: FloatArray? = null): FloatArray? {
         if ((!layer.idleSwing && jointAngles == null) || (!layer.idleFlexibleEnabled && jointAngles == null) || layer.bones.size !in 2..8 ||
             width !in 1..4096 || height !in 1..4096 || mesh !in 2..32) return null

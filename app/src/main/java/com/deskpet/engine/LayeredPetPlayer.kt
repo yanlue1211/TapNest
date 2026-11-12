@@ -213,7 +213,7 @@ class LayeredPetPlayer private constructor(
                 ?.let { p = TapNestMotion.sample(it, id, if (it.loop) now - launchedAtMs else elapsed) }
             // A single-point or rigid limb rocks around its chosen pivot.
             // A multi-point limb is skinned by the mesh instead.
-            if (node.idleSwing && (node.bones.size < 2 || !node.idleFlexibleEnabled)) {
+            if (node.idleSwing && (((node.idleBones ?: node.bones).size < 2 && (node.idleBoneChains ?: node.boneChains).none { it.bones.size >= 2 }) || !node.idleFlexibleEnabled)) {
                 val wave = sin(((now - launchedAtMs) / 1000.0 *
                     node.idleSpeed.coerceIn(0.1f, 3f) * 2 * PI)).toFloat()
                 val swingSign = TapNestSymmetry.idleSwingSign(node)
@@ -285,8 +285,14 @@ class LayeredPetPlayer private constructor(
             } else null
             val jointAngles = if (!held && !reacting) TapNestLayerActions.jointAngles(
                 skinLayer, rig.layers, now - launchedAtMs, elapsed, idleAngles) else null
+            val extraAngles = skinLayer.boneChains.mapIndexed { index, chain ->
+                val child = chain.asLayer(skinLayer)
+                val idle = if (!held && !reacting && child.idleSwing && child.idleFlexibleEnabled && child.swingMode == TapNestSwingMode.SPRING && child.bones.size >= 2)
+                    springChains.getOrPut("${skinLayer.id}#${index}") { TapNestSpringChain() }.step(child, now - launchedAtMs) else null
+                if (!held && !reacting) TapNestLayerActions.jointAngles(child, rig.layers, now - launchedAtMs, elapsed, idle) else null
+            }
             val impulseActive = jointAngles !== idleAngles
-            if (spring && !impulseActive && !skinLayer.idlePlane.enabled && skinLayer.shapePreservation >= 0.999f &&
+            if (spring && skinLayer.boneChains.isEmpty() && skinLayer.boneRegion == TapNestBoneRegion() && !impulseActive && !skinLayer.idlePlane.enabled && skinLayer.shapePreservation >= 0.999f &&
                 skinLayer.bones.all { it.swingDirection == TapNestBoneSwingDirection.AUTO } &&
                 jointAngles != null && jointAngles.isNotEmpty()) {
                 // True rigid mode: draw the intact bitmap instead of running it
@@ -300,7 +306,7 @@ class LayeredPetPlayer private constructor(
                 canvas.restore()
             } else {
                 val flexible = if (held) null else TapNestFlexibleMesh.vertices(
-                    if (impulseActive) skinLayer.copy(shapePreservation = 0f) else skinLayer, source.first, source.second, now - launchedAtMs, mesh, jointAngles
+                    if (impulseActive) skinLayer.copy(shapePreservation = 0f) else skinLayer, source.first, source.second, now - launchedAtMs, mesh, jointAngles, extraAngles
                 )
                 if (flexible != null) {
                     canvas.drawBitmapMesh(picture, mesh, mesh, flexible, 0, null, 0, paint)

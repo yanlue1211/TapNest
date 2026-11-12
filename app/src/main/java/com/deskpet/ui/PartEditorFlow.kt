@@ -35,6 +35,17 @@ internal enum class PartTrigger(val label: String, val description: String) {
         IDLE -> layer.copy(periodicPlane = plane, periodicBasicConfigured = true)
         else -> layer.copy(idlePlane = plane)
     }
+    fun chains(layer: TapNestLayer) = when(this) {
+        TAP -> layer.tapBoneChains ?: layer.boneChains
+        IDLE -> layer.periodicBoneChains ?: layer.boneChains
+        else -> layer.idleBoneChains ?: layer.boneChains
+    }
+    fun withChains(layer: TapNestLayer, chains: List<TapNestBoneChain>) = when {
+        this == TAP && separate(layer) -> layer.copy(tapBoneChains = chains)
+        this == IDLE && separate(layer) -> layer.copy(periodicBoneChains = chains)
+        this == CONTINUOUS && separate(layer) -> layer.copy(idleBoneChains = chains)
+        else -> layer.copy(boneChains = chains)
+    }
     fun bones(layer: TapNestLayer): List<TapNestBonePoint> = when(this) {
         TAP -> layer.tapBones ?: layer.bones
         IDLE -> layer.periodicBones ?: layer.bones
@@ -48,9 +59,9 @@ internal enum class PartTrigger(val label: String, val description: String) {
         BLINK -> false
     }
     fun withSeparate(layer: TapNestLayer, enabled: Boolean): TapNestLayer = when(this) {
-        TAP -> layer.copy(tapBones = if (enabled) bones(layer).toList() else null)
-        IDLE -> layer.copy(periodicBones = if (enabled) bones(layer).toList() else null)
-        CONTINUOUS -> layer.copy(idleBones = if (enabled) bones(layer).toList() else null)
+        TAP -> layer.copy(tapBones = if (enabled) bones(layer).toList() else null, tapBoneChains = if (enabled) chains(layer).toList() else null)
+        IDLE -> layer.copy(periodicBones = if (enabled) bones(layer).toList() else null, periodicBoneChains = if (enabled) chains(layer).toList() else null)
+        CONTINUOUS -> layer.copy(idleBones = if (enabled) bones(layer).toList() else null, idleBoneChains = if (enabled) chains(layer).toList() else null)
         BLINK -> layer
     }
     fun withBones(layer: TapNestLayer, points: List<TapNestBonePoint>) = when {

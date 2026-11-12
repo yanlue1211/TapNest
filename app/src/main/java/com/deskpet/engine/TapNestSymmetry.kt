@@ -32,6 +32,8 @@ object TapNestSymmetry {
     /** Copy animation configuration, preserving the partner's art, placement and identity. */
     fun synchronizedMotion(source: TapNestLayer, target: TapNestLayer): TapNestLayer = target.copy(
         syncPairedAll = true, syncPairedPeriodic = true,
+        boneRegion = source.boneRegion, boneChains = source.boneChains,
+        tapBoneChains = source.tapBoneChains, periodicBoneChains = source.periodicBoneChains, idleBoneChains = source.idleBoneChains,
         tapPlane = source.tapPlane, periodicPlane = source.periodicPlane, idlePlane = source.idlePlane,
         bones = source.bones, tapBones = source.tapBones, periodicBones = source.periodicBones, idleBones = source.idleBones,
         idleSwing = source.idleSwing, idleFlexibleEnabled = source.idleFlexibleEnabled,
@@ -49,6 +51,14 @@ object TapNestSymmetry {
         hatFlightHeight = source.hatFlightHeight
     )
 
+    private fun reflectedRegion(region: TapNestBoneRegion) = region.copy(left = 1f - region.right, right = 1f - region.left)
+    private fun reflectedPlane(plane: TapNestMotionPlane) = plane.copy(
+        axisDegrees = ((180f - plane.axisDegrees + 540f) % 360f) - 180f,
+        negativeLimit = plane.positiveLimit, positiveLimit = plane.negativeLimit)
+    private fun reflectedChain(chain: TapNestBoneChain) = chain.copy(
+        bones = chain.bones.map { it.copy(x = 1f - it.x) },
+        region = reflectedRegion(chain.region), plane = reflectedPlane(chain.plane))
+
     fun independentArtwork(layer: TapNestLayer): TapNestLayer {
         if (!layer.mirrorX || layer.mirroredFromId == null) return layer
         return layer.copy(
@@ -59,7 +69,13 @@ object TapNestSymmetry {
             bones = layer.bones.map { it.copy(x = (1f - it.x).coerceIn(0f, 1f)) },
             tapBones = layer.tapBones?.map { it.copy(x = 1f - it.x) },
             periodicBones = layer.periodicBones?.map { it.copy(x = 1f - it.x) },
-            idleBones = layer.idleBones?.map { it.copy(x = 1f - it.x) }
+            idleBones = layer.idleBones?.map { it.copy(x = 1f - it.x) },
+            boneRegion = reflectedRegion(layer.boneRegion),
+            boneChains = layer.boneChains.map(::reflectedChain),
+            tapBoneChains = layer.tapBoneChains?.map(::reflectedChain),
+            periodicBoneChains = layer.periodicBoneChains?.map(::reflectedChain),
+            idleBoneChains = layer.idleBoneChains?.map(::reflectedChain),
+            tapPlane = reflectedPlane(layer.tapPlane), periodicPlane = reflectedPlane(layer.periodicPlane), idlePlane = reflectedPlane(layer.idlePlane)
         )
     }
 
