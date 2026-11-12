@@ -57,10 +57,12 @@ class TapNestSpringChain {
         // Scaling each signed half-cycle keeps the same phase and changes only
         // its reach; one-sided, reverse and asymmetric ranges all share it.
         fun motor(phase: Double, targetAmplitude: Double): Float {
-            val raw = if (oneSided)
-                outwardSign * targetAmplitude * .5 * (1.0 - kotlin.math.cos(phase))
-            else startSign * targetAmplitude * sin(phase)
-            return TapNestSwingBounds.limitAngle(raw.toFloat(), layer.idlePlane,
+            val raw = if (TapNestSwingBounds.hasOnlyOneSide(layer.idlePlane))
+                TapNestSwingBounds.periodicDrive(phase, targetAmplitude.toFloat(), layer.idlePlane)
+            else if (oneSided)
+                (outwardSign * targetAmplitude * .5 * (1.0 - kotlin.math.cos(phase))).toFloat()
+            else (startSign * targetAmplitude * sin(phase)).toFloat()
+            return TapNestSwingBounds.limitAngle(raw, layer.idlePlane,
                 targetAmplitude.toFloat())
         }
         fun driver(timeMs: Double) = motor(driveOmega * timeMs / 1000.0, amplitude)
