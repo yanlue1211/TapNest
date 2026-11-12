@@ -45,6 +45,8 @@ object TapNestSymmetry {
         tapBoneChains = source.tapBoneChains, periodicBoneChains = source.periodicBoneChains, idleBoneChains = source.idleBoneChains,
         tapPlane = source.tapPlane, periodicPlane = source.periodicPlane, idlePlane = source.idlePlane,
         bones = source.bones, tapBones = source.tapBones, periodicBones = source.periodicBones, idleBones = source.idleBones,
+        idleStartReversed = source.idleStartReversed, tapStartReversed = source.tapStartReversed,
+        periodicStartReversed = source.periodicStartReversed,
         idleSwing = source.idleSwing, idleFlexibleEnabled = source.idleFlexibleEnabled,
         idleScope = source.idleScope, idleAmplitude = source.idleAmplitude, idleSpeed = source.idleSpeed,
         idleLagSeconds = source.idleLagSeconds, swingMode = source.swingMode, springVersion = source.springVersion,

@@ -25,6 +25,16 @@ internal enum class PartTrigger(val label: String, val description: String) {
     CONTINUOUS("🌿 持续轻摆", "一直缓慢摇动"),
     BLINK("😉 自动眨眼", "偶尔切换到眨眼帧");
 
+    fun startReversed(layer: TapNestLayer) = when (this) {
+        TAP -> layer.tapStartReversed
+        IDLE -> layer.periodicStartReversed
+        else -> layer.idleStartReversed
+    }
+    fun withStartReversed(layer: TapNestLayer, reversed: Boolean) = when (this) {
+        TAP -> layer.copy(tapStartReversed = reversed)
+        IDLE -> layer.copy(periodicStartReversed = reversed)
+        else -> layer.copy(idleStartReversed = reversed)
+    }
     fun plane(layer: TapNestLayer) = when(this) {
         TAP -> layer.tapPlane
         IDLE -> layer.periodicPlane
@@ -65,7 +75,7 @@ internal enum class PartTrigger(val label: String, val description: String) {
         val effective = previous?.asLayer(layer) ?: layer
         val impulse = if (this == TAP) effective.tapFlexible else effective.periodicFlexible
         val copied = TapNestBoneChain(
-            name = target.name,
+            name = target.name, startReversed = startReversed(effective),
             bones = (previous?.bones ?: bones(layer)).map { it.copy() },
             region = (previous?.region ?: region(layer)).copy(),
             plane = (previous?.plane?.takeIf { it.enabled } ?: plane(layer)).copy(),

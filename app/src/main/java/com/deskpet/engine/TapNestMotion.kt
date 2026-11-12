@@ -59,6 +59,7 @@ data class TapNestBoneRegion(val left: Float = 0f, val top: Float = 0f, val righ
 @Serializable
 data class TapNestBoneChain(
     val name: String = "飘带",
+    val startReversed: Boolean? = null,
     val scope: TapNestMotionScope? = null,
     val softness: Float? = null,
     val damping: Float? = null,
@@ -76,6 +77,9 @@ data class TapNestBoneChain(
         tapBones = null, periodicBones = null, idleBones = null, boneChains = emptyList(),
         idlePlane = if (plane.enabled) plane else layer.idlePlane,
         idleScope = scope ?: layer.idleScope,
+        idleStartReversed = startReversed ?: layer.idleStartReversed,
+        tapStartReversed = startReversed ?: layer.tapStartReversed,
+        periodicStartReversed = startReversed ?: layer.periodicStartReversed,
         swingMode = swingMode ?: layer.swingMode, springVersion = springVersion ?: layer.springVersion,
         shapePreservation = shapePreservation ?: layer.shapePreservation,
         idleLagSeconds = idleLagSeconds ?: layer.idleLagSeconds,
@@ -148,6 +152,9 @@ data class TapNestLayer(
     val periodicBones: List<TapNestBonePoint>? = null,
     val idleBones: List<TapNestBonePoint>? = null,
     val idleSwing: Boolean = false,
+    val idleStartReversed: Boolean = false,
+    val tapStartReversed: Boolean = false,
+    val periodicStartReversed: Boolean = false,
     val idleFlexibleEnabled: Boolean = true,
     val idleScope: TapNestMotionScope = TapNestMotionScope.WHOLE,
     val idlePresetId: String = "",

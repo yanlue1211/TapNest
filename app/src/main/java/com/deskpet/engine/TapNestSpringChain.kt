@@ -47,18 +47,20 @@ class TapNestSpringChain {
         val last = layer.bones.last()
         val dx = (last.x - first.x) * if (layer.reflectedMotion) -1f else 1f
         val dy = last.y - first.y
-        val outwardSign = if ((if (dx >= 0f) 1 else -1) *
-            (if (dy <= 0f) 1 else -1) >= 0) 1f else -1f
+        val startSign = if (layer.idleStartReversed) -1f else 1f
+        val outwardSign = (if ((if (dx >= 0f) 1 else -1) *
+            (if (dy <= 0f) 1 else -1) >= 0) 1f else -1f) * startSign
         val oneSided = layer.swingRange == TapNestSwingRange.OUTWARD_ONLY
         fun driver(timeMs: Double): Float {
             val phase = driveOmega * timeMs / 1000.0
             return if (oneSided) {
                 // 0..amplitude outward from the authored rest position.
                 (outwardSign * amplitude * 0.5 * (1.0 - kotlin.math.cos(phase))).toFloat()
-            } else (amplitude * sin(phase)).toFloat()
+            } else (startSign * amplitude * sin(phase)).toFloat()
         }
 
-        val resetNeeded = lastLayer?.bones != layer.bones || count != orientations.size ||
+        val resetNeeded = lastLayer?.bones != layer.bones ||
+            lastLayer?.idleStartReversed != layer.idleStartReversed || count != orientations.size ||
             previousTimeMs < 0L || now < previousTimeMs ||
             now - previousTimeMs > 600L
         if (resetNeeded) {
@@ -87,7 +89,7 @@ class TapNestSpringChain {
                 for (i in (if (improved) 0 else 1) until count) {
                     val target = if (i == 0) {
                         if (oneSided) outwardSign * driveAmplitude * .5 * (1.0 - kotlin.math.cos(drivePhase))
-                        else driveAmplitude * sin(drivePhase)
+                        else startSign * driveAmplitude * sin(drivePhase)
                     } else orientations[i - 1].toDouble()
                     val omega = if (improved) springOmega *
                         (if (i == 0) 1.8 else 1.0 - .25 * i / count) else springOmega

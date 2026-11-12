@@ -57,6 +57,7 @@ class PartEditorFlowTest {
                 idlePlane = TapNestMotionPlane(true, true, 25f),
                 tapPlane = TapNestMotionPlane(true, false, 0f, 17f, 29f),
                 springSoftness = .82f, shapePreservation = .66f, idleLagSeconds = .31f,
+                idleStartReversed = true, tapStartReversed = true, periodicStartReversed = true,
                 swingMode = TapNestSwingMode.SPRING, springVersion = 2,
                 tapFlexible = TapNestImpulse(softness = .24f, damping = .55f))
             val independent = trigger.withSeparate(source, true)
@@ -64,6 +65,7 @@ class PartEditorFlowTest {
             val copied = trigger.copyPreviousChain(original, 1)
             val chain = trigger.chains(copied)[0]
             assertEquals("第二条", chain.name)
+            assertEquals(true, chain.startReversed)
             assertEquals(trigger.bones(source), chain.bones)
             assertEquals(trigger.plane(source), chain.plane)
             assertEquals(.66f, chain.shapePreservation!!, .001f)

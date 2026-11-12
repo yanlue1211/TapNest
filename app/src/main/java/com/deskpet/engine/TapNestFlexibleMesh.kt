@@ -58,7 +58,7 @@ object TapNestFlexibleMesh {
     fun segmentAngles(layer: TapNestLayer, elapsedMs: Long): FloatArray {
         val count = (layer.bones.size - 1).coerceAtLeast(0)
         if (count == 0) return floatArrayOf()
-        val amplitude = layer.idleAmplitude.coerceIn(0f, 40f)
+        val amplitude = layer.idleAmplitude.coerceIn(0f, 40f) * if (layer.idleStartReversed) -1f else 1f
         val speed = layer.idleSpeed.coerceIn(0.1f, 3f)
         val lagSeconds = layer.idleLagSeconds.coerceIn(0f, 0.45f)
         val time = elapsedMs.coerceAtLeast(0) / 1000.0

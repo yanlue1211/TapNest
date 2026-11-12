@@ -409,7 +409,7 @@ internal fun LayeredRigPreview(
             if (mode == RigPreviewMode.TEST && layer?.idleSwing == true && (((layer.idleBones ?: layer.bones).size < 2 && (layer.idleBoneChains ?: layer.boneChains).none { it.bones.size >= 2 }) || !layer.idleFlexibleEnabled)) {
                 val angle = sin((phase / 1000.0 * layer.idleSpeed.coerceIn(0.1f, 3f) *
                     2 * PI)).toFloat() * layer.idleAmplitude.coerceIn(0f, 85f)
-                val swingSign = TapNestSymmetry.idleSwingSign(layer) * if (layer.reflectedMotion) -1f else 1f
+                val swingSign = TapNestSymmetry.idleSwingSign(layer) * if (layer.reflectedMotion != layer.idleStartReversed) -1f else 1f
                 val motion = if (layer.idlePlane.enabled) TapNestLayerActions.planePose(angle * swingSign, layer.idlePlane) else TapNestPose(angle = angle * swingSign)
                 pose = pose.copy(x = pose.x + motion.x, y = pose.y + motion.y, angle = pose.angle + motion.angle)
             }

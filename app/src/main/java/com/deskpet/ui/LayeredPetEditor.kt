@@ -633,13 +633,15 @@ fun LayeredPetEditor(
                         val next = if (editingChain != null) {
                             partFlow.trigger.withChains(p.copy(bones = original.bones, boneChains = original.boneChains,
                                 tapBones = original.tapBones, periodicBones = original.periodicBones, idleBones = original.idleBones, idlePlane = original.idlePlane,
+                                idleStartReversed = original.idleStartReversed, tapStartReversed = original.tapStartReversed,
+                                periodicStartReversed = original.periodicStartReversed,
                                 idleScope = original.idleScope, springSoftness = original.springSoftness, springDamping = original.springDamping,
                                 swingMode = original.swingMode, springVersion = original.springVersion,
                                 shapePreservation = original.shapePreservation, idleLagSeconds = original.idleLagSeconds,
                                 idlePresetId = original.idlePresetId, swingRange = original.swingRange,
                                 tapFlexible = original.tapFlexible, periodicFlexible = original.periodicFlexible), partFlow.trigger.chains(original).mapIndexed { i, chain ->
                                 val impulse = if (partFlow.trigger == PartTrigger.TAP) p.tapFlexible else p.periodicFlexible
-                                if (i == selectedChain - 1) chain.copy(bones = p.bones,
+                                if (i == selectedChain - 1) chain.copy(bones = p.bones, startReversed = partFlow.trigger.startReversed(p),
                                     swingMode = p.swingMode, springVersion = p.springVersion,
                                     shapePreservation = p.shapePreservation, idleLagSeconds = p.idleLagSeconds,
                                     idlePresetId = p.idlePresetId, swingRange = p.swingRange,
@@ -805,6 +807,12 @@ fun LayeredPetEditor(
                                 BindingSlider("逆时针边界（度）", plane.negativeLimit, 0f, 180f) { changePlane(plane.copy(negativeLimit = it)) }
                                 BindingSlider("顺时针边界（度）", plane.positiveLimit, 0f, 180f) { changePlane(plane.copy(positiveLimit = it)) }
                             }
+                            Text("起步方向", style = MaterialTheme.typography.titleSmall)
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                FilterChip(!partFlow.trigger.startReversed(layer), { update(partFlow.trigger.withStartReversed(layer, false)) }, label = { Text("默认方向") })
+                                FilterChip(partFlow.trigger.startReversed(layer), { update(partFlow.trigger.withStartReversed(layer, true)) }, label = { Text("相反方向") })
+                            }
+                            Text("控制每次从自然姿势开始时先往哪边摆；镜像与另一侧可配合调整。", style = MaterialTheme.typography.bodySmall)
                             if (partFlow.trigger == PartTrigger.CONTINUOUS) {
                                 BindingSlider(if (plane.enabled && plane.linear) "移动距离（像素）" else "摆动幅度（度）", layer.idleAmplitude, 0f, 85f) { update(layer.copy(idleAmplitude = it)) }
                                 BindingSlider("摆动速度（次／秒）", layer.idleSpeed, .1f, 3f) { update(layer.copy(idleSpeed = it)) }
@@ -858,6 +866,11 @@ fun LayeredPetEditor(
                                     previewMode = RigPreviewMode.BONES
                                 }) { Text("复制上一条骨链的绑点和所有效果") }
                                 Text("复制后先与上一条重合，可移动绑点和影响区域；后续修改互不影响。", style = MaterialTheme.typography.bodySmall)
+                                Text("这条骨链的起步方向", style = MaterialTheme.typography.titleSmall)
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    FilterChip(!partFlow.trigger.startReversed(layer), { update(partFlow.trigger.withStartReversed(layer, false)) }, label = { Text("默认方向") })
+                                    FilterChip(partFlow.trigger.startReversed(layer), { update(partFlow.trigger.withStartReversed(layer, true)) }, label = { Text("相反方向") })
+                                }
                                 OutlinedTextField(editingChain.name, { name ->
                                     val next = partFlow.trigger.withChains(original, chains.mapIndexed { i, chain -> if (i == selectedChain - 1) chain.copy(name = name.take(40)) else chain })
                                     rig = rig.copy(layers = rig.layers.map { if (it.id == activeLayer) next else it })
