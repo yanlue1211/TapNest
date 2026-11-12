@@ -452,7 +452,7 @@ internal fun LayeredRigPreview(
                 native.translate(-pivotX, -pivotY)
             }
             paint.alpha = (poseFor(layer.id).alpha.coerceIn(0f, 1f) * 255).toInt()
-            val skinLayer = layer.frameOwner?.let(nodes::get) ?: layer
+            val skinLayer = TapNestLayerActions.skinForAction(layer.frameOwner?.let(nodes::get) ?: layer, rig.layers, (now - previewStartedAt).coerceAtLeast(0L), touchElapsed)
             val spring = mode == RigPreviewMode.TEST && skinLayer.idleSwing && skinLayer.idleFlexibleEnabled &&
                 skinLayer.bones.size >= 2 && skinLayer.swingMode == TapNestSwingMode.SPRING
             val resolution = if (spring) TapNestFlexibleMesh.SPRING_GRID else TapNestFlexibleMesh.GRID

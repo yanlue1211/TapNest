@@ -211,7 +211,7 @@ fun LayeredPetEditor(
                 Surface(tonalElevation = 2.dp) {
                     Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
             LayeredRigPreview(
-                rig = rig,
+                rig = rig.copy(layers = rig.layers.map { if (it.id == activeLayer) it.copy(bones = partFlow.trigger.bones(it)) else it }),
                 uris = images.toMap(),
                 selected = activeLayer,
                 mode = previewMode,
@@ -223,7 +223,7 @@ fun LayeredPetEditor(
                 onSelectBone = { selectedBone = it },
                 onSetBone = { index, bx, by ->
                     rig = rig.copy(layers = rig.layers.map { layer ->
-                        if (layer.id == activeLayer) layer.copy(bones = layer.bones.mapIndexed { i, bone ->
+                        if (layer.id == activeLayer) partFlow.trigger.withBones(layer, partFlow.trigger.bones(layer).mapIndexed { i, bone ->
                             if (i == index) bone.copy(x = bx, y = by) else bone
                         }) else layer
                     })
@@ -602,9 +602,15 @@ fun LayeredPetEditor(
             )
             } // Basic default-frame upload page
             if (showSettings) {
-                val layer = rig.layers.firstOrNull { it.id == activeLayer }
-                if (layer != null) {
-                    fun update(p: TapNestLayer) { rig = rig.copy(layers = rig.layers.map { if (it.id == activeLayer) p else it }) }
+                val original = rig.layers.firstOrNull { it.id == activeLayer }
+                val layer = original?.copy(bones = partFlow.trigger.bones(original))
+                if (layer != null && original != null) {
+                    fun update(p: TapNestLayer) {
+                        val next = if (partFlow.trigger.separate(original)) {
+                            partFlow.trigger.withBones(p.copy(bones = original.bones), p.bones)
+                        } else p
+                        rig = rig.copy(layers = rig.layers.map { if (it.id == activeLayer) next else it })
+                    }
                     fun go(step: PartEditorStep) {
                         partFlow = partFlow.next(step)
                         previewMode = when (step) {
@@ -746,19 +752,14 @@ fun LayeredPetEditor(
                         PartEditorStep.FLEX -> {
                             Text("是否需要柔性点？", style = MaterialTheme.typography.titleMedium)
                             Text("柔性点让耳根稳定、耳尖弯动。同一部位只绑一次，其他动作也能使用。")
-                            if (partFlow.trigger == PartTrigger.IDLE || partFlow.trigger == PartTrigger.TAP) {
-                                val sourceName = if (partFlow.trigger == PartTrigger.IDLE) "点触互动" else "闲置抖动"
-                                OutlinedButton(onClick = {
-                                    update(partFlow.trigger.setFlexible(layer, true))
-                                    Toast.makeText(ctx, "已复用${sourceName}绑骨，动作参数独立保留", Toast.LENGTH_SHORT).show()
-                                    go(PartEditorStep.SUMMARY)
-                                }, enabled = layer.bones.size >= 2, modifier = Modifier.fillMaxWidth()) {
-                                    Text("复用${sourceName}绑骨")
-                                }
-                                Text(if (layer.bones.size >= 2) "沿用当前部位的 ${layer.bones.size} 个点，不改位置和动作参数。"
-                                    else "当前部位还没有可复用的绑骨，请先放置至少两个点。",
-                                    style = MaterialTheme.typography.bodySmall)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text("为这个动作单独绑柔性点", Modifier.weight(1f))
+                                Switch(partFlow.trigger.separate(original), { separate ->
+                                    val next = partFlow.trigger.withSeparate(original, separate)
+                                    rig = rig.copy(layers = rig.layers.map { if (it.id == activeLayer) next else it })
+                                })
                             }
+                            Text(if (partFlow.trigger.separate(original)) "当前动作独立调整，不改其他动作。" else "默认沿用该部位的公共骨链。")
                             FlowChoice("使用柔性点", if (layer.bones.size >= 2) "已有 ${layer.bones.size} 个点，可继续调整" else "下一步在完整角色上放置控制点") {
                                 update(partFlow.trigger.setFlexible(layer, true)); go(PartEditorStep.BONES)
                             }

@@ -25,6 +25,31 @@ internal enum class PartTrigger(val label: String, val description: String) {
     CONTINUOUS("🌿 持续轻摆", "一直缓慢摇动"),
     BLINK("😉 自动眨眼", "偶尔切换到眨眼帧");
 
+    fun bones(layer: TapNestLayer): List<TapNestBonePoint> = when(this) {
+        TAP -> layer.tapBones ?: layer.bones
+        IDLE -> layer.periodicBones ?: layer.bones
+        CONTINUOUS -> layer.idleBones ?: layer.bones
+        BLINK -> layer.bones
+    }
+    fun separate(layer: TapNestLayer) = when(this) {
+        TAP -> layer.tapBones != null
+        IDLE -> layer.periodicBones != null
+        CONTINUOUS -> layer.idleBones != null
+        BLINK -> false
+    }
+    fun withSeparate(layer: TapNestLayer, enabled: Boolean): TapNestLayer = when(this) {
+        TAP -> layer.copy(tapBones = if (enabled) bones(layer).toList() else null)
+        IDLE -> layer.copy(periodicBones = if (enabled) bones(layer).toList() else null)
+        CONTINUOUS -> layer.copy(idleBones = if (enabled) bones(layer).toList() else null)
+        BLINK -> layer
+    }
+    fun withBones(layer: TapNestLayer, points: List<TapNestBonePoint>) = when {
+        this == TAP && separate(layer) -> layer.copy(tapBones = points)
+        this == IDLE && separate(layer) -> layer.copy(periodicBones = points)
+        this == CONTINUOUS && separate(layer) -> layer.copy(idleBones = points)
+        else -> layer.copy(bones = points)
+    }
+
     fun enabled(layer: TapNestLayer) = when(this) {
         IDLE -> layer.interactionConfigured && layer.periodicEnabled
         TAP -> layer.interactionConfigured && (layer.tapShake || layer.tapSwitchFrame)
@@ -52,7 +77,7 @@ internal enum class PartTrigger(val label: String, val description: String) {
     fun setFlexible(layer: TapNestLayer, enabled: Boolean): TapNestLayer = when(this) {
         TAP -> layer.copy(tapFlexible = layer.tapFlexible.copy(enabled = enabled))
         IDLE -> layer.copy(periodicFlexible = layer.periodicFlexible.copy(enabled = enabled))
-        CONTINUOUS -> layer.copy(idleFlexibleEnabled = enabled)
+        CONTINUOUS -> if (enabled) layer.copy(idleFlexibleEnabled = true, swingMode = TapNestSwingMode.SPRING, springVersion = 2) else layer.copy(idleFlexibleEnabled = false)
         BLINK -> layer
     }
 }

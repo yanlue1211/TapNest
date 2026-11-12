@@ -36,7 +36,10 @@ object TapNestSymmetry {
             mirroredFromId = null,
             x = -layer.x,
             pivotX = (1f - layer.pivotX).coerceIn(0f, 1f),
-            bones = layer.bones.map { it.copy(x = (1f - it.x).coerceIn(0f, 1f)) }
+            bones = layer.bones.map { it.copy(x = (1f - it.x).coerceIn(0f, 1f)) },
+            tapBones = layer.tapBones?.map { it.copy(x = 1f - it.x) },
+            periodicBones = layer.periodicBones?.map { it.copy(x = 1f - it.x) },
+            idleBones = layer.idleBones?.map { it.copy(x = 1f - it.x) }
         )
     }
 

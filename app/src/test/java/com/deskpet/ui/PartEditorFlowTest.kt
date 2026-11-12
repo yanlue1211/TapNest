@@ -40,4 +40,14 @@ class PartEditorFlowTest {
         assertFalse(rigid.idleFlexibleEnabled)
         assertTrue(rigid.tapFlexible.enabled)
     }
+    @Test fun independentPointsDoNotOverwritePublicSkeleton() {
+        val original = TapNestLayer("ear", "e.png", bones = listOf(TapNestBonePoint(.5f, .5f), TapNestBonePoint(.5f, 1f)))
+        val independent = PartTrigger.TAP.withSeparate(original, true)
+        val changed = PartTrigger.TAP.withBones(independent, listOf(TapNestBonePoint(.1f, .1f), TapNestBonePoint(.2f, .2f)))
+        assertEquals(original.bones, changed.bones)
+        assertEquals(original.bones, PartTrigger.IDLE.bones(changed))
+        assertNotEquals(original.bones, PartTrigger.TAP.bones(changed))
+        assertEquals(original.bones, PartTrigger.TAP.bones(PartTrigger.TAP.withSeparate(changed, false)))
+    }
+
 }

@@ -274,7 +274,7 @@ class LayeredPetPlayer private constructor(
             // Alternate frames inherit their default owner's bone skinning
             // as well as the parent transform; changing a frame must not freeze
             // the wing/tail while its idle spring continues to run.
-            val skinLayer = layer.frameOwner?.let(nodes::get) ?: layer
+            val skinLayer = TapNestLayerActions.skinForAction(layer.frameOwner?.let(nodes::get) ?: layer, rig.layers, now - launchedAtMs, elapsed)
             val spring = skinLayer.idleSwing && skinLayer.idleFlexibleEnabled && skinLayer.bones.size >= 2 &&
                 skinLayer.swingMode == TapNestSwingMode.SPRING
             val mesh = if (spring) TapNestFlexibleMesh.SPRING_GRID else TapNestFlexibleMesh.GRID

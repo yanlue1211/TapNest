@@ -57,6 +57,16 @@ object TapNestLayerActions {
         return (elapsedMs % interval).takeIf { it < periodicPulseDuration(layer) }
     }
 
+    fun skinForAction(layer: TapNestLayer, layers: List<TapNestLayer>, sceneMs: Long, touchMs: Long): TapNestLayer {
+        val points = when {
+            layer.tapShake && layer.tapFlexible.enabled && touchMs in 0 until tapMotionDuration(layer) -> layer.tapBones
+            layer.periodicEnabled && layer.periodicFlexible.enabled && touchMs >= 1800L &&
+                periodicElapsed(layer, layers, sceneMs) != null -> layer.periodicBones
+            else -> layer.idleBones
+        } ?: layer.bones
+        return if (points === layer.bones) layer else layer.copy(bones = points)
+    }
+
     /** Arc length, rather than point index, defines the quarter boundaries. */
     fun scopeWeight(layer: TapNestLayer, segment: Int, scope: TapNestMotionScope): Float {
         val lengths = layer.bones.zipWithNext { a, b ->
@@ -221,7 +231,7 @@ object TapNestLayerActions {
     fun motionPose(layer: TapNestLayer, motionAgeMs: Long,
                    periodic: Boolean = false, canvasHeight: Int = 512): TapNestPose {
         if ((if (periodic) layer.periodicFlexible else layer.tapFlexible).enabled &&
-            layer.bones.size >= 2) return TapNestPose()
+            (if (periodic) layer.periodicBones ?: layer.bones else layer.tapBones ?: layer.bones).size >= 2) return TapNestPose()
         val selected = if (periodic) layer.periodicMotion ?: layer.tapMotion else layer.tapMotion
         // A mirrored clone already reverses the canvas. Use the source-side
         // clip sign to prevent reflecting left/right flap directions twice.
