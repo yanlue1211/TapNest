@@ -489,7 +489,8 @@ internal fun LayeredRigPreview(
                 native.scale(sc * motion.scaleX, sc * motion.scaleY)
                 native.translate(-pivotX, -pivotY)
             }
-            paint.alpha = (poseFor(layer.id).alpha.coerceIn(0f, 1f) * 255).toInt()
+            val bodyOpacity = if (TapNestClothing.isLinked(layer)) poseFor("body").alpha else 1f
+            paint.alpha = (TapNestClothing.combinedAlpha(layer, poseFor(layer.id).alpha, bodyOpacity) * 255).toInt()
             val skinLayer = TapNestLayerActions.skinForAction(TapNestClothing.skinOwner(layer, nodes), rig.layers, (now - previewStartedAt).coerceAtLeast(0L), touchElapsed)
             val spring = mode == RigPreviewMode.TEST && skinLayer.idleSwing && skinLayer.idleFlexibleEnabled &&
                 skinLayer.bones.size >= 2 && skinLayer.swingMode == TapNestSwingMode.SPRING
