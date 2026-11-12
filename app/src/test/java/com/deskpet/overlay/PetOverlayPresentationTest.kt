@@ -8,13 +8,13 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.toPixelMap
+import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.testTag
-import androidx.compose.ui.test.captureToImage
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithTag
 import com.deskpet.engine.AnimationController
+import kotlin.math.roundToInt
 import org.junit.Assert.*
 import org.junit.Rule
 import org.junit.Test
@@ -39,20 +39,32 @@ class PetOverlayPresentationTest {
         val normal = artwork(64)
         val held = artwork(192)
         val state = mutableStateOf(AnimationController.Presentation(AnimationController.Frame(normal, 1), 64, 64))
+        lateinit var host: android.view.View
         compose.setContent {
+            host = LocalView.current
             val density = LocalDensity.current
             Box(Modifier.requiredSize(with(density) { 64.toDp() }, with(density) { 192.toDp() })) {
                 PetOverlayPresentation(state.value, Modifier.fillMaxSize().testTag("pet"))
             }
         }
         fun verifyHeadAndBottom(long: Boolean) {
-            val pixels = compose.onNodeWithTag("pet").captureToImage().toPixelMap()
+            val bounds = compose.onNodeWithTag("pet").fetchSemanticsNode().boundsInRoot
+            lateinit var pixels: Bitmap
+            // Robolectric cannot await a real Window/PixelCopy redraw fence.
+            // Draw the laid-out Compose host to a native software Canvas instead.
+            compose.runOnIdle {
+                val canvasPixels = Bitmap.createBitmap(host.width, host.height, Bitmap.Config.ARGB_8888)
+                host.draw(Canvas(canvasPixels))
+                pixels = Bitmap.createBitmap(canvasPixels, bounds.left.roundToInt(), bounds.top.roundToInt(),
+                    bounds.width.roundToInt(), bounds.height.roundToInt())
+            }
             assertEquals(64, pixels.width)
             assertEquals(192, pixels.height)
-            assertTrue(pixels[15, 15].red > .9f)
-            assertTrue(pixels[15, 29].red > .9f)
-            assertTrue("Head must not stretch below its authored 20px height", pixels[15, 35].green > .9f)
-            val bottomIsArtwork = pixels[15, 100].green > .9f && pixels[15, 100].red < .1f
+            assertTrue(android.graphics.Color.red(pixels.getPixel(15, 15)) > 230)
+            assertTrue(android.graphics.Color.red(pixels.getPixel(15, 29)) > 230)
+            assertTrue("Head must not stretch below its authored 20px height", android.graphics.Color.green(pixels.getPixel(15, 35)) > 230)
+            val bottom = pixels.getPixel(15, 100)
+            val bottomIsArtwork = android.graphics.Color.green(bottom) > 230 && android.graphics.Color.red(bottom) < 25
             assertEquals("Normal pose leaves the extended tail area empty", long, bottomIsArtwork)
         }
         compose.waitForIdle()
