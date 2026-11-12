@@ -260,7 +260,10 @@ fun LayeredPetEditor(
                         } else layer
                     })
                 },
-                onSelectLayer = { id -> activeLayer = id },
+                onSelectLayer = { id ->
+                    // A clothing PNG is always edited through its body driver.
+                    activeLayer = if (rig.layers.firstOrNull { it.id == id }?.bodyLinkedClothing == true) "body" else id
+                },
                 onDragLayer = { dx, dy ->
                     rig = rig.copy(layers = rig.layers.map { layer ->
                         if (layer.id == activeLayer)
