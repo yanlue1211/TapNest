@@ -35,6 +35,36 @@ class LayeredPetPlayerTest {
         return file
     }
 
+    @Test fun grabbedPuppyEarCanSwingAboveOriginalCanvasWithoutBeingCutOff() {
+        val file = tmp.newFile("top_ear.png")
+        val art = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888)
+        art.eraseColor(Color.TRANSPARENT)
+        for (y in 0..6) for (x in 0..9) art.setPixel(x, y, Color.BLUE)
+        file.outputStream().use { art.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        art.recycle()
+        val rig = TapNestRig(canvasWidth = 64, canvasHeight = 64,
+            layers = listOf(TapNestLayer("body", "top_ear.png")))
+        val cfg = tmp.newFile("top_ear_rig.json").apply { writeText(Json.encodeToString(rig)) }
+        val player = requireNotNull(LayeredPetPlayer.load(cfg))
+        val neutral = player.render()
+        assertTrue("must have upper room above the source PNG", player.topInset >= 10)
+        assertEquals(Color.BLUE, neutral.getPixel(5, player.topInset + 3))
+        assertEquals(0, Color.alpha(neutral.getPixel(5, 0)))
+        player.setPickedUp(true)
+        android.os.SystemClock.sleep(200L) // 8° tilt; top-left ear travels above y=0.
+        val tilted = player.render()
+        val above = (0 until player.topInset).any { y ->
+            (0 until player.width).any { x ->
+                val pixel = tilted.getPixel(x, y)
+                Color.alpha(pixel) > 80 && Color.blue(pixel) > 180
+            }
+        }
+        assertTrue("ear tips must remain visible in the new transparent safe strip", above)
+        player.setPickedUp(false)
+        val restored = player.render()
+        assertEquals(Color.BLUE, restored.getPixel(5, player.topInset + 3))
+    }
+
     @Test fun longPickupArtShowsTailWithoutShrinkingOrMovingHead() {
         png("body.png", Color.GREEN)
         val file = tmp.newFile("long_pose.png")
@@ -58,23 +88,23 @@ class LayeredPetPlayerTest {
         }
         val player = requireNotNull(LayeredPetPlayer.load(cfg))
         val before = player.render()
-        assertEquals(64, before.height)
-        assertEquals(Color.GREEN, before.getPixel(32, 10))
+        assertEquals(64 + player.topInset, before.height)
+        assertEquals(Color.GREEN, before.getPixel(32, 10 + player.topInset))
         assertTrue(player.pickupHeight >= 144)
         player.setPickedUp(true)
         val lifted = player.render()
         assertEquals(before.width, lifted.width)
-        assertEquals(player.pickupHeight, lifted.height)
+        assertEquals(player.pickupHeight + player.topInset, lifted.height)
         assertEquals("same head pixel position and scale", Color.RED,
-            lifted.getPixel(32, 15))
+            lifted.getPixel(32, 15 + player.topInset))
         assertEquals("long tail stays visible", Color.BLUE,
-            lifted.getPixel(32, 125))
+            lifted.getPixel(32, 125 + player.topInset))
         player.setPickedUp(false)
         val released = player.render()
-        assertEquals(64, released.height)
-        assertEquals(Color.GREEN, released.getPixel(32, 10))
+        assertEquals(64 + player.topInset, released.height)
+        assertEquals(Color.GREEN, released.getPixel(32, 10 + player.topInset))
         assertEquals("the published original frame was not mutated",
-            Color.GREEN, before.getPixel(32, 15))
+            Color.GREEN, before.getPixel(32, 15 + player.topInset))
     }
 
     @Test fun clothingOverlayFollowsBodyPlacementAndActiveBodyFrame() {
@@ -105,7 +135,9 @@ class LayeredPetPlayerTest {
             }
             val player = requireNotNull(LayeredPetPlayer.load(cfg))
             if (activeFrame) player.tap()
-            return player.render().copy(Bitmap.Config.ARGB_8888, false)
+            val published = player.render()
+            return Bitmap.createBitmap(published, 0, player.topInset,
+                player.width, player.height)
         }
         val normal = renderAt(7f, false)
         assertEquals("Outfit belongs at body x + local 10", Color.BLUE, normal.getPixel(19, 15))
@@ -132,10 +164,10 @@ class LayeredPetPlayerTest {
             ))
         val cfg = tmp.newFile("public_rig.json").apply { writeText(Json.encodeToString(rig)) }
         val player = requireNotNull(LayeredPetPlayer.load(cfg))
-        assertEquals("manual wing should be visible", Color.RED, player.render().getPixel(32, 32))
+        assertEquals("manual wing should be visible", Color.RED, player.render().getPixel(32, 32 + player.topInset))
         player.tap()
         assertEquals("tap selects separate uploaded wing frame",
-            Color.BLUE, player.render().getPixel(32, 32))
+            Color.BLUE, player.render().getPixel(32, 32 + player.topInset))
     }
 
     @Test fun compositeIncludesFullHeadAndRetainsPreviousFrame() {
@@ -155,12 +187,12 @@ class LayeredPetPlayerTest {
         val player = LayeredPetPlayer.load(cfg)
         assertNotNull(player)
         val first = player!!.render()
-        assertEquals("Head, not body, must show in preview", Color.RED, first.getPixel(32, 32))
+        assertEquals("Head, not body, must show in preview", Color.RED, first.getPixel(32, 32 + player.topInset))
         player.tap()
         val second = player.render()
         assertNotSame("Do not mutate the bitmap the UI might still be drawing", first, second)
-        assertEquals(Color.BLUE, second.getPixel(32, 32))
-        assertEquals("Previously published frame stays stable", Color.RED, first.getPixel(32, 32))
+        assertEquals(Color.BLUE, second.getPixel(32, 32 + player.topInset))
+        assertEquals("Previously published frame stays stable", Color.RED, first.getPixel(32, 32 + player.topInset))
     }
     @Test fun lifeExpressionsCancelOnPickupAndMissingFormFramesUseNormalFace() {
         png("body.png", Color.GREEN)
@@ -175,15 +207,15 @@ class LayeredPetPlayerTest {
         val now = android.os.SystemClock.uptimeMillis()
         player.lifeInteraction = LifeInteractionAnimation(com.deskpet.data.CompanionAction.FEED, "🍪",
             com.deskpet.data.InteractionAnimationSettings(expressions = listOf(1, 1, 1)), now)
-        assertEquals(Color.BLUE, player.render().getPixel(32, 32))
+        assertEquals(Color.BLUE, player.render().getPixel(32, 32 + player.topInset))
         player.setPickedUp(true)
         org.junit.Assert.assertNull(player.lifeInteraction)
         player.setPickedUp(false)
-        assertEquals(Color.RED, player.render().getPixel(32, 32))
+        assertEquals(Color.RED, player.render().getPixel(32, 32 + player.topInset))
         // A stage bound in another form cannot replace this form's normal expression.
         player.lifeInteraction = LifeInteractionAnimation(com.deskpet.data.CompanionAction.PLAY, "🧸",
             com.deskpet.data.InteractionAnimationSettings(expressions = listOf(3, 3, 3)), now)
-        assertEquals(Color.RED, player.render().getPixel(32, 32))
+        assertEquals(Color.RED, player.render().getPixel(32, 32 + player.topInset))
         player.tap()
         org.junit.Assert.assertNull(player.lifeInteraction)
     }
@@ -202,16 +234,16 @@ class LayeredPetPlayerTest {
         val player = requireNotNull(LayeredPetPlayer.load(cfg))
         repeat(4) {
             player.tap()
-            assertEquals(Color.RED, player.render().getPixel(32, 32))
+            assertEquals(Color.RED, player.render().getPixel(32, 32 + player.topInset))
         }
         player.tap()
-        assertEquals(Color.BLUE, player.render().getPixel(32, 32))
+        assertEquals(Color.BLUE, player.render().getPixel(32, 32 + player.topInset))
         android.os.SystemClock.sleep(1800L)
-        assertEquals(Color.RED, player.render().getPixel(32, 32))
+        assertEquals(Color.RED, player.render().getPixel(32, 32 + player.topInset))
         player.setPickedUp(true)
         player.setPickedUp(false)
         player.tap()
-        assertEquals(Color.RED, player.render().getPixel(32, 32))
+        assertEquals(Color.RED, player.render().getPixel(32, 32 + player.topInset))
     }
 
     @OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
@@ -286,7 +318,7 @@ class LayeredPetPlayerTest {
             (0 until shown.width).any { x -> shown.getPixel(x, y) == Color.BLUE }
         }
         assertTrue("The alternative frame must actually be drawn", blueRows.isNotEmpty())
-        assertTrue("The alternative frame must move along with the bounce", blueRows.first() < 20)
+        assertTrue("The alternative frame must move along with the bounce", blueRows.first() - player.topInset < 20)
     }
     @Test fun mirroredPartsInheritParentTransformsBeforeTheirOwnReflection() {
         png("parent_body.png", Color.GREEN)
@@ -343,7 +375,7 @@ class LayeredPetPlayerTest {
                     android.graphics.Paint(android.graphics.Paint.ANTI_ALIAS_FLAG or android.graphics.Paint.FILTER_BITMAP_FLAG))
                 val expectedPixels = IntArray(4096); val actualPixels = IntArray(4096)
                 expected.getPixels(expectedPixels, 0, 64, 0, 0, 64, 64)
-                actual.getPixels(actualPixels, 0, 64, 0, 0, 64, 64)
+                actual.getPixels(actualPixels, 0, 64, 0, player.topInset, 64, 64)
                 expectedPixels.indices.forEach { pixel ->
                     val a = expectedPixels[pixel]; val b = actualPixels[pixel]
                     val difference = maxOf(kotlin.math.abs(Color.red(a) - Color.red(b)),
@@ -367,6 +399,6 @@ class LayeredPetPlayerTest {
         val cfg = tmp.newFile("many_frames.json").apply { writeText(Json.encodeToString(rig)) }
         val player = requireNotNull(LayeredPetPlayer.load(cfg))
         player.tap()
-        assertEquals(Color.BLUE, player.render().getPixel(32, 32))
+        assertEquals(Color.BLUE, player.render().getPixel(32, 32 + player.topInset))
     }
 }

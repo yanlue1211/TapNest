@@ -185,7 +185,16 @@ internal fun LayeredRigPreview(
     val newestBoneSelect by rememberUpdatedState(onSelectBone)
     val newestBoneIndex by rememberUpdatedState(selectedBone)
 
-    val insetUnits = TapNestLayerActions.flightTopInset(rig)
+    // Match LayeredPetPlayer exactly: extra transparent headroom must be
+    // visible in pickup preview, even when an ear touches the original top.
+    val pickupArtWidth = if (rig.pickupArtworkEnabled) assets["pickup_pose"]?.width else null
+    val pickupArtScale = if (pickupArtWidth != null)
+        rig.layers.firstOrNull { it.id == "pickup_pose" }?.restScale ?: 1f else 1f
+    val insetUnits = maxOf(
+        TapNestLayerActions.flightTopInset(rig),
+        TapNestPickupCanvas.pickupTopClearance(
+            rig.canvasWidth, rig.canvasHeight,
+            pickupArtWidth ?: rig.canvasWidth, pickupArtScale))
     val insetDp = (270f * insetUnits / rig.canvasHeight.coerceAtLeast(1)).dp
     val density = androidx.compose.ui.platform.LocalDensity.current
     val insetPx = with(density) { insetDp.toPx() }

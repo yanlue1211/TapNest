@@ -250,6 +250,28 @@ data class TapNestClip(
  * small extra transparent strip to avoid chopping clothes/tails during rocking.
  */
 object TapNestPickupCanvas {
+    /**
+     * Reserve real TRANSPARENT pixels above the authored top edge for rocking.
+     * A top-centre pivot at y=0 sends the outer ear tip to negative y as the
+     * held image swings ±8°. Previously the bitmap itself clipped those pixels
+     * before Compose/WindowManager could draw them.
+     *
+     * No resizing or PNG modification: the artwork stays at its original
+     * coordinates after the top padding, and overlay positioning compensates
+     * by this exact inset. Extra clearance covers ear art positioned near y=0.
+     */
+    fun pickupTopClearance(canvasWidth: Int, canvasHeight: Int,
+                           imageWidth: Int = canvasWidth, imageScale: Float = 1f): Int {
+        if (canvasWidth <= 0 || canvasHeight <= 0) return 0
+        val sc = imageScale.coerceIn(.3f, 3f)
+        val centre = canvasWidth * .5f
+        val farthestTopCorner = maxOf(centre, kotlin.math.abs(imageWidth.coerceAtLeast(0) - centre)) * sc
+        val rockingReach = farthestTopCorner * kotlin.math.sin(Math.toRadians(8.0)).toFloat()
+        val breathingRoom = maxOf(canvasWidth * .10f, canvasHeight * .03f) + 4f
+        return kotlin.math.ceil((rockingReach + breathingRoom).toDouble()).toInt()
+            .coerceIn(0, maxOf(canvasWidth, canvasHeight) * 2)
+    }
+
     fun requiredHeight(canvasWidth: Int, canvasHeight: Int, imageWidth: Int,
                        imageHeight: Int, imageScale: Float): Int {
         if (canvasWidth <= 0 || canvasHeight <= 0 ||

@@ -30,6 +30,23 @@ class TapNestPickupTest {
         assertEquals(listOf("body"), decoded.layers.map { it.id })
     }
 
+    @Test fun pickupDefaultHeadroomCoversBothSwayDirectionsAndAnEarAtTopEdge() {
+        val width = 512
+        val inset = TapNestPickupCanvas.pickupTopClearance(width, 512)
+        val rotatedAboveTop = width * .5f *
+            kotlin.math.sin(Math.toRadians(8.0)).toFloat()
+        assertTrue("negative y of extreme ear fits buffer", inset > rotatedAboveTop + 40f)
+        assertEquals(inset, TapNestPickupCanvas.pickupTopClearance(width, 512))
+        assertEquals(0, TapNestPickupCanvas.pickupTopClearance(0, 512))
+    }
+
+    @Test fun oversizedDedicatedPickupArtGetsExtraHeadroomWithoutHeadResizing() {
+        val normal = TapNestPickupCanvas.pickupTopClearance(320, 320)
+        val bigArt = TapNestPickupCanvas.pickupTopClearance(320, 320, 500, 1.7f)
+        assertTrue("larger separately uploaded art gets extra room above", bigArt > normal)
+        assertTrue(TapNestPickupCanvas.pickupTopClearance(64, 64) >= 10)
+    }
+
     @Test fun tallPickupExtendsOnlyBelowTheOriginalTopAnchor() {
         val oldHeight = 320
         val tall = TapNestPickupCanvas.requiredHeight(
