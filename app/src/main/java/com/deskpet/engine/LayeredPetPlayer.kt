@@ -217,7 +217,9 @@ class LayeredPetPlayer private constructor(
                 val wave = sin(((now - launchedAtMs) / 1000.0 *
                     node.idleSpeed.coerceIn(0.1f, 3f) * 2 * PI)).toFloat()
                 val swingSign = TapNestSymmetry.idleSwingSign(node)
-                p = p.copy(angle = p.angle + wave * node.idleAmplitude.coerceIn(0f, 40f) * swingSign)
+                val amount = wave * node.idleAmplitude.coerceIn(0f, 85f) * swingSign
+                val motion = if (node.idlePlane.enabled) TapNestLayerActions.planePose(amount, node.idlePlane) else TapNestPose(angle = amount)
+                p = p.copy(x = p.x + motion.x, y = p.y + motion.y, angle = p.angle + motion.angle)
             }
             return p
         }
@@ -284,7 +286,7 @@ class LayeredPetPlayer private constructor(
             val jointAngles = if (!held && !reacting) TapNestLayerActions.jointAngles(
                 skinLayer, rig.layers, now - launchedAtMs, elapsed, idleAngles) else null
             val impulseActive = jointAngles !== idleAngles
-            if (spring && !impulseActive && skinLayer.shapePreservation >= 0.999f &&
+            if (spring && !impulseActive && !skinLayer.idlePlane.enabled && skinLayer.shapePreservation >= 0.999f &&
                 skinLayer.bones.all { it.swingDirection == TapNestBoneSwingDirection.AUTO } &&
                 jointAngles != null && jointAngles.isNotEmpty()) {
                 // True rigid mode: draw the intact bitmap instead of running it

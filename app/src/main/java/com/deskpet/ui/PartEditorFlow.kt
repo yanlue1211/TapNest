@@ -25,6 +25,16 @@ internal enum class PartTrigger(val label: String, val description: String) {
     CONTINUOUS("🌿 持续轻摆", "一直缓慢摇动"),
     BLINK("😉 自动眨眼", "偶尔切换到眨眼帧");
 
+    fun plane(layer: TapNestLayer) = when(this) {
+        TAP -> layer.tapPlane
+        IDLE -> layer.periodicPlane
+        else -> layer.idlePlane
+    }
+    fun withPlane(layer: TapNestLayer, plane: TapNestMotionPlane) = when(this) {
+        TAP -> layer.copy(tapPlane = plane, tapBasicConfigured = true)
+        IDLE -> layer.copy(periodicPlane = plane, periodicBasicConfigured = true)
+        else -> layer.copy(idlePlane = plane)
+    }
     fun bones(layer: TapNestLayer): List<TapNestBonePoint> = when(this) {
         TAP -> layer.tapBones ?: layer.bones
         IDLE -> layer.periodicBones ?: layer.bones

@@ -34,7 +34,7 @@ import kotlin.math.min
 import kotlin.math.PI
 import kotlin.math.sin
 
-internal enum class RigPreviewMode { POSITION, PIVOT, BONES, TEST }
+internal enum class RigPreviewMode { POSITION, PIVOT, BONES, RANGE, TEST }
 private data class PreviewAsset(val bitmap: Bitmap, val width: Int, val height: Int)
 
 /**
@@ -100,6 +100,8 @@ internal fun LayeredRigPreview(
     pickupPreview: Boolean = false,
     testRequest: Int = 0,
     testAction: String? = null,
+    motionPlane: TapNestMotionPlane? = null,
+    onSetMotionPlane: (TapNestMotionPlane) -> Unit = {},
     onSelectLayer: (String) -> Unit,
     onDragLayer: (Float, Float) -> Unit,
     onSetPivot: (Float, Float) -> Unit,
@@ -171,6 +173,8 @@ internal fun LayeredRigPreview(
     val newestAssets by rememberUpdatedState(assets)
     val newestSelect by rememberUpdatedState(onSelectLayer)
     val newestMove by rememberUpdatedState(onDragLayer)
+    val newestPlane by rememberUpdatedState(motionPlane)
+    val newestPlaneChange by rememberUpdatedState(onSetMotionPlane)
     val newestPivot by rememberUpdatedState(onSetPivot)
     val newestBone by rememberUpdatedState(onSetBone)
     val newestBoneSelect by rememberUpdatedState(onSelectBone)
@@ -285,6 +289,22 @@ internal fun LayeredRigPreview(
                                 }
                                 top?.let { newestSelect(it.id) }
                             }
+                            RigPreviewMode.RANGE -> {
+                                val layer = current.layers.firstOrNull { it.id == selected }
+                                val art = pictures[selected]
+                                val plane = newestPlane
+                                if (layer != null && art != null && plane != null) {
+                                    val local = previewLocalPoint(point.copy(y = point.y - insetPx), logicalViewport, current, layer, pictures)
+                                    val degrees = Math.toDegrees(kotlin.math.atan2((local.y - layer.pivotY * art.height).toDouble(), (local.x - layer.pivotX * art.width).toDouble())).toFloat()
+                                    if (plane.linear) newestPlaneChange(plane.copy(enabled = true, axisDegrees = degrees))
+                                    else {
+                                        val end = layer.bones.lastOrNull()
+                                        val reference = if (end != null) Math.toDegrees(kotlin.math.atan2(((end.y - layer.pivotY) * art.height).toDouble(), ((end.x - layer.pivotX) * art.width).toDouble())).toFloat() else 90f
+                                        val relative = ((degrees - reference + 540f) % 360f) - 180f
+                                        newestPlaneChange(if (relative < 0) plane.copy(enabled = true, negativeLimit = -relative) else plane.copy(enabled = true, positiveLimit = relative))
+                                    }
+                                }
+                            }
                             RigPreviewMode.PIVOT -> {
                                 val layer = current.layers.firstOrNull { it.id == selected }
                                 val art = pictures[selected]
@@ -389,9 +409,10 @@ internal fun LayeredRigPreview(
             }
             if (mode == RigPreviewMode.TEST && layer?.idleSwing == true && (layer.bones.size < 2 || !layer.idleFlexibleEnabled)) {
                 val angle = sin((phase / 1000.0 * layer.idleSpeed.coerceIn(0.1f, 3f) *
-                    2 * PI)).toFloat() * layer.idleAmplitude.coerceIn(0f, 40f)
+                    2 * PI)).toFloat() * layer.idleAmplitude.coerceIn(0f, 85f)
                 val swingSign = TapNestSymmetry.idleSwingSign(layer)
-                pose = pose.copy(angle = pose.angle + angle * swingSign)
+                val motion = if (layer.idlePlane.enabled) TapNestLayerActions.planePose(angle * swingSign, layer.idlePlane) else TapNestPose(angle = angle * swingSign)
+                pose = pose.copy(x = pose.x + motion.x, y = pose.y + motion.y, angle = pose.angle + motion.angle)
             }
             return pose
         }
@@ -463,7 +484,7 @@ internal fun LayeredRigPreview(
             val jointAngles = if (mode == RigPreviewMode.TEST && !pickupPreview) TapNestLayerActions.jointAngles(
                 skinLayer, rig.layers, elapsed, touchElapsed, idleAngles) else null
             val impulseActive = jointAngles !== idleAngles
-            if (spring && !impulseActive && skinLayer.shapePreservation >= 0.999f &&
+            if (spring && !impulseActive && !skinLayer.idlePlane.enabled && skinLayer.shapePreservation >= 0.999f &&
                 skinLayer.bones.all { it.swingDirection == TapNestBoneSwingDirection.AUTO } &&
                 jointAngles != null && jointAngles.isNotEmpty()) {
                 val root = skinLayer.bones.first()
@@ -491,7 +512,29 @@ internal fun LayeredRigPreview(
                 accent.style = Paint.Style.FILL
                 native.drawCircle(art.width * layer.pivotX, art.height * layer.pivotY,
                     5f / factor.coerceAtLeast(0.1f), accent)
-                if (layer.bones.isNotEmpty()) {
+                if (mode == RigPreviewMode.RANGE && motionPlane?.enabled == true) {
+                    val cx = art.width * layer.pivotX
+                    val cy = art.height * layer.pivotY
+                    val radius = min(art.width, art.height) * .24f
+                    val end = layer.bones.lastOrNull()
+                    val reference = if (motionPlane.linear) motionPlane.axisDegrees else if (end != null)
+                        Math.toDegrees(kotlin.math.atan2(((end.y - layer.pivotY) * art.height).toDouble(), ((end.x - layer.pivotX) * art.width).toDouble())).toFloat() else 90f
+                    val directions = if (motionPlane.linear) listOf(reference, reference + 180f) else
+                        listOf(reference - motionPlane.negativeLimit, reference + motionPlane.positiveLimit)
+                    accent.style = Paint.Style.STROKE
+                    directions.forEach { degrees ->
+                        val radians = Math.toRadians(degrees.toDouble())
+                        native.drawLine(cx, cy, cx + radius * kotlin.math.cos(radians).toFloat(), cy + radius * kotlin.math.sin(radians).toFloat(), accent)
+                    }
+                    if (!motionPlane.linear) {
+                        accent.style = Paint.Style.FILL
+                        accent.alpha = 38
+                        native.drawArc(RectF(cx - radius, cy - radius, cx + radius, cy + radius),
+                            reference - motionPlane.negativeLimit, motionPlane.negativeLimit + motionPlane.positiveLimit, true, accent)
+                        accent.alpha = 255
+                    }
+                }
+                if (mode == RigPreviewMode.BONES && layer.bones.isNotEmpty()) {
                     val track = Paint(Paint.ANTI_ALIAS_FLAG).apply {
                         color = android.graphics.Color.rgb(223, 139, 40)
                         strokeWidth = 2f / factor.coerceAtLeast(0.1f)

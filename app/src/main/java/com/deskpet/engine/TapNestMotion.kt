@@ -54,6 +54,16 @@ enum class TapNestPeriodicAction { SHAKE, SWITCH_FRAME }
 enum class TapNestMotionScope { WHOLE, DISTAL, TIP, UPPER, MIDDLE, LOWER }
 
 @Serializable
+data class TapNestMotionPlane(
+    val enabled: Boolean = false,
+    val linear: Boolean = false,
+    /** Screen-space axis: 0 right, 90 down; the rest image is never rotated. */
+    val axisDegrees: Float = 0f,
+    val negativeLimit: Float = 45f,
+    val positiveLimit: Float = 45f
+)
+
+@Serializable
 data class TapNestImpulse(
     val enabled: Boolean = false,
     val scope: TapNestMotionScope = TapNestMotionScope.TIP,
@@ -90,6 +100,9 @@ data class TapNestLayer(
     val restScale: Float = 1f,
     val bones: List<TapNestBonePoint> = emptyList(),
     val tapBones: List<TapNestBonePoint>? = null,
+    val tapPlane: TapNestMotionPlane = TapNestMotionPlane(),
+    val periodicPlane: TapNestMotionPlane = TapNestMotionPlane(),
+    val idlePlane: TapNestMotionPlane = TapNestMotionPlane(),
     val periodicBones: List<TapNestBonePoint>? = null,
     val idleBones: List<TapNestBonePoint>? = null,
     val idleSwing: Boolean = false,

@@ -96,6 +96,7 @@ fun LayeredPetEditor(
             partFlow = partFlow.back()
             previewMode = when (partFlow.step) {
                 PartEditorStep.BONES -> RigPreviewMode.BONES
+                PartEditorStep.MOTION -> RigPreviewMode.RANGE
                 PartEditorStep.ANCHOR -> RigPreviewMode.PIVOT
                 PartEditorStep.POSITION -> RigPreviewMode.POSITION
                 else -> RigPreviewMode.TEST
@@ -225,6 +226,10 @@ fun LayeredPetEditor(
                 allowEditingDrag = dragUnlocked,
                 testRequest = testRequest,
                 testAction = actionPage,
+                motionPlane = rig.layers.firstOrNull { it.id == activeLayer }?.let { partFlow.trigger.plane(it) },
+                onSetMotionPlane = { plane ->
+                    rig = rig.copy(layers = rig.layers.map { if (it.id == activeLayer) partFlow.trigger.withPlane(it, plane) else it })
+                },
                 onSelectBone = { selectedBone = it },
                 onSetBone = { index, bx, by ->
                     rig = rig.copy(layers = rig.layers.map { layer ->
@@ -255,6 +260,7 @@ fun LayeredPetEditor(
                             TextButton(onClick = { previewMode = RigPreviewMode.TEST; testRequest++ }) { Text("测试动作") }
                             TextButton(onClick = { showOtherParts = !showOtherParts }) { Text(if (showOtherParts) "隐藏其他部位" else "显示其他部位") }
                             TextButton(onClick = { saveEditor(true) }, enabled = !busy && images["body"] != null) { Text("保存回部位主页") }
+                            if (partFlow.step == PartEditorStep.MOTION) TextButton(onClick = { previewMode = RigPreviewMode.RANGE }) { Text("查看方向范围") }
                             if (partFlow.step == PartEditorStep.ANCHOR) TextButton(onClick = { previewMode = RigPreviewMode.PIVOT; dragUnlocked = true }) { Text("继续放锚点") }
                             if (partFlow.step == PartEditorStep.BONES) TextButton(onClick = { previewMode = RigPreviewMode.BONES; dragUnlocked = true }) { Text("继续绑点") }
 
@@ -627,7 +633,8 @@ fun LayeredPetEditor(
                         partFlow = partFlow.next(step)
                         previewMode = when (step) {
                             PartEditorStep.BONES -> RigPreviewMode.BONES
-                            PartEditorStep.ANCHOR -> RigPreviewMode.PIVOT
+                            PartEditorStep.MOTION -> RigPreviewMode.RANGE
+                PartEditorStep.ANCHOR -> RigPreviewMode.PIVOT
                             PartEditorStep.POSITION -> RigPreviewMode.POSITION
                             else -> RigPreviewMode.TEST
                         }
@@ -753,11 +760,25 @@ fun LayeredPetEditor(
                             Button(onClick = { go(PartEditorStep.MOTION) }) { Text("下一步：设置运动 →") }
                         }
                         PartEditorStep.MOTION -> {
+                            val plane = partFlow.trigger.plane(layer)
+                            fun changePlane(value: TapNestMotionPlane) { update(partFlow.trigger.withPlane(layer, value.copy(enabled = true))) }
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                FilterChip(plane.enabled && !plane.linear, { changePlane(plane.copy(linear = false)) }, label = { Text("绕锚点摆动") })
+                                FilterChip(plane.enabled && plane.linear, { changePlane(plane.copy(linear = true)) }, label = { Text("沿直线移动") })
+                            }
+                            TextButton(onClick = { update(partFlow.trigger.withPlane(layer, plane.copy(enabled = false))) }) { Text("使用原有预设动作") }
+                            if (plane.linear) {
+                                BindingSlider("移动方向（0°向右，90°向下）", plane.axisDegrees, -180f, 180f) { changePlane(plane.copy(axisDegrees = it)) }
+                            } else {
+                                Text("以素材原本姿势为零位，两侧范围可分别设置。")
+                                BindingSlider("逆时针边界（度）", plane.negativeLimit, 0f, 180f) { changePlane(plane.copy(negativeLimit = it)) }
+                                BindingSlider("顺时针边界（度）", plane.positiveLimit, 0f, 180f) { changePlane(plane.copy(positiveLimit = it)) }
+                            }
                             if (partFlow.trigger == PartTrigger.CONTINUOUS) {
                                 BindingSlider("摆动幅度（度）", layer.idleAmplitude, 0f, 85f) { update(layer.copy(idleAmplitude = it)) }
                                 BindingSlider("摆动速度（次／秒）", layer.idleSpeed, .1f, 3f) { update(layer.copy(idleSpeed = it)) }
                             } else {
-                                PartMotionSettings(layer, partFlow.trigger, ::update)
+                                if (!plane.enabled) PartMotionSettings(layer, partFlow.trigger, ::update)
                                 val impulse = if (partFlow.trigger == PartTrigger.TAP) layer.tapFlexible else layer.periodicFlexible
                                 fun change(value: TapNestImpulse) { update(if (partFlow.trigger == PartTrigger.TAP) layer.copy(tapFlexible = value, tapBasicConfigured = true) else layer.copy(periodicFlexible = value, periodicBasicConfigured = true)) }
                                 BindingSlider("动作幅度", impulse.amplitude, 0f, 55f) { change(impulse.copy(amplitude = it)) }

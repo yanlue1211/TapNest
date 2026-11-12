@@ -32,4 +32,14 @@ class TapNestBasicMotionTest {
         assertEquals(TapNestLayerActions.motionPose(legacy, 100L, periodic = true),
             TapNestLayerActions.motionPose(part, 100L, periodic = true))
     }
+    @Test fun arbitraryPlaneSupportsDiagonalAndAsymmetricRotation() {
+        val diagonal = TapNestLayerActions.planePose(10f, TapNestMotionPlane(enabled = true, linear = true, axisDegrees = 45f))
+        assertEquals(diagonal.x, diagonal.y, .001f)
+        assertTrue(diagonal.x > 0f)
+        val plane = TapNestMotionPlane(enabled = true, negativeLimit = 5f, positiveLimit = 20f)
+        assertEquals(-5f, TapNestLayerActions.planePose(-50f, plane).angle, .001f)
+        assertEquals(20f, TapNestLayerActions.planePose(50f, plane).angle, .001f)
+        assertEquals(TapNestPose(), TapNestLayerActions.planePose(0f, plane))
+    }
+
 }

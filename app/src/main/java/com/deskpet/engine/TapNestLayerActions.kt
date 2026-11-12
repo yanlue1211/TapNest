@@ -57,6 +57,12 @@ object TapNestLayerActions {
         return (elapsedMs % interval).takeIf { it < periodicPulseDuration(layer) }
     }
 
+    fun planePose(amount: Float, plane: TapNestMotionPlane): TapNestPose {
+        if (!plane.linear) return TapNestPose(angle = amount.coerceIn(-plane.negativeLimit.coerceIn(0f, 180f), plane.positiveLimit.coerceIn(0f, 180f)))
+        val radians = Math.toRadians(plane.axisDegrees.toDouble())
+        return TapNestPose(x = amount * kotlin.math.cos(radians).toFloat(), y = amount * kotlin.math.sin(radians).toFloat())
+    }
+
     fun skinForAction(layer: TapNestLayer, layers: List<TapNestLayer>, sceneMs: Long, touchMs: Long): TapNestLayer {
         val points = when {
             layer.tapShake && layer.tapFlexible.enabled && touchMs in 0 until tapMotionDuration(layer) -> layer.tapBones
@@ -64,7 +70,12 @@ object TapNestLayerActions {
                 periodicElapsed(layer, layers, sceneMs) != null -> layer.periodicBones
             else -> layer.idleBones
         } ?: layer.bones
-        return if (points === layer.bones) layer else layer.copy(bones = points)
+        val plane = when {
+            layer.tapShake && layer.tapFlexible.enabled && touchMs in 0 until tapMotionDuration(layer) -> layer.tapPlane
+            layer.periodicEnabled && layer.periodicFlexible.enabled && touchMs >= 1800L && periodicElapsed(layer, layers, sceneMs) != null -> layer.periodicPlane
+            else -> layer.idlePlane
+        }
+        return if (points === layer.bones && plane == layer.idlePlane) layer else layer.copy(bones = points, idlePlane = plane)
     }
 
     /** Arc length, rather than point index, defines the quarter boundaries. */
@@ -255,6 +266,8 @@ object TapNestLayerActions {
         val wave = (kotlin.math.sin(2 * kotlin.math.PI * action.count.coerceIn(1, 6) *
             action.speed.coerceIn(.5f, 6f) / 3.0 * progress) * envelope).toFloat()
         val amount = wave * action.amplitude.coerceIn(0f, 55f)
+        val plane = if (periodic) layer.periodicPlane else layer.tapPlane
+        if (plane.enabled) return planePose(amount, plane)
         return when (selected) {
             TapNestPartMotion.BOUNCE -> TapNestPose(y = -amount)
             else -> TapNestPose(angle = amount)

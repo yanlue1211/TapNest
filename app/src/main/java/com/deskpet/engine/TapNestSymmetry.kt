@@ -32,6 +32,7 @@ object TapNestSymmetry {
     /** Copy animation configuration, preserving the partner's art, placement and identity. */
     fun synchronizedMotion(source: TapNestLayer, target: TapNestLayer): TapNestLayer = target.copy(
         syncPairedAll = true, syncPairedPeriodic = true,
+        tapPlane = source.tapPlane, periodicPlane = source.periodicPlane, idlePlane = source.idlePlane,
         bones = source.bones, tapBones = source.tapBones, periodicBones = source.periodicBones, idleBones = source.idleBones,
         idleSwing = source.idleSwing, idleFlexibleEnabled = source.idleFlexibleEnabled,
         idleScope = source.idleScope, idleAmplitude = source.idleAmplitude, idleSpeed = source.idleSpeed,

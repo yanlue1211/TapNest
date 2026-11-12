@@ -91,7 +91,17 @@ object TapNestFlexibleMesh {
             val explicit = layer.bones[i].swingDirection
             val direction = if (i == 1 && explicit == TapNestBoneSwingDirection.AUTO)
                 layer.bones.first().swingDirection else explicit
-            val (dx, dy) = moveSegment(source.x, source.y, accumulated, direction)
+            val plane = layer.idlePlane
+            val (dx, dy) = if (plane.enabled && plane.linear) {
+                val offset = sqrt(source.x * source.x + source.y * source.y) * sin(accumulated)
+                val axis = Math.toRadians(plane.axisDegrees.toDouble()).toFloat()
+                (source.x + offset * cos(axis)) to (source.y + offset * sin(axis))
+            } else {
+                val bounded = if (plane.enabled) accumulated.coerceIn(
+                    -Math.toRadians(plane.negativeLimit.coerceIn(0f, 180f).toDouble()).toFloat(),
+                    Math.toRadians(plane.positiveLimit.coerceIn(0f, 180f).toDouble()).toFloat()) else accumulated
+                moveSegment(source.x, source.y, bounded, direction)
+            }
             transformed.add(transformed.last() + Point(dx, dy))
         }
         // At a thick outline, an abrupt switch between two adjacent segment
@@ -116,7 +126,7 @@ object TapNestFlexibleMesh {
         val rootRotation = jointRotations.first()
         // Horizontal/vertical flapping must not be suppressed by a high
         // outline-preservation setting. Only rotation has a rigid equivalent.
-        val containsLinearSteering = layer.bones.any {
+        val containsLinearSteering = (layer.idlePlane.enabled && layer.idlePlane.linear) || layer.bones.any {
             it.swingDirection in setOf(
                 TapNestBoneSwingDirection.HORIZONTAL,
                 TapNestBoneSwingDirection.HORIZONTAL_REVERSE,
