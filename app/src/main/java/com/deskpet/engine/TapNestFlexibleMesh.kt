@@ -127,7 +127,7 @@ object TapNestFlexibleMesh {
             ?: segmentAngles(layer, elapsedMs)
         var accumulated = 0f
         for (i in 1 until base.size) {
-            accumulated += Math.toRadians(angles[i - 1].toDouble()).toFloat()
+            accumulated += Math.toRadians((angles[i - 1] * if (layer.reflectedMotion) -1f else 1f).toDouble()).toFloat()
             val source = base[i] - base[i - 1]
             val explicit = layer.bones[i].swingDirection
             val direction = if (i == 1 && explicit == TapNestBoneSwingDirection.AUTO)

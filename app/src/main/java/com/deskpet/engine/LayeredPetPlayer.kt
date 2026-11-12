@@ -217,7 +217,7 @@ class LayeredPetPlayer private constructor(
                 val wave = sin(((now - launchedAtMs) / 1000.0 *
                     node.idleSpeed.coerceIn(0.1f, 3f) * 2 * PI)).toFloat()
                 val swingSign = TapNestSymmetry.idleSwingSign(node)
-                val amount = wave * node.idleAmplitude.coerceIn(0f, 85f) * swingSign
+                val amount = wave * node.idleAmplitude.coerceIn(0f, 85f) * swingSign * if (node.reflectedMotion) -1f else 1f
                 val motion = if (node.idlePlane.enabled) TapNestLayerActions.planePose(amount, node.idlePlane) else TapNestPose(angle = amount)
                 p = p.copy(x = p.x + motion.x, y = p.y + motion.y, angle = p.angle + motion.angle)
             }

@@ -64,4 +64,31 @@ class TapNestSymmetryTest {
         val right = TapNestLayer("ear_right", "", mirrorX = true)
         assertFalse(TapNestSymmetry.mirroredGroup(right, emptyList(), "ear_left", "左耳朵")[0].mirrorX)
     }
+    @Test fun independentArtworkReflectsEveryBoneDirectionAndMotion() {
+        TapNestBoneSwingDirection.entries.forEach { direction ->
+            val source = TapNestLayer("ear_left", "", idleSwing = true,
+                bones = listOf(TapNestBonePoint(.2f, .2f), TapNestBonePoint(.3f, .7f, direction)),
+                interactionConfigured = true, tapShake = true, tapBasicConfigured = true)
+            val clone = TapNestSymmetry.mirroredGroup(source, emptyList(), "ear_right", "右耳").single()
+            val separate = TapNestSymmetry.independentArtwork(clone)
+            assertTrue(separate.reflectedMotion)
+            assertFalse(separate.mirrorX)
+            val a = TapNestFlexibleMesh.vertices(source, 100, 100, 210L, 10)!!
+            val b = TapNestFlexibleMesh.vertices(separate, 100, 100, 210L, 10)!!
+            for (row in 0..10) for (col in 0..10) {
+                val i = (row * 11 + col) * 2
+                val j = (row * 11 + 10 - col) * 2
+                assertEquals(direction.name, 100f - a[i], b[j], .01f)
+                assertEquals(direction.name, a[i + 1], b[j + 1], .01f)
+            }
+            val left = TapNestLayerActions.motionPose(source, 120L)
+            val right = TapNestLayerActions.motionPose(separate, 120L)
+            assertEquals(-left.angle, right.angle, .001f)
+            assertEquals(-left.x, right.x, .001f)
+            assertEquals(left.y, right.y, .001f)
+            val synced = TapNestSymmetry.synchronizedMotion(source, separate)
+            assertEquals(separate.bones, synced.bones)
+            assertEquals(separate.reflectedMotion, synced.reflectedMotion)
+        }
+    }
 }

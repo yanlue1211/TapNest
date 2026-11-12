@@ -260,7 +260,7 @@ object TapNestLayerActions {
         val selected = if (periodic) layer.periodicMotion ?: layer.tapMotion else layer.tapMotion
         // A mirrored clone already reverses the canvas. Use the source-side
         // clip sign to prevent reflecting left/right flap directions twice.
-        val motionId = if (layer.mirrorX) layer.mirroredFromId ?: layer.id else layer.id
+        val motionId = if (layer.mirrorX || layer.reflectedMotion) layer.mirroredFromId ?: layer.id else layer.id
         val clip = when (selected) {
             TapNestPartMotion.NOD -> TapNestPresets.nod(motionId)
             TapNestPartMotion.BOUNCE -> TapNestPresets.bounce(motionId)
@@ -271,7 +271,7 @@ object TapNestLayerActions {
         }
         val configured = if (periodic) layer.periodicBasicConfigured else layer.tapBasicConfigured
         if (!configured)
-            return TapNestMotion.sample(clip, motionId, motionAgeMs)
+            return TapNestMotion.sample(clip, motionId, motionAgeMs).let { if (layer.reflectedMotion) it.copy(x = -it.x, angle = -it.angle) else it }
         val action = if (periodic) layer.periodicFlexible else layer.tapFlexible
         val duration = action.durationMs.coerceIn(200L, 3000L)
         if (motionAgeMs !in 0 until duration) return TapNestPose()
@@ -285,7 +285,7 @@ object TapNestLayerActions {
         val envelope = kotlin.math.sin(kotlin.math.PI * progress).let { it * it }
         val wave = (kotlin.math.sin(2 * kotlin.math.PI * action.count.coerceIn(1, 6) *
             action.speed.coerceIn(.5f, 6f) / 3.0 * progress) * envelope).toFloat()
-        val amount = wave * action.amplitude.coerceIn(0f, 55f)
+        val amount = wave * action.amplitude.coerceIn(0f, 55f) * if (layer.reflectedMotion) -1f else 1f
         val plane = if (periodic) layer.periodicPlane else layer.tapPlane
         if (plane.enabled) return planePose(amount, plane)
         return when (selected) {

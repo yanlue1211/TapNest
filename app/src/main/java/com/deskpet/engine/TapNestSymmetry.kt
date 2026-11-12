@@ -30,7 +30,15 @@ object TapNestSymmetry {
      * Imported art follows the recommended same-size transparent canvas.
      */
     /** Copy animation configuration, preserving the partner's art, placement and identity. */
-    fun synchronizedMotion(source: TapNestLayer, target: TapNestLayer): TapNestLayer = target.copy(
+    fun synchronizedMotion(source: TapNestLayer, target: TapNestLayer): TapNestLayer {
+        // Match local coordinate handedness, including separately uploaded art.
+        val settings = if (source.reflectedMotion != target.reflectedMotion)
+            independentArtwork(source.copy(mirrorX = true, mirroredFromId = source.mirroredFromId ?: source.id))
+        else source
+        return copyMotion(settings, target)
+    }
+
+    private fun copyMotion(source: TapNestLayer, target: TapNestLayer): TapNestLayer = target.copy(
         syncPairedAll = true, syncPairedPeriodic = true,
         boneRegion = source.boneRegion, boneChains = source.boneChains,
         tapBoneRegion = source.tapBoneRegion, periodicBoneRegion = source.periodicBoneRegion, idleBoneRegion = source.idleBoneRegion,
@@ -54,23 +62,29 @@ object TapNestSymmetry {
 
     private fun reflectedRegion(region: TapNestBoneRegion) = region.copy(left = 1f - region.right, right = 1f - region.left)
     private fun reflectedPlane(plane: TapNestMotionPlane) = plane.copy(
-        axisDegrees = ((180f - plane.axisDegrees + 540f) % 360f) - 180f,
+        axisDegrees = -plane.axisDegrees,
         negativeLimit = plane.positiveLimit, positiveLimit = plane.negativeLimit)
+    private fun reflectedPoint(point: TapNestBonePoint) = point.copy(x = 1f - point.x,
+        swingDirection = when (point.swingDirection) {
+            TapNestBoneSwingDirection.VERTICAL -> TapNestBoneSwingDirection.VERTICAL_REVERSE
+            TapNestBoneSwingDirection.VERTICAL_REVERSE -> TapNestBoneSwingDirection.VERTICAL
+            else -> point.swingDirection
+        })
     private fun reflectedChain(chain: TapNestBoneChain) = chain.copy(
-        bones = chain.bones.map { it.copy(x = 1f - it.x) },
+        bones = chain.bones.map(::reflectedPoint),
         region = reflectedRegion(chain.region), plane = reflectedPlane(chain.plane))
 
     fun independentArtwork(layer: TapNestLayer): TapNestLayer {
         if (!layer.mirrorX || layer.mirroredFromId == null) return layer
         return layer.copy(
             mirrorX = false,
-            mirroredFromId = null,
+            reflectedMotion = !layer.reflectedMotion,
             x = -layer.x,
             pivotX = (1f - layer.pivotX).coerceIn(0f, 1f),
-            bones = layer.bones.map { it.copy(x = (1f - it.x).coerceIn(0f, 1f)) },
-            tapBones = layer.tapBones?.map { it.copy(x = 1f - it.x) },
-            periodicBones = layer.periodicBones?.map { it.copy(x = 1f - it.x) },
-            idleBones = layer.idleBones?.map { it.copy(x = 1f - it.x) },
+            bones = layer.bones.map(::reflectedPoint),
+            tapBones = layer.tapBones?.map(::reflectedPoint),
+            periodicBones = layer.periodicBones?.map(::reflectedPoint),
+            idleBones = layer.idleBones?.map(::reflectedPoint),
             boneRegion = reflectedRegion(layer.boneRegion),
             tapBoneRegion = layer.tapBoneRegion?.let(::reflectedRegion), periodicBoneRegion = layer.periodicBoneRegion?.let(::reflectedRegion), idleBoneRegion = layer.idleBoneRegion?.let(::reflectedRegion),
             boneChains = layer.boneChains.map(::reflectedChain),

@@ -105,6 +105,8 @@ data class TapNestLayer(
     val displayName: String = "",
     /** Reflect the whole part across the character canvas' vertical centre. */
     val mirrorX: Boolean = false,
+    /** Reflect the drive when the artwork has already been drawn for this side. */
+    val reflectedMotion: Boolean = false,
     /** Original part used when one-tap cloning; independent after creation. */
     val mirroredFromId: String? = null,
     /**
