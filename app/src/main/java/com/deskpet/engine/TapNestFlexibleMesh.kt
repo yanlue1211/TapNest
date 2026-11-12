@@ -143,7 +143,7 @@ object TapNestFlexibleMesh {
                 val bounded = if (plane.enabled) Math.toRadians(TapNestSwingBounds.limitAngle(
                     Math.toDegrees(accumulated.toDouble()).toFloat(), plane,
                     angleDriveAmplitude ?: layer.idleAmplitude.coerceIn(0f, 85f),
-                    softStop = true).toDouble()).toFloat() else accumulated
+                    softStop = false).toDouble()).toFloat() else accumulated
                 moveSegment(source.x, source.y, bounded, direction)
             }
             transformed.add(transformed.last() + Point(dx, dy))
