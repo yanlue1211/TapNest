@@ -746,11 +746,14 @@ fun LayeredPetEditor(
                         }
                         PartEditorStep.TYPE -> {
                             Text("这次动作要怎么表现？", style = MaterialTheme.typography.titleMedium)
-                            FlowChoice("🖼️ 换帧", "选择或上传这个动作要显示的图片") {
+                            FlowChoice("🖼️ 仅换帧", "选择或上传这个动作要显示的图片") {
                                 update(partFlow.trigger.chooseFrame(layer)); go(PartEditorStep.FRAME)
                             }
-                            FlowChoice("🎐 摇晃", "下一步只调整怎么摇") {
+                            FlowChoice("🎐 仅摇晃", "下一步调整怎么摇") {
                                 update(partFlow.trigger.chooseMotion(layer)); go(PartEditorStep.ANCHOR)
+                            }
+                            FlowChoice("🖼️＋🎐 换帧＋摇晃", "同一次触发：先选动作帧，再设置摇晃；动作帧会一起摇动") {
+                                update(partFlow.trigger.chooseBoth(layer)); go(PartEditorStep.FRAME)
                             }
                         }
                         PartEditorStep.FRAME, PartEditorStep.MATERIAL -> {
@@ -809,7 +812,9 @@ fun LayeredPetEditor(
                                     }, label = { Text(TapNestLayerActions.frameLabel(layer, rig.layers, frame.frameIndex)) })
                                 }
                                 Text("帧编号和内部绑定不会因为改名而改变。", style = MaterialTheme.typography.bodySmall)
-                                Button(onClick = { go(PartEditorStep.SUMMARY) }, enabled = extraFrames.any { it.frameIndex == target && images[it.id] != null }) { Text("下一步 →") }
+                                Button(onClick = { go(partFlow.trigger.afterFrame(layer)) }, enabled = extraFrames.any { it.frameIndex == target && images[it.id] != null }) {
+                                    Text(if (partFlow.trigger.afterFrame(layer) == PartEditorStep.ANCHOR) "下一步：设置摇晃 →" else "下一步 →")
+                                }
                             } else {
                                 OutlinedTextField(layer.displayName, { update(layer.copy(displayName = it.take(80))) }, label = { Text("默认帧名称") })
                                 Button(onClick = { go(PartEditorStep.SUMMARY) }) { Text("完成素材设置 →") }

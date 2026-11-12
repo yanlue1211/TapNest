@@ -20,8 +20,8 @@ internal data class PartEditorFlow(
 }
 
 internal enum class PartTrigger(val label: String, val description: String) {
-    IDLE("⏰ 闲置抖动", "隔一段时间动一次，或换一张动作帧"),
-    TAP("👆 点触互动", "被戳时摇晃，或换一张动作帧"),
+    IDLE("⏰ 闲置抖动", "隔一段时间摇晃、换帧，也可同时触发"),
+    TAP("👆 点触互动", "被戳时摇晃、换帧，也可同时触发"),
     CONTINUOUS("🌿 持续轻摆", "一直缓慢摇动"),
     BLINK("😉 自动眨眼", "偶尔切换到眨眼帧");
 
@@ -137,6 +137,17 @@ internal enum class PartTrigger(val label: String, val description: String) {
         IDLE -> layer.copy(periodicAction = TapNestPeriodicAction.SHAKE, periodicSwitchFrame = false)
         else -> layer
     }
+    fun chooseBoth(layer: TapNestLayer): TapNestLayer = when (this) {
+        TAP -> layer.copy(tapShake = true, tapSwitchFrame = true)
+        IDLE -> layer.copy(periodicAction = TapNestPeriodicAction.SHAKE, periodicSwitchFrame = true)
+        else -> layer
+    }
+    fun afterFrame(layer: TapNestLayer): PartEditorStep = when {
+        this == TAP && layer.tapShake && layer.tapSwitchFrame -> PartEditorStep.ANCHOR
+        this == IDLE && layer.periodicAction == TapNestPeriodicAction.SHAKE && layer.periodicSwitchFrame -> PartEditorStep.ANCHOR
+        else -> PartEditorStep.SUMMARY
+    }
+
     fun setFlexible(layer: TapNestLayer, enabled: Boolean): TapNestLayer = when(this) {
         TAP -> layer.copy(tapFlexible = layer.tapFlexible.copy(enabled = enabled))
         IDLE -> layer.copy(periodicFlexible = layer.periodicFlexible.copy(enabled = enabled))

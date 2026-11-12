@@ -228,7 +228,8 @@ object TapNestLayerActions {
         }
         if (!owner.interactionConfigured) return owner.id
         val requested = when {
-            owner.tapSwitchFrame && touchAgeMs in 0..999L -> owner.tapFrame
+            owner.tapSwitchFrame && touchAgeMs in 0 until
+                (if (owner.tapShake) maxOf(1000L, tapMotionDuration(owner)) else 1000L) -> owner.tapFrame
             // A periodic expression has higher priority than idle blinking,
             // otherwise the scene mixes two different action frames.
             (owner.periodicAction == TapNestPeriodicAction.SWITCH_FRAME || owner.periodicSwitchFrame) &&

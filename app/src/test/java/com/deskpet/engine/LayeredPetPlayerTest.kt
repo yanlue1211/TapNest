@@ -221,4 +221,32 @@ class LayeredPetPlayerTest {
             kotlinx.coroutines.Dispatchers.resetMain()
         }
     }
+    @Test fun tappedAlternativeArtworkBouncesTogetherWithItsOwner() {
+        png("combo_body.png", Color.GREEN)
+        png("combo_default.png", Color.RED)
+        val alternative = tmp.newFile("combo_tap.png")
+        val bitmap = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888)
+        android.graphics.Canvas(bitmap).drawRect(20f, 20f, 30f, 30f,
+            android.graphics.Paint().apply { color = Color.BLUE })
+        alternative.outputStream().use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
+        bitmap.recycle()
+        val rig = TapNestRig(canvasWidth = 64, canvasHeight = 64, templateId = TapNestTemplates.MANUAL,
+            layers = listOf(TapNestLayer("body", "combo_body.png"),
+                TapNestLayer("custom_part", "combo_default.png", zIndex = 1,
+                    interactionConfigured = true, tapShake = true, tapSwitchFrame = true,
+                    tapMotion = TapNestPartMotion.BOUNCE),
+                TapNestLayer("custom_part_f1", "combo_tap.png", zIndex = 1,
+                    parentId = "custom_part", frameOwner = "custom_part", frameIndex = 1,
+                    pivotX = 0f, pivotY = 0f)))
+        val cfg = tmp.newFile("combo_rig.json").apply { writeText(Json.encodeToString(rig)) }
+        val player = requireNotNull(LayeredPetPlayer.load(cfg))
+        player.tap()
+        android.os.SystemClock.sleep(160L)
+        val shown = player.render()
+        val blueRows = (0 until shown.height).filter { y ->
+            (0 until shown.width).any { x -> shown.getPixel(x, y) == Color.BLUE }
+        }
+        assertTrue("The alternative frame must actually be drawn", blueRows.isNotEmpty())
+        assertTrue("The alternative frame must move along with the bounce", blueRows.first() < 20)
+    }
 }

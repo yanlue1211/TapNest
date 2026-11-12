@@ -83,4 +83,43 @@ class PartEditorFlowTest {
         }
     }
 
+    @Test fun combinedTouchAndTimedActionsKeepTheirFrameAndMotionSettings() {
+        val original = TapNestLayer("ear", "e.png", interactionConfigured = true,
+            tapFrame = 2, periodicFrame = 3, tapMotion = TapNestPartMotion.FLAP,
+            periodicMotion = TapNestPartMotion.TWITCH,
+            tapFlexible = TapNestImpulse(enabled = true, amplitude = 27f),
+            periodicFlexible = TapNestImpulse(enabled = true, softness = .8f))
+        val touched = PartTrigger.TAP.chooseBoth(original)
+        assertTrue(touched.tapShake)
+        assertTrue(touched.tapSwitchFrame)
+        assertEquals(original.tapFrame, touched.tapFrame)
+        assertEquals(original.tapMotion, touched.tapMotion)
+        assertEquals(original.tapFlexible, touched.tapFlexible)
+        assertEquals(PartEditorStep.ANCHOR, PartTrigger.TAP.afterFrame(touched))
+        val timed = PartTrigger.IDLE.chooseBoth(original)
+        assertEquals(TapNestPeriodicAction.SHAKE, timed.periodicAction)
+        assertTrue(timed.periodicSwitchFrame)
+        assertEquals(original.periodicFrame, timed.periodicFrame)
+        assertEquals(original.periodicMotion, timed.periodicMotion)
+        assertEquals(original.periodicFlexible, timed.periodicFlexible)
+        assertEquals(PartEditorStep.ANCHOR, PartTrigger.IDLE.afterFrame(timed))
+        assertEquals(PartEditorStep.SUMMARY, PartTrigger.TAP.afterFrame(PartTrigger.TAP.chooseFrame(touched)))
+        assertEquals(PartEditorStep.SUMMARY, PartTrigger.BLINK.afterFrame(touched))
+        val route = PartEditorFlow(trigger = PartTrigger.TAP).next(PartEditorStep.FRAME)
+            .next(PartTrigger.TAP.afterFrame(touched))
+        assertEquals(PartEditorStep.FRAME, route.back().step)
+    }
+
+    @Test fun combinedFrameRemainsVisibleForTheEntireConfiguredShake() {
+        val owner = PartTrigger.TAP.chooseBoth(TapNestLayer("ear", "", interactionConfigured = true,
+            tapBasicConfigured = true, tapFlexible = TapNestImpulse(durationMs = 2400L)))
+        val frame = TapNestLayer("ear_f1", "", frameOwner = "ear", frameIndex = 1)
+        val layers = listOf(owner, frame)
+        assertEquals(frame.id, TapNestLayerActions.currentFrame(owner, layers, 0L, 1200L, setOf(owner.id, frame.id)))
+        assertNotEquals(TapNestPose(), TapNestLayerActions.motionPose(owner, 1100L))
+        assertEquals(owner.id, TapNestLayerActions.currentFrame(owner, layers, 0L, 2400L, setOf(owner.id, frame.id)))
+        val timed = PartTrigger.IDLE.chooseBoth(owner.copy(periodicEnabled = true, periodicIntervalSeconds = 1f))
+        assertEquals(frame.id, TapNestLayerActions.currentFrame(timed, listOf(timed, frame), 1160L, 3000L, setOf(owner.id, frame.id)))
+        assertNotEquals(TapNestPose(), TapNestLayerActions.motionPose(timed, 160L, periodic = true))
+    }
 }
