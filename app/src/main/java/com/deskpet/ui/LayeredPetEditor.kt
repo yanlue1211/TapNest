@@ -943,7 +943,34 @@ fun LayeredPetEditor(
                                 }
                             }
                             if (layer.bones.size >= 2) {
+                                var presetMenu by remember(activeLayer, selectedChain) { mutableStateOf(false) }
+                                Box {
+                                    TextButton(onClick = { presetMenu = true }) { Text("选择柔性效果预设 ▾") }
+                                    DropdownMenu(presetMenu, { presetMenu = false }) {
+                                        TapNestTailPresets.ALL.forEach { preset ->
+                                            DropdownMenuItem(text = { Text(preset.title) }, onClick = {
+                                                if (partFlow.trigger == PartTrigger.CONTINUOUS) update(layer.copy(
+                                                    springSoftness = preset.softness, springDamping = preset.damping,
+                                                    shapePreservation = preset.preservation, swingMode = TapNestSwingMode.SPRING,
+                                                    springVersion = 2, idlePresetId = preset.id))
+                                                else {
+                                                    val impulse = if (partFlow.trigger == PartTrigger.TAP) layer.tapFlexible else layer.periodicFlexible
+                                                    val value = impulse.copy(softness = preset.softness, damping = preset.damping)
+                                                    update(if (partFlow.trigger == PartTrigger.TAP) layer.copy(tapFlexible = value) else layer.copy(periodicFlexible = value))
+                                                }
+                                                presetMenu = false
+                                            })
+                                        }
+                                    }
+                                }
+                                Text("效果预设只调整柔性效果，保留前一步的幅度、速度和现有点位。", style = MaterialTheme.typography.bodySmall)
                                 if (partFlow.trigger == PartTrigger.CONTINUOUS) {
+                                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                        FilterChip(layer.swingMode == TapNestSwingMode.DELAY, { update(layer.copy(swingMode = TapNestSwingMode.DELAY)) }, label = { Text("原版延迟") })
+                                        FilterChip(layer.swingMode == TapNestSwingMode.SPRING, { update(layer.copy(swingMode = TapNestSwingMode.SPRING, springVersion = 2)) }, label = { Text("柔性弹簧") })
+                                    }
+                                    if (layer.swingMode == TapNestSwingMode.DELAY) BindingSlider("跟随延迟（秒）", layer.idleLagSeconds, 0f, .45f) { update(layer.copy(idleLagSeconds = it)) }
+
                                     listOf(TapNestMotionScope.WHOLE, TapNestMotionScope.UPPER, TapNestMotionScope.MIDDLE, TapNestMotionScope.LOWER).forEach { scope ->
                                         FilterChip(layer.idleScope == scope, { update(layer.copy(idleScope = scope)) }, label = { Text(when(scope) { TapNestMotionScope.WHOLE -> "从根部开始"; TapNestMotionScope.UPPER -> "从中上开始"; TapNestMotionScope.MIDDLE -> "从中部开始"; else -> "从中下开始" }) })
                                     }
