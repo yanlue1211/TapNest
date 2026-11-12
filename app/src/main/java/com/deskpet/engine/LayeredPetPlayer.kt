@@ -213,7 +213,7 @@ class LayeredPetPlayer private constructor(
                 ?.let { p = TapNestMotion.sample(it, id, if (it.loop) now - launchedAtMs else elapsed) }
             // A single-point or rigid limb rocks around its chosen pivot.
             // A multi-point limb is skinned by the mesh instead.
-            if (node.idleSwing && node.bones.size < 2) {
+            if (node.idleSwing && (node.bones.size < 2 || !node.idleFlexibleEnabled)) {
                 val wave = sin(((now - launchedAtMs) / 1000.0 *
                     node.idleSpeed.coerceIn(0.1f, 3f) * 2 * PI)).toFloat()
                 val swingSign = TapNestSymmetry.idleSwingSign(node)
@@ -275,7 +275,7 @@ class LayeredPetPlayer private constructor(
             // as well as the parent transform; changing a frame must not freeze
             // the wing/tail while its idle spring continues to run.
             val skinLayer = layer.frameOwner?.let(nodes::get) ?: layer
-            val spring = skinLayer.idleSwing && skinLayer.bones.size >= 2 &&
+            val spring = skinLayer.idleSwing && skinLayer.idleFlexibleEnabled && skinLayer.bones.size >= 2 &&
                 skinLayer.swingMode == TapNestSwingMode.SPRING
             val mesh = if (spring) TapNestFlexibleMesh.SPRING_GRID else TapNestFlexibleMesh.GRID
             val idleAngles = if (spring && !held) {

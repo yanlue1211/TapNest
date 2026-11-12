@@ -387,7 +387,7 @@ internal fun LayeredRigPreview(
                 if (mode == RigPreviewMode.TEST) pose = TapNestMotion.sample(
                     it, id, if (it.loop) phase else touchElapsed.coerceAtLeast(0L))
             }
-            if (mode == RigPreviewMode.TEST && layer?.idleSwing == true && layer.bones.size < 2) {
+            if (mode == RigPreviewMode.TEST && layer?.idleSwing == true && (layer.bones.size < 2 || !layer.idleFlexibleEnabled)) {
                 val angle = sin((phase / 1000.0 * layer.idleSpeed.coerceIn(0.1f, 3f) *
                     2 * PI)).toFloat() * layer.idleAmplitude.coerceIn(0f, 40f)
                 val swingSign = TapNestSymmetry.idleSwingSign(layer)
@@ -453,7 +453,7 @@ internal fun LayeredRigPreview(
             }
             paint.alpha = (poseFor(layer.id).alpha.coerceIn(0f, 1f) * 255).toInt()
             val skinLayer = layer.frameOwner?.let(nodes::get) ?: layer
-            val spring = mode == RigPreviewMode.TEST && skinLayer.idleSwing &&
+            val spring = mode == RigPreviewMode.TEST && skinLayer.idleSwing && skinLayer.idleFlexibleEnabled &&
                 skinLayer.bones.size >= 2 && skinLayer.swingMode == TapNestSwingMode.SPRING
             val resolution = if (spring) TapNestFlexibleMesh.SPRING_GRID else TapNestFlexibleMesh.GRID
             val elapsed = (now - previewStartedAt).coerceAtLeast(0L)

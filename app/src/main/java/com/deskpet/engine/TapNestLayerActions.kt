@@ -60,7 +60,7 @@ object TapNestLayerActions {
     /** Shared skinning input. A tap replaces the timed impulse, never accumulates it. */
     fun jointAngles(layer: TapNestLayer, layers: List<TapNestLayer>, sceneMs: Long,
                     touchMs: Long, idle: FloatArray?): FloatArray? {
-        val source = idle ?: if (layer.idleSwing && layer.idleScope != TapNestMotionScope.WHOLE)
+        val source = idle ?: if (layer.idleSwing && layer.idleFlexibleEnabled && layer.idleScope != TapNestMotionScope.WHOLE)
             TapNestFlexibleMesh.segmentAngles(layer, sceneMs) else null
         var previous = 0f
         var idleAbsolute = 0f

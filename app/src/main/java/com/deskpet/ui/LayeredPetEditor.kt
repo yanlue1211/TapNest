@@ -65,6 +65,7 @@ fun LayeredPetEditor(
     var name by remember(editingPet?.id, formId) { mutableStateOf(formForEdit?.name ?: editingPet?.displayName ?: "我的小伙伴") }
     var saveTemplate by remember(editingPet?.id, formId) { mutableStateOf(editingPet == null) }
     var busy by remember { mutableStateOf(false) }
+    var workingPet by remember(editingPet?.id, formId) { mutableStateOf(editingPet) }
     var activeLayer by remember { mutableStateOf("body") }
     var selectedBone by remember(activeLayer) { mutableIntStateOf(0) }
     val editorRequester = remember { BringIntoViewRequester() }
@@ -79,12 +80,23 @@ fun LayeredPetEditor(
     var showOtherParts by remember { mutableStateOf(true) }
     var showBonesHelp by remember { mutableStateOf(false) }
     val pageScroll = rememberScrollState()
-    var actionPage by remember(activeLayer) { mutableStateOf<String?>(null) }
+    var partFlow by remember(activeLayer) { mutableStateOf(PartEditorFlow()) }
+    val actionPage = when (partFlow.trigger) {
+        PartTrigger.TAP -> "tap"
+        PartTrigger.IDLE -> "periodic"
+        PartTrigger.CONTINUOUS -> "swing"
+        PartTrigger.BLINK -> "blink"
+    }
     var testRequest by remember { mutableIntStateOf(0) }
     val settingsScroll = rememberScrollState()
     val detailScroll = rememberScrollState()
     var dragUnlocked by remember(activeLayer) { mutableStateOf(false) }
-    fun back() { if (actionPage != null) actionPage = null else if (showSettings) showSettings = false else onBack() }
+    fun back() {
+        if (showSettings && partFlow.history.isNotEmpty()) {
+            partFlow = partFlow.back()
+            previewMode = if (partFlow.step == PartEditorStep.BONES) RigPreviewMode.BONES else RigPreviewMode.TEST
+        } else if (showSettings) showSettings = false else onBack()
+    }
     var error by remember { mutableStateOf<String?>(null) }
     val images = remember(editingPet?.id, formId) {
         mutableStateMapOf<String, Uri>().apply {
@@ -117,6 +129,33 @@ fun LayeredPetEditor(
                 if (images[mirror.id] == null || images[mirror.id] == previous)
                     images[mirror.id] = uri
             }
+        }
+    }
+
+    fun saveEditor(returnToParts: Boolean) {
+        if (busy) return
+        busy = true
+        error = null
+        scope.launch {
+            try {
+                val existing = workingPet
+                val resultPet = withContext(Dispatchers.IO) {
+                    if (existing == null) store.createPet(name, rig, images.toMap(), saveTemplate)
+                    else if (formForEdit != null) formStore.saveForm(existing, formForEdit.id, name, rig, images.toMap())
+                    else store.updatePet(existing, name, rig, images.toMap(), saveTemplate)
+                }
+                if (existing == null) petRepository.addPetDirect(resultPet) else petRepository.replacePet(resultPet)
+                workingPet = resultPet
+                if (returnToParts) {
+                    showSettings = false
+                    partFlow = PartEditorFlow()
+                    Toast.makeText(ctx, "当前部位已保存", Toast.LENGTH_SHORT).show()
+                } else onCreated(resultPet)
+            } catch (e: Exception) {
+                Log.e("TapNestEditor", "save failed", e)
+                error = e.message ?: "保存失败"
+                Toast.makeText(ctx, "保存失败：${e.message}", Toast.LENGTH_LONG).show()
+            } finally { busy = false }
         }
     }
 
@@ -158,7 +197,7 @@ fun LayeredPetEditor(
                 if (editingPet == null) "🌱 创建第一形态" else if (formForEdit != null) "🦴 编辑形态 · ${formForEdit.name}" else "🦴 重新编辑 · ${editingPet.displayName}") },
             navigationIcon = { TextButton(onClick = {
                 back()
-            }, enabled = !busy) { Text(if (showSettings) "返回素材" else "返回") } },
+            }, enabled = !busy) { Text(if (showSettings) "上一步" else "返回") } },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background))
     }) { padding ->
         Column(Modifier.fillMaxSize().padding(padding)) {
@@ -202,18 +241,19 @@ fun LayeredPetEditor(
 
                         Row(Modifier.horizontalScroll(rememberScrollState()),
                             horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                            TextButton(onClick = { previewMode = RigPreviewMode.POSITION }) { Text("选择部位") }
+                            TextButton(onClick = { back() }) { Text("← 上一步") }
                             TextButton(onClick = { previewMode = RigPreviewMode.TEST; testRequest++ }) { Text("测试动作") }
-                            TextButton(onClick = { previewMode = RigPreviewMode.BONES; actionPage = "bones" }) { Text("编辑绑骨") }
-                            TextButton(onClick = { previewMode = RigPreviewMode.PIVOT }) { Text("旋转中心") }
-                            TextButton(onClick = { dragUnlocked = !dragUnlocked }) { Text(if (dragUnlocked) "锁定拖动" else "解锁拖动") }
+                            if (partFlow.step == PartEditorStep.BONES) TextButton(onClick = { previewMode = RigPreviewMode.BONES; dragUnlocked = true }) { Text("继续绑点") }
+
+
+                            if (partFlow.step in listOf(PartEditorStep.BONES, PartEditorStep.POSITION)) TextButton(onClick = { dragUnlocked = !dragUnlocked }) { Text(if (dragUnlocked) "锁定拖动" else "解锁拖动") }
                         }
                     }
                 }
             }
         Column(
             Modifier.weight(1f).fillMaxWidth()
-                .verticalScroll(if (!showSettings) pageScroll else if (actionPage == null) settingsScroll else detailScroll).padding(16.dp),
+                .verticalScroll(if (!showSettings) pageScroll else if (partFlow.step == PartEditorStep.SELECT) settingsScroll else detailScroll).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             if (!showSettings) {
@@ -306,6 +346,8 @@ fun LayeredPetEditor(
                     TextButton(onClick = {
                         activeLayer = slot.id
                         previewMode = RigPreviewMode.POSITION
+                        partFlow = PartEditorFlow()
+                        previewMode = RigPreviewMode.TEST
                         showSettings = true
                     }) { Text("⚙️ 设置动作／变帧 ›") }
                     if (rig.templateId == TapNestTemplates.MANUAL && slot.id != "body") {
@@ -553,97 +595,64 @@ fun LayeredPetEditor(
             )
             } // Basic default-frame upload page
             if (showSettings) {
-            TextButton(onClick = { back() }) { Text(if (actionPage == null) "← 返回素材列表" else "← 返回部位设置") }
-            Spacer(Modifier.bringIntoViewRequester(editorRequester).height(1.dp))
-            val layer = rig.layers.firstOrNull { it.id == activeLayer }
-            if (layer != null) {
-                var foldPreview by remember(activeLayer) { mutableStateOf(false) }
-                var foldFrames by remember(activeLayer) { mutableStateOf(false) }
-                var foldActions by remember(activeLayer) { mutableStateOf(false) }
-                var foldPosition by remember(activeLayer) { mutableStateOf(true) }
-                var foldBones by remember(activeLayer) { mutableStateOf(false) }
-                var foldTailPreset by remember(activeLayer) { mutableStateOf(false) }
-                var foldSwing by remember(activeLayer) { mutableStateOf(true) }
-                var foldBonePoints by remember(activeLayer) { mutableStateOf(true) }
-                Text("当前：${TapNestTemplates.slotsFor(rig).firstOrNull { it.id == activeLayer }?.label ?: activeLayer}")
-                OutlinedTextField(
-                    value = layer.displayName,
-                    onValueChange = { text -> rig = rig.copy(layers = rig.layers.map {
-                        if (it.id == layer.id) it.copy(displayName = text.take(40)) else it
-                    }) },
-                    label = { Text("中文图层名（可修改，留空显示默认名称）") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true
-                )
-
-
-                fun update(p: TapNestLayer) {
-                    rig = rig.copy(layers = rig.layers.map { if (it.id == activeLayer) p else it })
-                }
-                if (actionPage == null) {
-                FoldHeader("📍 A. 位置与图层", foldPosition) { foldPosition = !foldPosition }
-                if (foldPosition) {
-                var parentMenu by remember(activeLayer) { mutableStateOf(false) }
-                Box {
-                    TextButton(onClick = { parentMenu = true }) {
-                        Text("绑定到父图层：${layer.parentId ?: "无（独立）"}  ▾")
-                    }
-                    DropdownMenu(expanded = parentMenu, onDismissRequest = { parentMenu = false }) {
-                        DropdownMenuItem(text = { Text("无（独立）") }, onClick = {
-                            update(layer.copy(parentId = null)); parentMenu = false
-                        })
-                        for (parent in rig.layers.filter { it.id != layer.id }) {
-                            val lineage = mutableSetOf<String>()
-                            var n: TapNestLayer? = parent
-                            while (n != null && lineage.add(n.id)) {
-                                n = rig.layers.firstOrNull { it.id == n?.parentId }
-                            }
-                            if (layer.id in lineage) continue
-                            DropdownMenuItem(text = { Text(parent.id) }, onClick = {
-                                update(layer.copy(parentId = parent.id)); parentMenu = false
-                            })
+                val layer = rig.layers.firstOrNull { it.id == activeLayer }
+                if (layer != null) {
+                    fun update(p: TapNestLayer) { rig = rig.copy(layers = rig.layers.map { if (it.id == activeLayer) p else it }) }
+                    fun go(step: PartEditorStep) {
+                        partFlow = partFlow.next(step)
+                        previewMode = when (step) {
+                            PartEditorStep.BONES -> RigPreviewMode.BONES
+                            PartEditorStep.POSITION -> RigPreviewMode.POSITION
+                            else -> RigPreviewMode.TEST
                         }
+                        dragUnlocked = step in listOf(PartEditorStep.BONES, PartEditorStep.POSITION)
+                        scope.launch { detailScroll.scrollTo(0) }
                     }
-                }
-                BindingSlider("水平位置 X", layer.x, -512f, 512f) { update(layer.copy(x = it)) }
-                BindingSlider("垂直位置 Y", layer.y, -512f, 512f) { update(layer.copy(y = it)) }
-                BindingSlider("旋转中心 X", layer.pivotX, 0f, 1f) { update(layer.copy(pivotX = it)) }
-                BindingSlider("旋转中心 Y", layer.pivotY, 0f, 1f) { update(layer.copy(pivotY = it)) }
-                BindingSlider("图层原始大小", layer.restScale, 0.2f, 3f) { update(layer.copy(restScale = it)) }
-                BindingSlider("前后层级", layer.zIndex.toFloat(), 0f, 50f) {
-                    update(layer.copy(zIndex = it.toInt()))
-                }
-                OutlinedButton(onClick = { update(layer.copy(x = 0f, y = 0f)) }) {
-                    Text("↺ 位置复位")
-                }
-                OutlinedButton(onClick = { update(layer.copy(restScale = 1f)) }) { Text("↺ 大小复位（100%）") }
-                OutlinedButton(onClick = { update(layer.copy(x = 0f, y = 0f, restScale = 1f)) }) {
-                    Text("↺ 位置与大小全部复位")
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("对本部位应用中轴镜像", modifier = Modifier.weight(1f),
-                        style = MaterialTheme.typography.bodySmall)
-                    Switch(checked = layer.mirrorX,
-                        onCheckedChange = { update(layer.copy(mirrorX = it)) })
-                }
-                } // foldPosition
-                }
-                if (actionPage == null) {
-                    Text("🎮 B. 动作与互动", style = MaterialTheme.typography.titleMedium)
-                    MotionEntry("👆 点触互动", layer.tapShake || layer.tapSwitchFrame,
-                        if (layer.tapFlexible.enabled) "柔性绑骨 · ${when(layer.tapFlexible.scope) { TapNestMotionScope.TIP -> "只抖尖端"; TapNestMotionScope.DISTAL -> "中后段"; TapNestMotionScope.WHOLE -> "整段" }} · ${layer.tapFlexible.count} 次" else "整体动作 / 换帧",
-                        { update(layer.copy(interactionConfigured = true, tapShake = it,
-                            tapSwitchFrame = if (it) layer.tapSwitchFrame else false)) }, { actionPage = "tap" })
-                    MotionEntry("⏰ 定时动作", layer.periodicEnabled, "每 ${layer.periodicIntervalSeconds} 秒",
-                        { update(layer.copy(interactionConfigured = true, periodicEnabled = it)) }, { actionPage = "periodic" })
-                    MotionEntry("🌿 持续轻摆", layer.idleSwing, "${if (layer.swingMode == TapNestSwingMode.SPRING) "柔性弹簧" else "原版延迟"} · ${layer.idleAmplitude}°",
-                        { update(layer.copy(idleSwing = it)) }, { actionPage = "swing" })
-                    if (rig.layers.any { it.frameOwner == layer.id }) MotionEntry("😉 自动眨眼", layer.idleBlinkEnabled,
-                        TapNestLayerActions.frameLabel(layer, rig.layers, layer.blinkFrame),
-                        { update(layer.copy(interactionConfigured = true, idleBlinkEnabled = it)) }, { actionPage = "blink" })
-                }
-                if (actionPage == null) FoldHeader("🖼️ C. 素材与动作帧", foldFrames) { foldFrames = !foldFrames }
-                if (foldFrames && actionPage == null) {
+                    PartFlowHeader(partFlow)
+                    when (partFlow.step) {
+                        PartEditorStep.SELECT -> {
+                            Text("先选要设置的动作", style = MaterialTheme.typography.titleMedium)
+                            PartTrigger.entries.forEach { trigger ->
+                                FlowChoice(trigger.label, trigger.description) {
+                                    partFlow = partFlow.copy(trigger = trigger)
+                                    go(PartEditorStep.ENABLE)
+                                }
+                            }
+                            TextButton(onClick = { go(PartEditorStep.POSITION) }) { Text("调整位置与大小 →") }
+                            TextButton(onClick = { go(PartEditorStep.MATERIAL) }) { Text("管理素材与名称 →") }
+                        }
+                        PartEditorStep.ENABLE -> {
+                            val enabled = partFlow.trigger.enabled(layer)
+                            Text("是否开启${partFlow.trigger.label}？", style = MaterialTheme.typography.titleMedium)
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(if (enabled) "已开启" else "已关闭", Modifier.weight(1f))
+                                Switch(enabled, { update(partFlow.trigger.setEnabled(layer, it)) })
+                            }
+                            if (partFlow.trigger == PartTrigger.IDLE && enabled) BindingSlider("每隔几秒触发", layer.periodicIntervalSeconds, 1f, 120f) {
+                                update(layer.copy(periodicIntervalSeconds = it))
+                            }
+                            if (partFlow.trigger == PartTrigger.IDLE && enabled && TapNestLayerActions.hasPeriodicPartner(layer, rig.layers)) {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("左右配件同步触发", Modifier.weight(1f))
+                                    Switch(layer.syncPairedPeriodic, { update(layer.copy(syncPairedPeriodic = it)) })
+                                }
+                            }
+                            Button(onClick = { go(if (!enabled) PartEditorStep.SUMMARY else when(partFlow.trigger) {
+                                PartTrigger.CONTINUOUS -> PartEditorStep.MOTION
+                                PartTrigger.BLINK -> PartEditorStep.FRAME
+                                else -> PartEditorStep.TYPE
+                            }) }) { Text(if (enabled) "下一步 →" else "确认关闭 →") }
+                        }
+                        PartEditorStep.TYPE -> {
+                            Text("这次动作要怎么表现？", style = MaterialTheme.typography.titleMedium)
+                            FlowChoice("🖼️ 换帧", "选择或上传这个动作要显示的图片") {
+                                update(partFlow.trigger.chooseFrame(layer)); go(PartEditorStep.FRAME)
+                            }
+                            FlowChoice("🎐 摇晃", "下一步只调整怎么摇") {
+                                update(partFlow.trigger.chooseMotion(layer)); go(PartEditorStep.MOTION)
+                            }
+                        }
+                        PartEditorStep.FRAME, PartEditorStep.MATERIAL -> {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     MotionFrameThumb(images[layer.id])
                     Text("${layer.displayName.ifBlank { "默认帧" }} · 帧0", Modifier.weight(1f))
@@ -685,184 +694,28 @@ fun LayeredPetEditor(
                         } else error = "图层名太长，无法添加动作帧；请缩短部位名称"
                     }
                 }, enabled = extraFrames.size < 3) { Text("＋ 给本默认帧添加动作帧") }
-                } // foldFrames
-                if (actionPage in listOf("tap", "periodic", "blink")) {
-                if (!layer.interactionConfigured) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("启用自定义动作（旧版角色原动作不变）",
-                            modifier = Modifier.weight(1f))
-                        Switch(checked = false, onCheckedChange = {
-                            if (it) update(layer.copy(interactionConfigured = true))
-                        })
-                    }
-                } else {
-                    if (actionPage == "tap") {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("点触时播放本部位动作", modifier = Modifier.weight(1f))
-                        Switch(checked = layer.tapShake, onCheckedChange = {
-                            update(layer.copy(tapShake = it))
-                        })
-                    }
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("点触时切换动作帧", modifier = Modifier.weight(1f))
-                        Switch(checked = layer.tapSwitchFrame, onCheckedChange = {
-                            update(layer.copy(tapSwitchFrame = it))
-                        })
-                    }
-                    if (layer.tapShake) {
-                        Text("👆 点触动作类型", style = MaterialTheme.typography.bodySmall)
-                        TapNestPartMotion.entries.chunked(2).forEach { row ->
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                row.forEach { type ->
-                                    FilterChip(selected = layer.tapMotion == type, onClick = {
-                                        update(layer.copy(
-                                            tapMotion = type,
-                                            periodicMotion = layer.periodicMotion ?: layer.tapMotion
-                                        ))
-                                    }, label = { Text(when (type) {
-                                        TapNestPartMotion.NOD -> "摇头"
-                                        TapNestPartMotion.BOUNCE -> "弹跳"
-                                        TapNestPartMotion.FLAP -> "扇动"
-                                        TapNestPartMotion.TWITCH -> "抖动"
-                                        TapNestPartMotion.HAT_POP -> "帽帽弹起"
-                                    }) })
+
+                            if (partFlow.step == PartEditorStep.FRAME) {
+                                Text("选择这次动作使用的帧")
+                                val target = when(partFlow.trigger) { PartTrigger.TAP -> layer.tapFrame; PartTrigger.BLINK -> layer.blinkFrame; else -> layer.periodicFrame }
+                                extraFrames.forEach { frame ->
+                                    FilterChip(target == frame.frameIndex, {
+                                        update(when(partFlow.trigger) {
+                                            PartTrigger.TAP -> layer.copy(tapFrame = frame.frameIndex)
+                                            PartTrigger.BLINK -> layer.copy(blinkFrame = frame.frameIndex)
+                                            else -> layer.copy(periodicFrame = frame.frameIndex)
+                                        })
+                                    }, label = { Text(TapNestLayerActions.frameLabel(layer, rig.layers, frame.frameIndex)) })
                                 }
+                                Text("帧编号和内部绑定不会因为改名而改变。", style = MaterialTheme.typography.bodySmall)
+                                Button(onClick = { go(PartEditorStep.SUMMARY) }, enabled = extraFrames.any { it.frameIndex == target && images[it.id] != null }) { Text("下一步 →") }
+                            } else {
+                                OutlinedTextField(layer.displayName, { update(layer.copy(displayName = it.take(80))) }, label = { Text("默认帧名称") })
+                                Button(onClick = { go(PartEditorStep.SUMMARY) }) { Text("完成素材设置 →") }
                             }
                         }
-                    }
-                    val hatTap = layer.tapShake && layer.tapMotion == TapNestPartMotion.HAT_POP
-                    val hatIdle = layer.periodicEnabled &&
-                        layer.periodicAction == TapNestPeriodicAction.SHAKE &&
-                        (layer.periodicMotion ?: layer.tapMotion) == TapNestPartMotion.HAT_POP
-                    if (hatTap || hatIdle) {
-                        Text("🎩 帽帽起飞：会明显离开脑袋，再落回原位",
-                            style = MaterialTheme.typography.bodySmall)
-                        BindingSlider("飞起高度（占整个画布的比例）",
-                            layer.hatFlightHeight, 0.08f, 0.40f) {
-                            update(layer.copy(hatFlightHeight = it))
-                        }
-                        Text("顶部透明空间会按飞起高度预留，原始素材及脑袋位置保持不变。",
-                            style = MaterialTheme.typography.bodySmall)
-                    }
-                    if (layer.tapSwitchFrame) {
-                        Text("点触时显示哪张动作帧（约 1 秒）",
-                            style = MaterialTheme.typography.bodySmall)
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            for (n in 1..3) FilterChip(
-                                selected = layer.tapFrame == n,
-                                onClick = { update(layer.copy(tapFrame = n)) },
-                                label = { Text(TapNestLayerActions.frameLabel(layer, rig.layers, n)) }
-                            )
-                        }
-                    }
-                    ImpulseSettings(layer.tapFlexible) { update(layer.copy(tapFlexible = it)) }
-                    }
-                    if (actionPage == "periodic") {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("每隔一段时间自动动作／换帧", modifier = Modifier.weight(1f))
-                        Switch(checked = layer.periodicEnabled, onCheckedChange = {
-                            update(layer.copy(periodicEnabled = it))
-                        })
-                    }
-                    if (TapNestLayerActions.hasPeriodicPartner(layer, rig.layers)) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text("左右配件同步定时动作", modifier = Modifier.weight(1f))
-                            Switch(checked = layer.syncPairedPeriodic, onCheckedChange = {
-                                val pairId = if (layer.id.endsWith("_left"))
-                                    layer.id.removeSuffix("_left") + "_right"
-                                else layer.id.removeSuffix("_right") + "_left"
-                                rig = rig.copy(layers = rig.layers.map { part ->
-                                    if (part.id == layer.id || part.id == pairId)
-                                        part.copy(syncPairedPeriodic = it) else part
-                                })
-                            })
-                        }
-                        Text("默认同一时刻动；只要有一侧启用定时动作，两侧都会响应。关闭后各自按自己的间隔运行。",
-                            style = MaterialTheme.typography.bodySmall)
-                    }
-                    if (layer.periodicEnabled) {
-                        BindingSlider("自动动作间隔（秒）",
-                            layer.periodicIntervalSeconds, 2f, 60f) {
-                            update(layer.copy(periodicIntervalSeconds = it))
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            FilterChip(
-                                selected = layer.periodicAction == TapNestPeriodicAction.SHAKE,
-                                onClick = { update(layer.copy(periodicAction = TapNestPeriodicAction.SHAKE)) },
-                                label = { Text("短暂晃动") })
-                            FilterChip(
-                                selected = layer.periodicAction == TapNestPeriodicAction.SWITCH_FRAME,
-                                onClick = { update(layer.copy(periodicAction = TapNestPeriodicAction.SWITCH_FRAME)) },
-                                label = { Text("短暂换帧") })
-                        }
-                        if (layer.periodicAction == TapNestPeriodicAction.SHAKE) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Text("动作同时切换帧", Modifier.weight(1f))
-                                Switch(layer.periodicSwitchFrame, { update(layer.copy(periodicSwitchFrame = it)) })
-                            }
-                            Text("🌙 闲置时偶尔动作类型（与点触独立）",
-                                style = MaterialTheme.typography.bodySmall)
-                            TapNestPartMotion.entries.chunked(2).forEach { row ->
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    row.forEach { type ->
-                                        FilterChip(
-                                            selected = (layer.periodicMotion ?: layer.tapMotion) == type,
-                                            onClick = { update(layer.copy(periodicMotion = type)) },
-                                            label = { Text(when (type) {
-                                                TapNestPartMotion.NOD -> "摇头"
-                                                TapNestPartMotion.BOUNCE -> "弹跳"
-                                                TapNestPartMotion.FLAP -> "扇动"
-                                                TapNestPartMotion.TWITCH -> "抖动"
-                                                TapNestPartMotion.HAT_POP -> "帽帽弹起"
-                                            }) }
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                        if (layer.periodicAction == TapNestPeriodicAction.SWITCH_FRAME || layer.periodicSwitchFrame) {
-                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                for (n in 1..3) FilterChip(
-                                    selected = layer.periodicFrame == n,
-                                    onClick = { update(layer.copy(periodicFrame = n)) },
-                                    label = { Text(TapNestLayerActions.frameLabel(layer, rig.layers, n)) }
-                                )
-                            }
-                        }
-                    }
-                    ImpulseSettings(layer.periodicFlexible) { update(layer.copy(periodicFlexible = it)) }
-                    }
-                    if (actionPage == "blink") {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("正常静置时偶尔眨眼（需上传闭眼动作帧）",
-                            modifier = Modifier.weight(1f))
-                        Switch(checked = layer.idleBlinkEnabled, onCheckedChange = {
-                            update(layer.copy(idleBlinkEnabled = it))
-                        })
-                    }
-                    if (layer.idleBlinkEnabled) {
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            for (n in 1..3) FilterChip(
-                                selected = layer.blinkFrame == n,
-                                onClick = { update(layer.copy(blinkFrame = n)) },
-                                label = { Text(TapNestLayerActions.frameLabel(layer, rig.layers, n)) }
-                            )
-                        }
-                    }
-                    }
-                    Text("点触、定时短动作、连续摆动、眨眼分别设置；左右耳朵／翅膀默认共享定时节奏。",
-                        style = MaterialTheme.typography.bodySmall)
-                }
-                } // foldActions
-                if (actionPage == "swing" || actionPage == "bones") {
-                Text("尾巴、翅膀、耳朵都可以独立绑定。2～8 个点从根到尖，选中点位后可分别设置左右、上下或旋转方向。",
-                    style = MaterialTheme.typography.bodySmall)
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("闲置时自动晃动", modifier = Modifier.weight(1f))
-                    Switch(checked = layer.idleSwing, onCheckedChange = { update(layer.copy(idleSwing = it)) })
-                }
-                FoldHeader("🐾 弹簧参数预设", foldTailPreset) { foldTailPreset = !foldTailPreset }
-                if (foldTailPreset) {
+                        PartEditorStep.MOTION -> {
+                            if (partFlow.trigger == PartTrigger.CONTINUOUS) {
                 var chosenTailPreset by remember(activeLayer) {
                     mutableStateOf(TapNestTailPresets.ALL.firstOrNull { it.id == layer.idlePresetId } ?: TapNestTailPresets.ALL.first())
                 }
@@ -911,9 +764,6 @@ fun LayeredPetEditor(
                     Text("单侧模式：沿身体一侧斜放，从根到尖排点；程序根据方向自动选择向外摇（不跨过原始姿势向内甩）。",
                         style = MaterialTheme.typography.bodySmall)
                 }
-                } // foldTailPreset
-                FoldHeader("🎐 晃动方式和参数", foldSwing) { foldSwing = !foldSwing }
-                if (foldSwing) {
                 if (layer.idleSwing) {
                     TapNestMotionScope.entries.forEach { range ->
                         FilterChip(layer.idleScope == range, { update(layer.copy(idleScope = range)) }, label = {
@@ -975,9 +825,23 @@ fun LayeredPetEditor(
                             style = MaterialTheme.typography.bodySmall)
                     }
                 }
-                } // foldSwing
-                FoldHeader("🦴 控制点 / 方向 / 骨骼", foldBonePoints) { foldBonePoints = !foldBonePoints }
-                if (foldBonePoints) {
+
+                            } else PartMotionSettings(layer, partFlow.trigger, ::update)
+                            Button(onClick = { go(PartEditorStep.FLEX) }) { Text("下一步：是否使用柔性点 →") }
+                        }
+                        PartEditorStep.FLEX -> {
+                            Text("是否需要柔性点？", style = MaterialTheme.typography.titleMedium)
+                            Text("柔性点让耳根稳定、耳尖弯动。同一部位只绑一次，其他动作也能使用。")
+                            FlowChoice("使用柔性点", if (layer.bones.size >= 2) "已有 ${layer.bones.size} 个点，可继续调整" else "下一步在完整角色上放置控制点") {
+                                update(partFlow.trigger.setFlexible(layer, true)); go(PartEditorStep.BONES)
+                            }
+                            FlowChoice("整体摇晃", "整个部位一起动，保留已经绑好的点") {
+                                update(partFlow.trigger.setFlexible(layer, false)); go(PartEditorStep.SUMMARY)
+                            }
+                        }
+                        PartEditorStep.BONES -> {
+                            Text("在上方完整角色上放置控制点", style = MaterialTheme.typography.titleMedium)
+                            Text("P1 放耳根，后面的点沿耳朵排到耳尖。点选下方编号，再拖上方橙色点。")
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text("控制点 ${layer.bones.size}/8", modifier = Modifier.weight(1f))
                     TextButton(onClick = {
@@ -1052,36 +916,77 @@ fun LayeredPetEditor(
                     Text("✨ 已启用多点柔性变形。可点上方「试玩互动」查看动态效果。",
                         color = MaterialTheme.colorScheme.primary)
                 }
-                } // foldBonePoints
-                OutlinedButton(onClick = { showBonesHelp = !showBonesHelp }) {
-                    Text(if (showBonesHelp) "收起点位说明 ▲" else "❓ 控制点怎么绑？展开说明 ▾")
-                }
-                if (showBonesHelp) {
-                    Surface(
-                        shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
-                        color = MaterialTheme.colorScheme.surfaceContainerLow
-                    ) {
-                        Column(Modifier.fillMaxWidth().padding(14.dp),
-                            verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                            Text("控制点是部件的活动骨架，不是描外轮廓。",
-                                fontWeight = FontWeight.SemiBold)
-                            Text("① P1 放在连接身体的根部；② 按根→尖沿部位中线排点；③ P2、P3 等控制相邻段的方向；④ 点位越多弯曲层次越多，但太密容易扭曲。")
-                            Text("尾巴：从屁股后方一直排到尾尖，粗尾优先调「保形」。")
-                            Text("翅膀：从背部连接点朝翅尖排，可选上下扇动；左右翅膀分别导入并各自设点。")
-                            Text("耳朵：从耳根排向耳尖，适合少量点位和「每隔几秒抖一下」。")
-                            Text("想调整画面：关闭「其他部位」暂时只看本图层；试玩时再打开，检查整体配合。")
-                            Text("方向菜单决定单段如何位移；大幅上下／左右位移可能拉长 PNG，不能模拟三维折翼。")
+
+                            if (partFlow.trigger != PartTrigger.CONTINUOUS) {
+                                val impulse = if (partFlow.trigger == PartTrigger.TAP) layer.tapFlexible else layer.periodicFlexible
+                                ImpulseSettings(impulse, showEnable = false) {
+                                    update(if (partFlow.trigger == PartTrigger.TAP) layer.copy(tapFlexible = it) else layer.copy(periodicFlexible = it))
+                                }
+                            }
+                            Button(onClick = { go(PartEditorStep.SUMMARY) }, enabled = layer.bones.size >= 2) { Text("绑好了，下一步 →") }
+                        }
+                        PartEditorStep.POSITION -> {
+                var parentMenu by remember(activeLayer) { mutableStateOf(false) }
+                Box {
+                    TextButton(onClick = { parentMenu = true }) {
+                        Text("绑定到父图层：${layer.parentId ?: "无（独立）"}  ▾")
+                    }
+                    DropdownMenu(expanded = parentMenu, onDismissRequest = { parentMenu = false }) {
+                        DropdownMenuItem(text = { Text("无（独立）") }, onClick = {
+                            update(layer.copy(parentId = null)); parentMenu = false
+                        })
+                        for (parent in rig.layers.filter { it.id != layer.id }) {
+                            val lineage = mutableSetOf<String>()
+                            var n: TapNestLayer? = parent
+                            while (n != null && lineage.add(n.id)) {
+                                n = rig.layers.firstOrNull { it.id == n?.parentId }
+                            }
+                            if (layer.id in lineage) continue
+                            DropdownMenuItem(text = { Text(parent.id) }, onClick = {
+                                update(layer.copy(parentId = parent.id)); parentMenu = false
+                            })
                         }
                     }
                 }
-                } // foldBones
+                BindingSlider("水平位置 X", layer.x, -512f, 512f) { update(layer.copy(x = it)) }
+                BindingSlider("垂直位置 Y", layer.y, -512f, 512f) { update(layer.copy(y = it)) }
+                BindingSlider("旋转中心 X", layer.pivotX, 0f, 1f) { update(layer.copy(pivotX = it)) }
+                BindingSlider("旋转中心 Y", layer.pivotY, 0f, 1f) { update(layer.copy(pivotY = it)) }
+                BindingSlider("图层原始大小", layer.restScale, 0.2f, 3f) { update(layer.copy(restScale = it)) }
+                BindingSlider("前后层级", layer.zIndex.toFloat(), 0f, 50f) {
+                    update(layer.copy(zIndex = it.toInt()))
+                }
+                OutlinedButton(onClick = { update(layer.copy(x = 0f, y = 0f)) }) {
+                    Text("↺ 位置复位")
+                }
+                OutlinedButton(onClick = { update(layer.copy(restScale = 1f)) }) { Text("↺ 大小复位（100%）") }
+                OutlinedButton(onClick = { update(layer.copy(x = 0f, y = 0f, restScale = 1f)) }) {
+                    Text("↺ 位置与大小全部复位")
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("对本部位应用中轴镜像", modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodySmall)
+                    Switch(checked = layer.mirrorX,
+                        onCheckedChange = { update(layer.copy(mirrorX = it)) })
+                }
 
-
-            }
+                            Button(onClick = { go(PartEditorStep.SUMMARY) }) { Text("完成位置设置 →") }
+                        }
+                        PartEditorStep.SUMMARY -> {
+                            Text("当前部位设置完成", style = MaterialTheme.typography.titleMedium)
+                            Text("可以在上方测试动作，或返回上一步继续调整。保存后回到部位主页面。")
+                            error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
+                            Button(onClick = { saveEditor(true) }, enabled = !busy && images["body"] != null, modifier = Modifier.fillMaxWidth()) {
+                                Text(if (busy) "正在保存…" else "保存该部位并回到主页面")
+                            }
+                            TextButton(onClick = { partFlow = PartEditorFlow() }) { Text("继续设置这个部位的其他动作 →") }
+                        }
+                    }
+                }
             } // End per-part settings page
             var foldEmotions by remember(activeLayer) { mutableStateOf(false) }
             var foldLegacyFaces by remember(activeLayer) { mutableStateOf(false) }
-            if (showSettings && (activeLayer.startsWith("head_") ||
+            if (showSettings && partFlow.step == PartEditorStep.MATERIAL && (activeLayer.startsWith("head_") ||
                 activeLayer.startsWith("face_") || activeLayer == "head_blank") &&
                 (rig.templateId != TapNestTemplates.MANUAL ||
                 rig.layers.any { it.id.startsWith("head_") || it.id.startsWith("face_") })) {
@@ -1122,7 +1027,7 @@ fun LayeredPetEditor(
                 }
                 } // foldEmotions
             }
-            if (showSettings && rig.templateId != TapNestTemplates.MANUAL &&
+            if (showSettings && partFlow.step == PartEditorStep.MATERIAL && rig.templateId != TapNestTemplates.MANUAL &&
                 (activeLayer.startsWith("head_") || activeLayer.startsWith("face_"))) {
                 FoldHeader("👀 旧版头部眨眼 / 被戳表情", foldLegacyFaces) { foldLegacyFaces = !foldLegacyFaces }
                 if (foldLegacyFaces) {
@@ -1167,27 +1072,7 @@ fun LayeredPetEditor(
             }
             error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
             Button(
-                onClick = {
-                    busy = true
-                    error = null
-                    scope.launch {
-                        try {
-                            val resultPet = withContext(Dispatchers.IO) {
-                                if (editingPet == null) store.createPet(name, rig, images.toMap(), saveTemplate)
-                                else if (formForEdit != null) formStore.saveForm(editingPet, formForEdit.id,
-                                    name, rig, images.toMap())
-                                else store.updatePet(editingPet, name, rig, images.toMap(), saveTemplate)
-                            }
-                            if (editingPet == null) petRepository.addPetDirect(resultPet)
-                            else petRepository.replacePet(resultPet)
-                            onCreated(resultPet)
-                        } catch (e: Exception) {
-                            Log.e("TapNestEditor", "createPet failed", e)
-                            error = e.message ?: "制作失败"
-                            Toast.makeText(ctx, "创建失败：${e.message}", Toast.LENGTH_LONG).show()
-                        } finally { busy = false }
-                    }
-                },
+                onClick = { saveEditor(false) },
                 enabled = !busy,
                 modifier = Modifier.fillMaxWidth()
             ) {
@@ -1202,7 +1087,7 @@ fun LayeredPetEditor(
 }
 
 @Composable
-private fun BindingSlider(label: String, value: Float, min: Float, max: Float, onChange: (Float) -> Unit) {
+internal fun BindingSlider(label: String, value: Float, min: Float, max: Float, onChange: (Float) -> Unit) {
     Column {
         Row {
             Text(label, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
@@ -1259,8 +1144,8 @@ private fun MotionEntry(title: String, enabled: Boolean, summary: String,
 }
 
 @Composable
-private fun ImpulseSettings(value: TapNestImpulse, update: (TapNestImpulse) -> Unit) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+private fun ImpulseSettings(value: TapNestImpulse, showEnable: Boolean = true, update: (TapNestImpulse) -> Unit) {
+    if (showEnable) Row(verticalAlignment = Alignment.CenterVertically) {
         Text("柔性绑骨（复用当前控制点）", Modifier.weight(1f))
         Switch(value.enabled, { update(value.copy(enabled = it)) })
     }

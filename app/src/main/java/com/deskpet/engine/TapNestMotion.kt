@@ -90,6 +90,7 @@ data class TapNestLayer(
     val restScale: Float = 1f,
     val bones: List<TapNestBonePoint> = emptyList(),
     val idleSwing: Boolean = false,
+    val idleFlexibleEnabled: Boolean = true,
     val idleScope: TapNestMotionScope = TapNestMotionScope.WHOLE,
     val idlePresetId: String = "",
     val idleAmplitude: Float = 10f,
