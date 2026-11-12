@@ -928,7 +928,11 @@ fun LayeredPetEditor(
                         color = MaterialTheme.colorScheme.primary)
                 }
 
-                            if (partFlow.trigger != PartTrigger.CONTINUOUS) {
+                            var showFlexibleTuning by remember(activeLayer) { mutableStateOf(false) }
+                            TextButton(onClick = { showFlexibleTuning = !showFlexibleTuning }) {
+                                Text(if (showFlexibleTuning) "收起柔性效果参数" else "柔性效果参数（可选） →")
+                            }
+                            if (showFlexibleTuning && partFlow.trigger != PartTrigger.CONTINUOUS) {
                                 val impulse = if (partFlow.trigger == PartTrigger.TAP) layer.tapFlexible else layer.periodicFlexible
                                 ImpulseSettings(impulse, showEnable = false) {
                                     update(if (partFlow.trigger == PartTrigger.TAP) layer.copy(tapFlexible = it) else layer.copy(periodicFlexible = it))
