@@ -31,8 +31,8 @@ internal enum class PartTrigger(val label: String, val description: String) {
         else -> layer.idlePlane
     }
     fun withPlane(layer: TapNestLayer, plane: TapNestMotionPlane) = when(this) {
-        TAP -> layer.copy(tapPlane = plane, tapBasicConfigured = true)
-        IDLE -> layer.copy(periodicPlane = plane, periodicBasicConfigured = true)
+        TAP -> layer.copy(tapPlane = plane, tapBasicConfigured = true, tapMotion = if (plane.enabled) TapNestPartMotion.NOD else layer.tapMotion)
+        IDLE -> layer.copy(periodicPlane = plane, periodicBasicConfigured = true, periodicMotion = if (plane.enabled) TapNestPartMotion.NOD else layer.periodicMotion)
         else -> layer.copy(idlePlane = plane)
     }
     fun chains(layer: TapNestLayer) = when(this) {

@@ -794,12 +794,13 @@ fun LayeredPetEditor(
                             if (plane.linear) {
                                 BindingSlider("移动方向（0°向右，90°向下）", plane.axisDegrees, -180f, 180f) { changePlane(plane.copy(axisDegrees = it)) }
                             } else {
-                                Text("以素材原本姿势为零位，两侧范围可分别设置。")
+                                Text("以素材原本姿势为零位，两侧范围可分别设置。点击预览可调整对应侧边界。")
+                                BindingSlider("素材自然指向（0°右，90°下）", plane.axisDegrees, -180f, 180f) { changePlane(plane.copy(axisDegrees = it)) }
                                 BindingSlider("逆时针边界（度）", plane.negativeLimit, 0f, 180f) { changePlane(plane.copy(negativeLimit = it)) }
                                 BindingSlider("顺时针边界（度）", plane.positiveLimit, 0f, 180f) { changePlane(plane.copy(positiveLimit = it)) }
                             }
                             if (partFlow.trigger == PartTrigger.CONTINUOUS) {
-                                BindingSlider("摆动幅度（度）", layer.idleAmplitude, 0f, 85f) { update(layer.copy(idleAmplitude = it)) }
+                                BindingSlider(if (plane.enabled && plane.linear) "移动距离（像素）" else "摆动幅度（度）", layer.idleAmplitude, 0f, 85f) { update(layer.copy(idleAmplitude = it)) }
                                 BindingSlider("摆动速度（次／秒）", layer.idleSpeed, .1f, 3f) { update(layer.copy(idleSpeed = it)) }
                             } else {
                                 if (!plane.enabled) PartMotionSettings(layer, partFlow.trigger, ::update)

@@ -298,8 +298,7 @@ internal fun LayeredRigPreview(
                                     val degrees = Math.toDegrees(kotlin.math.atan2((local.y - layer.pivotY * art.height).toDouble(), (local.x - layer.pivotX * art.width).toDouble())).toFloat()
                                     if (plane.linear) newestPlaneChange(plane.copy(enabled = true, axisDegrees = degrees))
                                     else {
-                                        val end = layer.bones.lastOrNull()
-                                        val reference = if (end != null) Math.toDegrees(kotlin.math.atan2(((end.y - layer.pivotY) * art.height).toDouble(), ((end.x - layer.pivotX) * art.width).toDouble())).toFloat() else 90f
+                                        val reference = plane.axisDegrees
                                         val relative = ((degrees - reference + 540f) % 360f) - 180f
                                         newestPlaneChange(if (relative < 0) plane.copy(enabled = true, negativeLimit = -relative) else plane.copy(enabled = true, positiveLimit = relative))
                                     }
@@ -522,9 +521,7 @@ internal fun LayeredRigPreview(
                     val cx = art.width * layer.pivotX
                     val cy = art.height * layer.pivotY
                     val radius = min(art.width, art.height) * .24f
-                    val end = layer.bones.lastOrNull()
-                    val reference = if (motionPlane.linear) motionPlane.axisDegrees else if (end != null)
-                        Math.toDegrees(kotlin.math.atan2(((end.y - layer.pivotY) * art.height).toDouble(), ((end.x - layer.pivotX) * art.width).toDouble())).toFloat() else 90f
+                    val reference = motionPlane.axisDegrees
                     val directions = if (motionPlane.linear) listOf(reference, reference + 180f) else
                         listOf(reference - motionPlane.negativeLimit, reference + motionPlane.positiveLimit)
                     accent.style = Paint.Style.STROKE

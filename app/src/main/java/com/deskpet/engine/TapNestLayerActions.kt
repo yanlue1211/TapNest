@@ -178,7 +178,10 @@ object TapNestLayerActions {
                     scale *= node.restScale.coerceIn(.1f, 4f)
                     parent = node.parentId
                 }
-                (layer.hatFlightHeight.coerceIn(.08f, .4f) + .12f) *
+                val amplitudeScale = maxOf(
+                    if (layer.tapBasicConfigured) layer.tapFlexible.amplitude.coerceIn(0f, 55f) / 18f else 1f,
+                    if (layer.periodicBasicConfigured) layer.periodicFlexible.amplitude.coerceIn(0f, 55f) / 18f else 1f)
+                (layer.hatFlightHeight.coerceIn(.08f, .4f) * amplitudeScale + .12f) *
                     rig.canvasHeight * scale.coerceAtMost(4f)
             } ?: return 0
         return kotlin.math.ceil(flight.toDouble()).toInt().coerceIn(0, rig.canvasHeight * 3)
@@ -262,12 +265,18 @@ object TapNestLayerActions {
                 motionId, canvasHeight.toFloat(), layer.hatFlightHeight)
         }
         val configured = if (periodic) layer.periodicBasicConfigured else layer.tapBasicConfigured
-        if (!configured || selected == TapNestPartMotion.HAT_POP)
+        if (!configured)
             return TapNestMotion.sample(clip, motionId, motionAgeMs)
         val action = if (periodic) layer.periodicFlexible else layer.tapFlexible
         val duration = action.durationMs.coerceIn(200L, 3000L)
         if (motionAgeMs !in 0 until duration) return TapNestPose()
         val progress = motionAgeMs.toDouble() / duration
+        if (selected == TapNestPartMotion.HAT_POP) {
+            val cycle = (progress * action.count.coerceIn(1, 6)) % 1.0
+            val curved = Math.pow(cycle, 3.0 / action.speed.coerceIn(.5f, 6f))
+            val pose = TapNestMotion.sample(clip, motionId, (curved * 960L).toLong())
+            return pose.copy(y = pose.y * (action.amplitude.coerceIn(0f, 55f) / 18f))
+        }
         val envelope = kotlin.math.sin(kotlin.math.PI * progress).let { it * it }
         val wave = (kotlin.math.sin(2 * kotlin.math.PI * action.count.coerceIn(1, 6) *
             action.speed.coerceIn(.5f, 6f) / 3.0 * progress) * envelope).toFloat()
