@@ -3,7 +3,7 @@ name: TapNest Android CI
 on:
   workflow_dispatch:
   push:
-    branches: [main]
+    branches: [main, fix/all-motion-mirroring-20261112]
     tags: ['v*']
   pull_request:
     branches: [main]
