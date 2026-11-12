@@ -57,8 +57,8 @@ object TapNestLayerActions {
         return (elapsedMs % interval).takeIf { it < periodicPulseDuration(layer) }
     }
 
-    fun planePose(amount: Float, plane: TapNestMotionPlane): TapNestPose {
-        if (!plane.linear) return TapNestPose(angle = amount.coerceIn(-plane.negativeLimit.coerceIn(0f, 180f), plane.positiveLimit.coerceIn(0f, 180f)))
+    fun planePose(amount: Float, plane: TapNestMotionPlane, driveAmplitude: Float = 0f): TapNestPose {
+        if (!plane.linear) return TapNestPose(angle = TapNestSwingBounds.limitAngle(amount, plane, driveAmplitude))
         val radians = Math.toRadians(plane.axisDegrees.toDouble())
         return TapNestPose(x = amount * kotlin.math.cos(radians).toFloat(), y = amount * kotlin.math.sin(radians).toFloat())
     }
@@ -166,6 +166,26 @@ object TapNestLayerActions {
             val total = (idleTotal + absolute[i]).coerceIn(-95f, 95f)
             (total - previousTotal).also { previousTotal = total }
         }
+    }
+
+    /** Nominal peak for the skinning pass, including an active tap or timed impulse.
+     * The bounds transform needs the PEAK, not the instantaneous angle, so a large
+     * sine wave reverses smoothly rather than sticking to its angle limit. */
+    fun activeFlexibleDriveAmplitude(layer: TapNestLayer, layers: List<TapNestLayer>,
+                                     sceneMs: Long, touchMs: Long): Float {
+        val idle = if (layer.idleSwing && layer.idleFlexibleEnabled)
+            layer.idleAmplitude.coerceIn(0f, if (layer.swingMode == TapNestSwingMode.SPRING) 85f else 40f)
+            else 0f
+        if (!layer.interactionConfigured) return idle
+        val impulse = when {
+            layer.tapShake && layer.tapFlexible.enabled && touchMs in 0 until tapMotionDuration(layer) ->
+                layer.tapFlexible
+            layer.periodicEnabled && layer.periodicAction == TapNestPeriodicAction.SHAKE &&
+                layer.periodicFlexible.enabled && touchMs >= 1800L &&
+                periodicElapsed(layer, layers, sceneMs) != null -> layer.periodicFlexible
+            else -> null
+        }
+        return idle + (impulse?.amplitude?.coerceIn(0f, 55f) ?: 0f)
     }
 
     /** Extra transparent pixels ABOVE the authored canvas; authored coordinates never move. */
@@ -321,7 +341,7 @@ object TapNestLayerActions {
             action.speed.coerceIn(.5f, 6f) / 3.0 * progress) * envelope).toFloat()
         val amount = wave * action.amplitude.coerceIn(0f, 55f) * if (layer.reflectedMotion != startReversed) -1f else 1f
         val plane = if (periodic) layer.periodicPlane else layer.tapPlane
-        if (plane.enabled) return planePose(amount, plane)
+        if (plane.enabled) return planePose(amount, plane, action.amplitude.coerceIn(0f, 55f))
         return when (selected) {
             TapNestPartMotion.BOUNCE -> TapNestPose(y = if (layer.reflectedMotion) amount else -amount)
             else -> TapNestPose(angle = amount)
