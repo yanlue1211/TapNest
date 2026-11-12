@@ -425,7 +425,7 @@ internal fun LayeredRigPreview(
                 val angle = sin((phase / 1000.0 * layer.idleSpeed.coerceIn(0.1f, 3f) *
                     2 * PI)).toFloat() * layer.idleAmplitude.coerceIn(0f, 85f)
                 val swingSign = TapNestSymmetry.idleSwingSign(layer) * if (layer.reflectedMotion != layer.idleStartReversed) -1f else 1f
-                val motion = if (layer.idlePlane.enabled) TapNestLayerActions.planePose(angle * swingSign, layer.idlePlane) else TapNestPose(angle = angle * swingSign)
+                val motion = if (layer.idlePlane.enabled) TapNestLayerActions.planePose(angle * swingSign, layer.idlePlane, layer.idleAmplitude.coerceIn(0f, 85f)) else TapNestPose(angle = angle * swingSign)
                 pose = pose.copy(x = pose.x + motion.x, y = pose.y + motion.y, angle = pose.angle + motion.angle)
             }
             return pose
@@ -515,7 +515,9 @@ internal fun LayeredRigPreview(
                 native.restore()
             } else {
                 val mesh = if (mode == RigPreviewMode.TEST) TapNestFlexibleMesh.vertices(
-                    if (impulseActive) skinLayer.copy(shapePreservation = 0f) else skinLayer, art.width, art.height, elapsed, resolution, jointAngles, extraAngles) else null
+                    if (impulseActive) skinLayer.copy(shapePreservation = 0f) else skinLayer, art.width, art.height, elapsed, resolution, jointAngles, extraAngles,
+                    angleDriveAmplitude = TapNestLayerActions.activeFlexibleDriveAmplitude(
+                        skinLayer, rig.layers, elapsed, touchElapsed)) else null
                 if (mesh != null) {
                     native.drawBitmapMesh(art.bitmap, resolution, resolution, mesh, 0, null, 0, paint)
                 } else native.drawBitmap(art.bitmap, null,
