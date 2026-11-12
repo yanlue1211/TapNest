@@ -77,6 +77,45 @@ class LayeredPetPlayerTest {
             Color.GREEN, before.getPixel(32, 15))
     }
 
+    @Test fun clothingOverlayFollowsBodyPlacementAndActiveBodyFrame() {
+        png("coat_body.png", Color.GREEN)
+        png("coat_action.png", Color.YELLOW)
+        val clothingArt = Bitmap.createBitmap(64, 64, Bitmap.Config.ARGB_8888)
+        clothingArt.eraseColor(Color.TRANSPARENT)
+        for (y in 10 until 20) for (x in 10 until 20)
+            clothingArt.setPixel(x, y, Color.BLUE)
+        tmp.newFile("coat.png").outputStream().use {
+            clothingArt.compress(Bitmap.CompressFormat.PNG, 100, it)
+        }
+        clothingArt.recycle()
+        fun renderAt(bodyX: Float, activeFrame: Boolean): Bitmap {
+            val owner = TapNestLayer("body", "coat_body.png", zIndex = 10, x = bodyX,
+                interactionConfigured = activeFrame, tapSwitchFrame = activeFrame, tapFrame = 1)
+            val alt = TapNestLayer("body_f1", "coat_action.png", parentId = "body",
+                frameOwner = "body", frameIndex = 1, zIndex = 10,
+                pivotX = 0f, pivotY = 0f)
+            val outfit = TapNestLayer(TapNestClothing.ID, "coat.png",
+                displayName = "服装", bodyLinkedClothing = true,
+                parentId = "body", zIndex = 11, pivotX = 0f, pivotY = 0f)
+            val rig = TapNestRig(canvasWidth = 64, canvasHeight = 64,
+                templateId = TapNestTemplates.MANUAL,
+                layers = listOf(owner, alt, outfit))
+            val cfg = tmp.newFile("outfit_${bodyX}_${activeFrame}.json").apply {
+                writeText(Json.encodeToString(rig))
+            }
+            val player = requireNotNull(LayeredPetPlayer.load(cfg))
+            if (activeFrame) player.tap()
+            return player.render().copy(Bitmap.Config.ARGB_8888, false)
+        }
+        val normal = renderAt(7f, false)
+        assertEquals("Outfit belongs at body x + local 10", Color.BLUE, normal.getPixel(19, 15))
+        assertEquals(Color.GREEN, normal.getPixel(12, 15))
+        val moved = renderAt(13f, true)
+        assertEquals("New body image still appears behind outfit", Color.YELLOW, moved.getPixel(18, 15))
+        assertEquals("Outfit follows changed body pose and frame", Color.BLUE, moved.getPixel(25, 15))
+        assertEquals("Clothing must not remain at its old position", Color.YELLOW, moved.getPixel(19, 15))
+    }
+
     @Test fun manualWingDefaultAndTapFrameBothShowWithoutLegacyWingHiding() {
         png("body.png", Color.GREEN)
         png("wing_left.png", Color.RED)

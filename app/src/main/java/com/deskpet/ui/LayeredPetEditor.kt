@@ -56,7 +56,7 @@ fun LayeredPetEditor(
     val scope = rememberCoroutineScope()
     val templates = remember { store.savedTemplates() }
     val originalRig = remember(editingPet?.id, formId) {
-        formForEdit?.rig ?: editingPet?.let(store::loadRig) ?: TapNestTemplates.manual()
+        TapNestClothing.withSlot(formForEdit?.rig ?: editingPet?.let(store::loadRig) ?: TapNestTemplates.manual())
     }
     var rig by remember(editingPet?.id, formId) { mutableStateOf(originalRig) }
     var templateChoice by remember(editingPet?.id, formId) {
@@ -203,10 +203,10 @@ fun LayeredPetEditor(
 
     fun select(key: String) {
         templateChoice = key
-        rig = when (key) {
+        rig = TapNestClothing.withSlot(when (key) {
             TapNestTemplates.MANUAL -> TapNestTemplates.manual()
             else -> templates.firstOrNull { it.id == key }?.rig ?: TapNestTemplates.manual()
-        }
+        })
         images.clear()
         activeLayer = rig.layers.firstOrNull()?.id ?: "body"
         previewMode = RigPreviewMode.POSITION
@@ -260,7 +260,10 @@ fun LayeredPetEditor(
                         } else layer
                     })
                 },
-                onSelectLayer = { id -> activeLayer = id },
+                onSelectLayer = { id ->
+                    // A clothing PNG is always edited through its body driver.
+                    activeLayer = if (rig.layers.firstOrNull { it.id == id }?.bodyLinkedClothing == true) "body" else id
+                },
                 onDragLayer = { dx, dy ->
                     rig = rig.copy(layers = rig.layers.map { layer ->
                         if (layer.id == activeLayer)
@@ -350,7 +353,7 @@ fun LayeredPetEditor(
                 }
             }
             NestSection("图层与素材",
-                "每个部位可以独立上传和调整。推荐所有 PNG 使用相同透明画布尺寸。")
+                "各部位可独立编辑；「服装」内置在身体上，自动继承身体的位置、大小、动作与骨骼。推荐 PNG 使用相同透明画布尺寸。")
             val slots = TapNestTemplates.slotsFor(rig).filter { slot ->
                 slot.id != "pickup_pose" &&
                     rig.layers.firstOrNull { it.id == slot.id }?.frameOwner == null
@@ -369,7 +372,9 @@ fun LayeredPetEditor(
                 NestPanel {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text((if (required) "★ " else "") + slot.label,
-                        modifier = Modifier.weight(1f).clickable { activeLayer = slot.id },
+                        modifier = Modifier.weight(1f).clickable {
+                            activeLayer = if (rig.layers.firstOrNull { it.id == slot.id }?.bodyLinkedClothing == true) "body" else slot.id
+                        },
                         style = MaterialTheme.typography.bodyMedium)
                     TextButton(onClick = {
                         activeLayer = slot.id
@@ -377,7 +382,8 @@ fun LayeredPetEditor(
                         picker.launch(arrayOf("image/png"))
                     }) { Text(if (uri == null) "导入" else "已选 ✓") }
                     if (uri != null) TextButton(onClick = { images.remove(slot.id) }) { Text("清除") }
-                    if (rig.templateId == TapNestTemplates.MANUAL && slot.id != "body") {
+                    if (rig.templateId == TapNestTemplates.MANUAL && slot.id != "body" &&
+                        rig.layers.firstOrNull { it.id == slot.id }?.bodyLinkedClothing != true) {
                         TextButton(onClick = { pendingRemoveLayerId = slot.id }) {
                             Text("删除", color = MaterialTheme.colorScheme.error)
                         }
@@ -385,12 +391,18 @@ fun LayeredPetEditor(
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     TextButton(onClick = {
-                        activeLayer = slot.id
+                        activeLayer = if (rig.layers.firstOrNull { it.id == slot.id }?.bodyLinkedClothing == true) "body" else slot.id
                         partFlow = PartEditorFlow()
                         previewMode = RigPreviewMode.TEST
                         showSettings = true
-                    }) { Text("⚙️ 设置动作／变帧 ›") }
-                    if (rig.templateId == TapNestTemplates.MANUAL && slot.id != "body") {
+                    }) { Text(if (rig.layers.firstOrNull { it.id == slot.id }?.bodyLinkedClothing == true)
+                        "⚙️ 跟随身体设置 ›" else "⚙️ 设置动作／变帧 ›") }
+                    if (rig.layers.firstOrNull { it.id == slot.id }?.bodyLinkedClothing == true) {
+                        Text("🧥 服装继承身体的位置、大小、切帧、摇晃及骨骼变形，只要上传一张透明服装 PNG，之后调整身体会自动联动。",
+                            style = MaterialTheme.typography.bodySmall)
+                    }
+                    if (rig.templateId == TapNestTemplates.MANUAL && slot.id != "body" &&
+                        rig.layers.firstOrNull { it.id == slot.id }?.bodyLinkedClothing != true) {
                         TextButton(onClick = {
                             val original = rig.layers.firstOrNull { it.id == slot.id }
                             if (original != null) {

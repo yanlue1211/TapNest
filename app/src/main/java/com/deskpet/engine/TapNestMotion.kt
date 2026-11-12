@@ -204,7 +204,9 @@ data class TapNestLayer(
     val syncPairedPeriodic: Boolean = true,
     val syncPairedAll: Boolean = false,
     val idleBlinkEnabled: Boolean = false,
-    val blinkFrame: Int = 1
+    val blinkFrame: Int = 1,
+    /** Optional outfit overlay. Appended so old positional constructors stay valid. */
+    val bodyLinkedClothing: Boolean = false
 )
 
 @Serializable

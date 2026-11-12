@@ -17,6 +17,7 @@ object TapNestTemplates {
     /** IDs retained strictly to label older saved character rigs. Not a selectable template. */
     private val legacySlots: List<TapNestSlotSpec> = listOf(
         TapNestSlotSpec("body", "身体（静态）", false),
+        TapNestSlotSpec(TapNestClothing.ID, "服装 · 跟随身体"),
         TapNestSlotSpec("tail", "尾巴（坐姿后侧，单图摇摆）"),
         TapNestSlotSpec("wing_0", "翅膀 · 平时"),
         TapNestSlotSpec("wing_1", "翅膀 · 戳动"),
@@ -38,12 +39,15 @@ object TapNestTemplates {
         canvasWidth = 512, canvasHeight = 512, templateId = MANUAL,
         layers = listOf(
             TapNestLayer("body", "", zIndex = 10, pivotY = .65f,
-                tapShake = true, tapMotion = TapNestPartMotion.BOUNCE, interactionConfigured = true)
+                tapShake = true, tapMotion = TapNestPartMotion.BOUNCE, interactionConfigured = true),
+            TapNestLayer(TapNestClothing.ID, "", displayName = "服装",
+                bodyLinkedClothing = true, parentId = "body", zIndex = 11,
+                pivotX = 0f, pivotY = 0f)
         )
     )
 
     val manualLabels = mapOf(
-        "body" to "身体 · 默认帧", "head_0" to "头部 · 默认帧",
+        "body" to "身体 · 默认帧", TapNestClothing.ID to "服装 · 跟随身体", "head_0" to "头部 · 默认帧",
         "tail" to "尾巴 · 默认帧",
         "wing_left" to "左翅膀 · 默认帧", "wing_right" to "右翅膀 · 默认帧",
         "ear_left" to "左耳朵 · 默认帧", "ear_right" to "右耳朵 · 默认帧"
