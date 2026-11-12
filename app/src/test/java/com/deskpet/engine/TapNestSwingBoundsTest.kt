@@ -138,6 +138,68 @@ class TapNestSwingBoundsTest {
         }
     }
 
+    @Test fun narrowNonzeroClockwiseLimitDoesNotWasteHalfCycle() {
+        val plane = TapNestMotionPlane(enabled = true,
+            negativeLimit = 118.83f, positiveLimit = 5f)
+        val samples = (0..240).map { i ->
+            val raw = TapNestSwingBounds.periodicDrive(i * 2.0 * Math.PI / 240.0, 40f, plane)
+            TapNestLayerActions.planePose(raw, plane, 40f).angle
+        }
+        assertTrue(samples.all { it in -40.001f..5.001f })
+        assertTrue(samples.any { it > 4.9f })
+        assertTrue(samples.any { it < -39.9f })
+        // Previously the tiny clockwise arc took 120 of 240 frames.
+        assertTrue(samples.count { it > .0001f } < 35)
+        assertTrue(samples.count { it < -.0001f } > 200)
+        assertEquals(0f, samples.first(), .001f)
+        assertEquals(0f, samples.last(), .001f)
+        val zero = plane.copy(positiveLimit = 0f)
+        assertEquals(-40f, TapNestLayerActions.planePose(
+            TapNestSwingBounds.periodicDrive(Math.PI, 40f, zero), zero, 40f).angle, .001f)
+    }
+
+    @Test fun reverseShortCounterclockwiseArcAndSymmetricLegacyStaySmooth() {
+        val plane = TapNestMotionPlane(enabled = true,
+            negativeLimit = 8f, positiveLimit = 80f)
+        val samples = (0..120).map { i ->
+            val raw = TapNestSwingBounds.periodicDrive(
+                i * 2.0 * Math.PI / 120.0, 40f, plane, -1f)
+            TapNestLayerActions.planePose(raw, plane, 40f).angle
+        }
+        assertTrue(samples[1] < 0f)
+        assertTrue(samples.count { it < -.001f } < 25)
+        assertTrue(samples.count { it > .001f } > 95)
+        assertTrue(samples.all { it in -8.001f..40.001f })
+        val equal = plane.copy(negativeLimit = 30f, positiveLimit = 30f)
+        for (i in 0..100) {
+            val phase = i * 2.0 * Math.PI / 100.0
+            assertEquals((-40 * sin(phase)).toFloat(),
+                TapNestSwingBounds.periodicDrive(phase, 40f, equal, -1f), .001f)
+        }
+    }
+
+    @Test fun narrowNonzeroArcReachesBoneAndSpringDrivers() {
+        val plane = TapNestMotionPlane(enabled = true,
+            negativeLimit = 80f, positiveLimit = 5f)
+        val layer = TapNestLayer(id = "tail", image = "tail.png",
+            idleSwing = true, idleAmplitude = 40f, idleSpeed = 1f,
+            idlePlane = plane,
+            bones = listOf(TapNestBonePoint(.5f, .9f), TapNestBonePoint(.5f, .1f)))
+        val delayed = (0L..1000L step 10L).map {
+            TapNestFlexibleMesh.segmentAngles(layer, it)[0]
+        }
+        assertTrue(delayed.count { it > .0001f } < 20)
+        assertTrue(delayed.count { it < -.0001f } > 80)
+        for (version in listOf(1, 2)) {
+            val spring = TapNestSpringChain()
+            val springLayer = layer.copy(swingMode = TapNestSwingMode.SPRING,
+                springVersion = version, springDamping = .45f)
+            val samples = (0L..2200L step 16L).map { spring.step(springLayer, it)[0] }
+            assertTrue("v=$version", samples.all { it in -80.001f..5.001f })
+            assertTrue("v=$version", samples.count { it < -8f } > 45)
+        }
+    }
+
     @Test fun legacyUnrestrictedMotionAndStraightMotionAreUnchanged() {
         val free = TapNestMotionPlane()
         assertEquals(75f, TapNestSwingBounds.limitAngle(75f, free, 80f, true), .0001f)

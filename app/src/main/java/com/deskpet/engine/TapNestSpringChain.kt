@@ -61,7 +61,8 @@ class TapNestSpringChain {
                 TapNestSwingBounds.periodicDrive(phase, targetAmplitude.toFloat(), layer.idlePlane)
             else if (oneSided)
                 (outwardSign * targetAmplitude * .5 * (1.0 - kotlin.math.cos(phase))).toFloat()
-            else (startSign * targetAmplitude * sin(phase)).toFloat()
+            else TapNestSwingBounds.periodicDrive(
+                phase, targetAmplitude.toFloat(), layer.idlePlane, startSign)
             return TapNestSwingBounds.limitAngle(raw, layer.idlePlane,
                 targetAmplitude.toFloat())
         }

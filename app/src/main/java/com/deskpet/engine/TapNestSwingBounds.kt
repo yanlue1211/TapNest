@@ -31,7 +31,30 @@ internal object TapNestSwingBounds {
             val progress = .5 * (1.0 - kotlin.math.cos(phaseRadians))
             return (side * amplitude.coerceAtLeast(0f) * progress).toFloat()
         }
-        return (directionSign * amplitude.coerceAtLeast(0f) * kotlin.math.sin(phaseRadians)).toFloat()
+        val peak = amplitude.coerceAtLeast(0f)
+        // The shorter allowed half of a swing should NOT consume half its
+        // period: that makes a 3-degree movement look like a long pause.
+        // Split each cycle by its actual angular excursion. Both halves
+        // then have matching speeds as they pass through the rest pose.
+        // Equal limits retain the historical sine, and a zero limit still
+        // follows the single-sided, full-period path above.
+        if (plane.enabled && !plane.linear && peak > 0f) {
+            val positiveReach = minOf(peak, plane.positiveLimit.coerceIn(0f, 180f))
+            val negativeReach = minOf(peak, plane.negativeLimit.coerceIn(0f, 180f))
+            if (positiveReach > .001f && negativeReach > .001f &&
+                kotlin.math.abs(positiveReach - negativeReach) > .001f) {
+                val phase = ((phaseRadians / (2.0 * kotlin.math.PI)) % 1.0 + 1.0) % 1.0
+                val positiveFirst = directionSign >= 0f
+                val firstReach = if (positiveFirst) positiveReach else negativeReach
+                val firstDuration = firstReach / (positiveReach + negativeReach)
+                val first = phase < firstDuration
+                val local = if (first) phase / firstDuration
+                    else (phase - firstDuration) / (1.0 - firstDuration)
+                val sign = if (first == positiveFirst) 1f else -1f
+                return (sign * peak * kotlin.math.sin(kotlin.math.PI * local)).toFloat()
+            }
+        }
+        return (directionSign * peak * kotlin.math.sin(phaseRadians)).toFloat()
     }
 
     fun limitAngle(amount: Float, plane: TapNestMotionPlane,
