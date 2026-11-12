@@ -62,6 +62,12 @@ data class TapNestBoneChain(
     val scope: TapNestMotionScope? = null,
     val softness: Float? = null,
     val damping: Float? = null,
+    val swingMode: TapNestSwingMode? = null,
+    val springVersion: Int? = null,
+    val shapePreservation: Float? = null,
+    val idleLagSeconds: Float? = null,
+    val idlePresetId: String? = null,
+    val swingRange: TapNestSwingRange? = null,
     val bones: List<TapNestBonePoint> = emptyList(),
     val region: TapNestBoneRegion = TapNestBoneRegion(),
     val plane: TapNestMotionPlane = TapNestMotionPlane()
@@ -70,6 +76,10 @@ data class TapNestBoneChain(
         tapBones = null, periodicBones = null, idleBones = null, boneChains = emptyList(),
         idlePlane = if (plane.enabled) plane else layer.idlePlane,
         idleScope = scope ?: layer.idleScope,
+        swingMode = swingMode ?: layer.swingMode, springVersion = springVersion ?: layer.springVersion,
+        shapePreservation = shapePreservation ?: layer.shapePreservation,
+        idleLagSeconds = idleLagSeconds ?: layer.idleLagSeconds,
+        idlePresetId = idlePresetId ?: layer.idlePresetId, swingRange = swingRange ?: layer.swingRange,
         springSoftness = softness ?: layer.springSoftness, springDamping = damping ?: layer.springDamping,
         tapFlexible = layer.tapFlexible.copy(scope = scope ?: layer.tapFlexible.scope, softness = softness ?: layer.tapFlexible.softness, damping = damping ?: layer.tapFlexible.damping),
         periodicFlexible = layer.periodicFlexible.copy(scope = scope ?: layer.periodicFlexible.scope, softness = softness ?: layer.periodicFlexible.softness, damping = damping ?: layer.periodicFlexible.damping))
@@ -163,7 +173,12 @@ data class TapNestLayer(
     val interactionConfigured: Boolean = false,
     /** Motion settings are edited on the owner/default-frame screen. */
     val tapShake: Boolean = false,
-    /** Opt in when ed…70 tokens truncated…    val tapMotion: TapNestPartMotion = TapNestPartMotion.NOD,
+    /** Opt in when editing basic parameters; preserve legacy clips otherwise. */
+    val tapBasicConfigured: Boolean = false,
+    val periodicBasicConfigured: Boolean = false,
+    val tapFlexible: TapNestImpulse = TapNestImpulse(),
+    val periodicFlexible: TapNestImpulse = TapNestImpulse(),
+    val tapMotion: TapNestPartMotion = TapNestPartMotion.NOD,
     /** Hat flight height as fraction of the full PNG canvas (e.g. .22 = 22%). */
     val hatFlightHeight: Float = 0.22f,
     /** Null keeps the previous shared tap/periodic motion for existing saves. */

@@ -50,4 +50,35 @@ class PartEditorFlowTest {
         assertEquals(original.bones, PartTrigger.TAP.bones(PartTrigger.TAP.withSeparate(changed, false)))
     }
 
+    @Test fun copyingPreviousRibbonKeepsAllEffectsAndTriggerIsolation() {
+        for (trigger in listOf(PartTrigger.TAP, PartTrigger.IDLE, PartTrigger.CONTINUOUS)) {
+            val source = TapNestLayer("bow", "b.png",
+                bones = listOf(TapNestBonePoint(.2f, .2f), TapNestBonePoint(.3f, .8f)),
+                idlePlane = TapNestMotionPlane(true, true, 25f),
+                tapPlane = TapNestMotionPlane(true, false, 0f, 17f, 29f),
+                springSoftness = .82f, shapePreservation = .66f, idleLagSeconds = .31f,
+                swingMode = TapNestSwingMode.SPRING, springVersion = 2,
+                tapFlexible = TapNestImpulse(softness = .24f, damping = .55f))
+            val independent = trigger.withSeparate(source, true)
+            val original = trigger.withChains(independent, listOf(TapNestBoneChain(name = "第二条"), TapNestBoneChain(name = "第三条")))
+            val copied = trigger.copyPreviousChain(original, 1)
+            val chain = trigger.chains(copied)[0]
+            assertEquals("第二条", chain.name)
+            assertEquals(trigger.bones(source), chain.bones)
+            assertEquals(trigger.plane(source), chain.plane)
+            assertEquals(.66f, chain.shapePreservation!!, .001f)
+            assertEquals(.31f, chain.idleLagSeconds!!, .001f)
+            assertEquals(source.bones, copied.bones)
+            assertEquals(original.boneChains, copied.boneChains)
+            val third = trigger.copyPreviousChain(copied, 2)
+            assertEquals(chain.copy(name = "第三条"), trigger.chains(third)[1])
+            val edited = trigger.withChains(copied, trigger.chains(copied).mapIndexed { index, c ->
+                if (index == 0) c.copy(bones = listOf(TapNestBonePoint(.9f, .9f)), softness = .1f) else c
+            })
+            assertEquals(source.bones, edited.bones)
+            assertEquals(trigger.bones(source), chain.bones)
+            assertEquals(TapNestBoneChain(name = "第三条"), trigger.chains(edited)[1])
+        }
+    }
+
 }

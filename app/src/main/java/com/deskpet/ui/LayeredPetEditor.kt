@@ -634,9 +634,15 @@ fun LayeredPetEditor(
                             partFlow.trigger.withChains(p.copy(bones = original.bones, boneChains = original.boneChains,
                                 tapBones = original.tapBones, periodicBones = original.periodicBones, idleBones = original.idleBones, idlePlane = original.idlePlane,
                                 idleScope = original.idleScope, springSoftness = original.springSoftness, springDamping = original.springDamping,
+                                swingMode = original.swingMode, springVersion = original.springVersion,
+                                shapePreservation = original.shapePreservation, idleLagSeconds = original.idleLagSeconds,
+                                idlePresetId = original.idlePresetId, swingRange = original.swingRange,
                                 tapFlexible = original.tapFlexible, periodicFlexible = original.periodicFlexible), partFlow.trigger.chains(original).mapIndexed { i, chain ->
                                 val impulse = if (partFlow.trigger == PartTrigger.TAP) p.tapFlexible else p.periodicFlexible
                                 if (i == selectedChain - 1) chain.copy(bones = p.bones,
+                                    swingMode = p.swingMode, springVersion = p.springVersion,
+                                    shapePreservation = p.shapePreservation, idleLagSeconds = p.idleLagSeconds,
+                                    idlePresetId = p.idlePresetId, swingRange = p.swingRange,
                                     scope = if (partFlow.trigger == PartTrigger.CONTINUOUS) p.idleScope else impulse.scope,
                                     softness = if (partFlow.trigger == PartTrigger.CONTINUOUS) p.springSoftness else impulse.softness,
                                     damping = if (partFlow.trigger == PartTrigger.CONTINUOUS) p.springDamping else impulse.damping) else chain
@@ -845,6 +851,13 @@ fun LayeredPetEditor(
                                 }, enabled = chains.size < 3) { Text("＋ 骨链") }
                             }
                             if (editingChain != null) {
+                                OutlinedButton(onClick = {
+                                    val next = partFlow.trigger.copyPreviousChain(original, selectedChain)
+                                    rig = rig.copy(layers = rig.layers.map { if (it.id == activeLayer) next else it })
+                                    selectedBone = 0
+                                    previewMode = RigPreviewMode.BONES
+                                }) { Text("复制上一条骨链的绑点和所有效果") }
+                                Text("复制后先与上一条重合，可移动绑点和影响区域；后续修改互不影响。", style = MaterialTheme.typography.bodySmall)
                                 OutlinedTextField(editingChain.name, { name ->
                                     val next = partFlow.trigger.withChains(original, chains.mapIndexed { i, chain -> if (i == selectedChain - 1) chain.copy(name = name.take(40)) else chain })
                                     rig = rig.copy(layers = rig.layers.map { if (it.id == activeLayer) next else it })

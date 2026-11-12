@@ -57,6 +57,27 @@ internal enum class PartTrigger(val label: String, val description: String) {
         this == CONTINUOUS && separate(layer) -> layer.copy(idleBoneChains = chains)
         else -> layer.copy(boneChains = chains)
     }
+    /** Copy by value; the selected chain keeps its own name and future edits. */
+    fun copyPreviousChain(layer: TapNestLayer, selected: Int): TapNestLayer {
+        val extras = chains(layer)
+        val target = extras.getOrNull(selected - 1) ?: return layer
+        val previous = extras.getOrNull(selected - 2)
+        val effective = previous?.asLayer(layer) ?: layer
+        val impulse = if (this == TAP) effective.tapFlexible else effective.periodicFlexible
+        val copied = TapNestBoneChain(
+            name = target.name,
+            bones = (previous?.bones ?: bones(layer)).map { it.copy() },
+            region = (previous?.region ?: region(layer)).copy(),
+            plane = (previous?.plane?.takeIf { it.enabled } ?: plane(layer)).copy(),
+            scope = if (this == CONTINUOUS) effective.idleScope else impulse.scope,
+            softness = if (this == CONTINUOUS) effective.springSoftness else impulse.softness,
+            damping = if (this == CONTINUOUS) effective.springDamping else impulse.damping,
+            swingMode = effective.swingMode, springVersion = effective.springVersion,
+            shapePreservation = effective.shapePreservation, idleLagSeconds = effective.idleLagSeconds,
+            idlePresetId = effective.idlePresetId, swingRange = effective.swingRange)
+        return withChains(layer, extras.mapIndexed { i, chain -> if (i == selected - 1) copied else chain })
+    }
+
     fun bones(layer: TapNestLayer): List<TapNestBonePoint> = when(this) {
         TAP -> layer.tapBones ?: layer.bones
         IDLE -> layer.periodicBones ?: layer.bones
