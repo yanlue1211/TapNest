@@ -13,10 +13,12 @@ object TapNestLayerActions {
      * their historical 680ms / 700ms touch and idle windows.
      */
     fun tapMotionDuration(layer: TapNestLayer): Long =
-        if (layer.tapMotion == TapNestPartMotion.HAT_POP) 960L else 680L
+        if (layer.tapFlexible.enabled) layer.tapFlexible.durationMs.coerceIn(200L, 3000L)
+        else if (layer.tapMotion == TapNestPartMotion.HAT_POP) 960L else 680L
 
     private fun periodicPulseDuration(layer: TapNestLayer): Long =
-        if (layer.periodicAction == TapNestPeriodicAction.SHAKE &&
+        if (layer.periodicFlexible.enabled) layer.periodicFlexible.durationMs.coerceIn(200L, 3000L)
+        else if (layer.periodicAction == TapNestPeriodicAction.SHAKE &&
             (layer.periodicMotion ?: layer.tapMotion) == TapNestPartMotion.HAT_POP) 960L
         else PULSE_MS
 
@@ -49,6 +51,55 @@ object TapNestLayerActions {
             ?: return null
         if (!layer.interactionConfigured) return null
         return periodicElapsed(driver, elapsedMs)
+    }
+
+    /** Shared skinning input. A tap replaces the timed impulse, never accumulates it. */
+    fun jointAngles(layer: TapNestLayer, layers: List<TapNestLayer>, sceneMs: Long,
+                    touchMs: Long, idle: FloatArray?): FloatArray? {
+        if (!layer.interactionConfigured || layer.bones.size !in 2..8) return idle
+        val timed = periodicElapsed(layer, layers, sceneMs)
+        val action: TapNestImpulse
+        val age: Long
+        when {
+            layer.tapShake && layer.tapFlexible.enabled && touchMs in 0 until tapMotionDuration(layer) -> {
+                action = layer.tapFlexible; age = touchMs
+            }
+            layer.periodicEnabled && layer.periodicAction == TapNestPeriodicAction.SHAKE &&
+                layer.periodicFlexible.enabled && timed != null && touchMs >= 1800L -> {
+                action = layer.periodicFlexible; age = timed
+            }
+            else -> return idle
+        }
+        val count = layer.bones.size - 1
+        val duration = action.durationMs.coerceIn(200L, 3000L).toDouble()
+        val progress = (age / duration).coerceIn(0.0, 1.0)
+        // Zero displacement and velocity at both ends; bounded and restartable.
+        val envelope = kotlin.math.sin(kotlin.math.PI * progress).let { it * it } *
+            kotlin.math.exp(-action.damping.coerceIn(.1f, 1.3f) * progress * 2.0)
+        val cycles = action.count.coerceIn(1, 6) * action.speed.coerceIn(.5f, 6f) / 3.0
+        val absolute = FloatArray(count) { i ->
+            val u = (i + 1f) / count
+            val weight = when (action.scope) {
+                TapNestMotionScope.WHOLE -> u
+                TapNestMotionScope.DISTAL -> ((u - .25f) / .75f).coerceIn(0f, 1f).let { it * it }
+                TapNestMotionScope.TIP -> if (count == 1) 1f else (i.toFloat() / (count - 1)).let { it * it * it }
+            }
+            val lag = i * action.softness.coerceIn(0f, 1f) * .15
+            (action.amplitude.coerceIn(0f, 55f) * weight * envelope *
+                kotlin.math.sin(2 * kotlin.math.PI * cycles * progress - lag)).toFloat()
+        }
+        return FloatArray(count) { i ->
+            ((idle?.getOrNull(i) ?: 0f) + absolute[i] -
+                (if (i == 0) 0f else absolute[i - 1])).coerceIn(-65f, 65f)
+        }
+    }
+
+    fun frameLabel(owner: TapNestLayer, layers: List<TapNestLayer>, index: Int): String {
+        val frame = if (index == 0) owner else layers.firstOrNull {
+            it.frameOwner == owner.id && it.frameIndex == index
+        }
+        return frame?.displayName?.takeIf { it.isNotBlank() }
+            ?: if (index == 0) "默认帧" else "动作帧 $index"
     }
 
     fun hasPeriodicPartner(layer: TapNestLayer, layers: List<TapNestLayer>): Boolean =
@@ -105,6 +156,8 @@ object TapNestLayerActions {
 
     fun motionPose(layer: TapNestLayer, motionAgeMs: Long,
                    periodic: Boolean = false, canvasHeight: Int = 512): TapNestPose {
+        if ((if (periodic) layer.periodicFlexible else layer.tapFlexible).enabled &&
+            layer.bones.size >= 2) return TapNestPose()
         val selected = if (periodic) layer.periodicMotion ?: layer.tapMotion else layer.tapMotion
         // A mirrored clone already reverses the canvas. Use the source-side
         // clip sign to prevent reflecting left/right flap directions twice.

@@ -56,7 +56,7 @@ class TapNestSpringChain {
             } else (amplitude * sin(phase)).toFloat()
         }
 
-        val resetNeeded = lastLayer != layer || count != orientations.size ||
+        val resetNeeded = lastLayer?.bones != layer.bones || count != orientations.size ||
             previousTimeMs < 0L || now < previousTimeMs ||
             now - previousTimeMs > 600L
         if (resetNeeded) {

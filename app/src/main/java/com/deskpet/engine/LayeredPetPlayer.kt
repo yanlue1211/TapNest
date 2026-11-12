@@ -270,10 +270,13 @@ class LayeredPetPlayer private constructor(
             val spring = skinLayer.idleSwing && skinLayer.bones.size >= 2 &&
                 skinLayer.swingMode == TapNestSwingMode.SPRING
             val mesh = if (spring) TapNestFlexibleMesh.SPRING_GRID else TapNestFlexibleMesh.GRID
-            val jointAngles = if (spring && !held) {
+            val idleAngles = if (spring && !held) {
                 springChains.getOrPut(skinLayer.id) { TapNestSpringChain() }.step(skinLayer, now - launchedAtMs)
             } else null
-            if (spring && skinLayer.shapePreservation >= 0.999f &&
+            val jointAngles = if (!held && !reacting) TapNestLayerActions.jointAngles(
+                skinLayer, rig.layers, now - launchedAtMs, elapsed, idleAngles) else null
+            val impulseActive = jointAngles !== idleAngles
+            if (spring && !impulseActive && skinLayer.shapePreservation >= 0.999f &&
                 skinLayer.bones.all { it.swingDirection == TapNestBoneSwingDirection.AUTO } &&
                 jointAngles != null && jointAngles.isNotEmpty()) {
                 // True rigid mode: draw the intact bitmap instead of running it
@@ -287,7 +290,7 @@ class LayeredPetPlayer private constructor(
                 canvas.restore()
             } else {
                 val flexible = if (held) null else TapNestFlexibleMesh.vertices(
-                    skinLayer, source.first, source.second, now - launchedAtMs, mesh, jointAngles
+                    if (impulseActive) skinLayer.copy(shapePreservation = 0f) else skinLayer, source.first, source.second, now - launchedAtMs, mesh, jointAngles
                 )
                 if (flexible != null) {
                     canvas.drawBitmapMesh(picture, mesh, mesh, flexible, 0, null, 0, paint)

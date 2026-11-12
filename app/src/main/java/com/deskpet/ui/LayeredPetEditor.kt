@@ -13,6 +13,7 @@ import androidx.compose.foundation.relocation.BringIntoViewRequester
 import androidx.compose.foundation.relocation.bringIntoViewRequester
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -77,7 +78,11 @@ fun LayeredPetEditor(
     var showOtherParts by remember { mutableStateOf(true) }
     var showBonesHelp by remember { mutableStateOf(false) }
     val pageScroll = rememberScrollState()
-    LaunchedEffect(showSettings, activeLayer) { pageScroll.scrollTo(0) }
+    var actionPage by remember(activeLayer) { mutableStateOf<String?>(null) }
+    val settingsScroll = rememberScrollState()
+    val detailScroll = rememberScrollState()
+    var dragUnlocked by remember(activeLayer) { mutableStateOf(false) }
+    fun back() { if (actionPage != null) actionPage = null else if (showSettings) showSettings = false else onBack() }
     var error by remember { mutableStateOf<String?>(null) }
     val images = remember(editingPet?.id, formId) {
         mutableStateMapOf<String, Uri>().apply {
@@ -145,18 +150,66 @@ fun LayeredPetEditor(
         error = null
     }
 
-    BackHandler(!busy) { if (showSettings) showSettings = false else onBack() }
+    BackHandler(!busy) { back() }
     Scaffold(topBar = {
         TopAppBar(title = { Text(if (showSettings) "⚙️ 当前部位 · 动作帧" else
                 if (editingPet == null) "🌱 创建第一形态" else if (formForEdit != null) "🦴 编辑形态 · ${formForEdit.name}" else "🦴 重新编辑 · ${editingPet.displayName}") },
             navigationIcon = { TextButton(onClick = {
-                if (showSettings) showSettings = false else onBack()
+                back()
             }, enabled = !busy) { Text(if (showSettings) "返回素材" else "返回") } },
             colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background))
     }) { padding ->
+        Column(Modifier.fillMaxSize().padding(padding)) {
+            if (showSettings) {
+                Surface(tonalElevation = 2.dp) {
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 12.dp)) {
+            LayeredRigPreview(
+                rig = rig,
+                uris = images.toMap(),
+                selected = activeLayer,
+                mode = previewMode,
+                selectedBone = selectedBone,
+                showOtherParts = showOtherParts,
+                allowEditingDrag = dragUnlocked,
+                onSelectBone = { selectedBone = it },
+                onSetBone = { index, bx, by ->
+                    rig = rig.copy(layers = rig.layers.map { layer ->
+                        if (layer.id == activeLayer) layer.copy(bones = layer.bones.mapIndexed { i, bone ->
+                            if (i == index) TapNestBonePoint(bx, by) else bone
+                        }) else layer
+                    })
+                },
+                onSelectLayer = { id -> activeLayer = id },
+                onDragLayer = { dx, dy ->
+                    rig = rig.copy(layers = rig.layers.map { layer ->
+                        if (layer.id == activeLayer)
+                            layer.copy(x = (layer.x + if (layer.mirrorX) -dx else dx).coerceIn(-2048f, 2048f),
+                                y = (layer.y + dy).coerceIn(-2048f, 2048f))
+                        else layer
+                    })
+                },
+                onSetPivot = { x, y ->
+                    rig = rig.copy(layers = rig.layers.map { layer ->
+                        if (layer.id == activeLayer) layer.copy(pivotX = x, pivotY = y)
+                        else layer
+                    })
+                }
+            )
+
+                        Row(Modifier.horizontalScroll(rememberScrollState()),
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            TextButton(onClick = { previewMode = RigPreviewMode.POSITION }) { Text("选择部位") }
+                            TextButton(onClick = { previewMode = RigPreviewMode.TEST }) { Text("测试动作") }
+                            TextButton(onClick = { previewMode = RigPreviewMode.BONES; actionPage = "bones" }) { Text("编辑绑骨") }
+                            TextButton(onClick = { previewMode = RigPreviewMode.PIVOT }) { Text("旋转中心") }
+                            TextButton(onClick = { dragUnlocked = !dragUnlocked }) { Text(if (dragUnlocked) "锁定拖动" else "解锁拖动") }
+                        }
+                    }
+                }
+            }
         Column(
-            Modifier.fillMaxSize().padding(padding)
-                .verticalScroll(pageScroll).padding(16.dp),
+            Modifier.weight(1f).fillMaxWidth()
+                .verticalScroll(if (!showSettings) pageScroll else if (actionPage == null) settingsScroll else detailScroll).padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
             if (!showSettings) {
@@ -496,23 +549,18 @@ fun LayeredPetEditor(
             )
             } // Basic default-frame upload page
             if (showSettings) {
-            NestHero(title = "细调动作与骨骼",
-                subtitle = "展开下面的卡片，按自己的节奏逐项调整",
-                emoji = "🎐", compact = true)
-            TextButton(onClick = { showSettings = false }) { Text("← 返回默认帧素材列表") }
-            NestSection("当前部位的绑骨编辑", "只调整当前图层的动作和骨骼")
+            TextButton(onClick = { back() }) { Text(if (actionPage == null) "← 返回素材列表" else "← 返回部位设置") }
             Spacer(Modifier.bringIntoViewRequester(editorRequester).height(1.dp))
             val layer = rig.layers.firstOrNull { it.id == activeLayer }
             if (layer != null) {
                 var foldPreview by remember(activeLayer) { mutableStateOf(false) }
                 var foldFrames by remember(activeLayer) { mutableStateOf(false) }
                 var foldActions by remember(activeLayer) { mutableStateOf(false) }
-                var foldPosition by remember(activeLayer) { mutableStateOf(false) }
+                var foldPosition by remember(activeLayer) { mutableStateOf(true) }
                 var foldBones by remember(activeLayer) { mutableStateOf(false) }
                 var foldTailPreset by remember(activeLayer) { mutableStateOf(false) }
-                var foldSwing by remember(activeLayer) { mutableStateOf(false) }
-                var foldBonePoints by remember(activeLayer) { mutableStateOf(false) }
-                var dragUnlocked by remember(activeLayer) { mutableStateOf(false) }
+                var foldSwing by remember(activeLayer) { mutableStateOf(true) }
+                var foldBonePoints by remember(activeLayer) { mutableStateOf(true) }
                 Text("当前：${TapNestTemplates.slotsFor(rig).firstOrNull { it.id == activeLayer }?.label ?: activeLayer}")
                 OutlinedTextField(
                     value = layer.displayName,
@@ -523,109 +571,84 @@ fun LayeredPetEditor(
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true
                 )
-            FoldHeader("🖼️ 实时合成预览", foldPreview) { foldPreview = !foldPreview }
-            if (foldPreview) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("🖼️ 实时合成预览", modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Text("其他部位", style = MaterialTheme.typography.bodySmall)
-                Switch(checked = showOtherParts, onCheckedChange = { showOtherParts = it })
-            }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("解锁拖动（默认锁定，避免滚动误移位）",
-                    modifier = Modifier.weight(1f), style = MaterialTheme.typography.bodySmall)
-                Switch(checked = dragUnlocked, onCheckedChange = { dragUnlocked = it })
-            }
-            Row(modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
-                    selected = previewMode == RigPreviewMode.POSITION,
-                    onClick = { previewMode = RigPreviewMode.POSITION },
-                    label = { Text("移动图层", maxLines = 1) },
-                    modifier = Modifier.weight(1f)
-                )
-                FilterChip(
-                    selected = previewMode == RigPreviewMode.PIVOT,
-                    onClick = { previewMode = RigPreviewMode.PIVOT },
-                    label = { Text("点设锚点", maxLines = 1) },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            Row(modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                FilterChip(
-                    selected = previewMode == RigPreviewMode.BONES,
-                    onClick = { previewMode = RigPreviewMode.BONES },
-                    label = { Text("编辑骨骼点", maxLines = 1) },
-                    modifier = Modifier.weight(1f)
-                )
-                FilterChip(
-                    selected = previewMode == RigPreviewMode.TEST,
-                    onClick = { previewMode = RigPreviewMode.TEST },
-                    label = { Text("试玩互动", maxLines = 1) },
-                    modifier = Modifier.weight(1f)
-                )
-            }
-            Text(
-                when (previewMode) {
-                    RigPreviewMode.POSITION ->
-                        "点击预览上的角色部件可选中图层，再拖动改变 X/Y；下方也能精细调整。"
-                    RigPreviewMode.PIVOT ->
-                        "直接点击当前部件的旋转中心，绿点会移动到点击位置。"
-                    RigPreviewMode.BONES ->
-                        "点击橙色骨骼点可选中；点击图上其他位置可移动选中的点。至少 2 个点才能柔性弯曲。"
-                    RigPreviewMode.TEST ->
-                        "点击小伙伴测试表情、翅膀等互动。长按拎起动画请在素材页的「长按拎起效果」中预览。"
-                },
-                style = MaterialTheme.typography.bodySmall
-            )
-            LayeredRigPreview(
-                rig = rig,
-                uris = images.toMap(),
-                selected = activeLayer,
-                mode = previewMode,
-                selectedBone = selectedBone,
-                showOtherParts = showOtherParts,
-                allowEditingDrag = dragUnlocked,
-                onSelectBone = { selectedBone = it },
-                onSetBone = { index, bx, by ->
-                    rig = rig.copy(layers = rig.layers.map { layer ->
-                        if (layer.id == activeLayer) layer.copy(bones = layer.bones.mapIndexed { i, bone ->
-                            if (i == index) TapNestBonePoint(bx, by) else bone
-                        }) else layer
-                    })
-                },
-                onSelectLayer = { id -> activeLayer = id },
-                onDragLayer = { dx, dy ->
-                    rig = rig.copy(layers = rig.layers.map { layer ->
-                        if (layer.id == activeLayer)
-                            layer.copy(x = (layer.x + if (layer.mirrorX) -dx else dx).coerceIn(-2048f, 2048f),
-                                y = (layer.y + dy).coerceIn(-2048f, 2048f))
-                        else layer
-                    })
-                },
-                onSetPivot = { x, y ->
-                    rig = rig.copy(layers = rig.layers.map { layer ->
-                        if (layer.id == activeLayer) layer.copy(pivotX = x, pivotY = y)
-                        else layer
-                    })
-                }
-            )
 
-            } // foldPreview
 
                 fun update(p: TapNestLayer) {
                     rig = rig.copy(layers = rig.layers.map { if (it.id == activeLayer) p else it })
                 }
-                FoldHeader("🎞️ 动作帧 / 换图设置", foldFrames) { foldFrames = !foldFrames }
-                if (foldFrames) {
+                if (actionPage == null) {
+                FoldHeader("📍 A. 位置与图层", foldPosition) { foldPosition = !foldPosition }
+                if (foldPosition) {
+                var parentMenu by remember(activeLayer) { mutableStateOf(false) }
+                Box {
+                    TextButton(onClick = { parentMenu = true }) {
+                        Text("绑定到父图层：${layer.parentId ?: "无（独立）"}  ▾")
+                    }
+                    DropdownMenu(expanded = parentMenu, onDismissRequest = { parentMenu = false }) {
+                        DropdownMenuItem(text = { Text("无（独立）") }, onClick = {
+                            update(layer.copy(parentId = null)); parentMenu = false
+                        })
+                        for (parent in rig.layers.filter { it.id != layer.id }) {
+                            val lineage = mutableSetOf<String>()
+                            var n: TapNestLayer? = parent
+                            while (n != null && lineage.add(n.id)) {
+                                n = rig.layers.firstOrNull { it.id == n?.parentId }
+                            }
+                            if (layer.id in lineage) continue
+                            DropdownMenuItem(text = { Text(parent.id) }, onClick = {
+                                update(layer.copy(parentId = parent.id)); parentMenu = false
+                            })
+                        }
+                    }
+                }
+                BindingSlider("水平位置 X", layer.x, -512f, 512f) { update(layer.copy(x = it)) }
+                BindingSlider("垂直位置 Y", layer.y, -512f, 512f) { update(layer.copy(y = it)) }
+                BindingSlider("旋转中心 X", layer.pivotX, 0f, 1f) { update(layer.copy(pivotX = it)) }
+                BindingSlider("旋转中心 Y", layer.pivotY, 0f, 1f) { update(layer.copy(pivotY = it)) }
+                BindingSlider("图层原始大小", layer.restScale, 0.2f, 3f) { update(layer.copy(restScale = it)) }
+                BindingSlider("前后层级", layer.zIndex.toFloat(), 0f, 50f) {
+                    update(layer.copy(zIndex = it.toInt()))
+                }
+                OutlinedButton(onClick = { update(layer.copy(x = 0f, y = 0f)) }) {
+                    Text("↺ 位置复位")
+                }
+                OutlinedButton(onClick = { update(layer.copy(restScale = 1f)) }) { Text("↺ 大小复位（100%）") }
+                OutlinedButton(onClick = { update(layer.copy(x = 0f, y = 0f, restScale = 1f)) }) {
+                    Text("↺ 位置与大小全部复位")
+                }
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("对本部位应用中轴镜像", modifier = Modifier.weight(1f),
+                        style = MaterialTheme.typography.bodySmall)
+                    Switch(checked = layer.mirrorX,
+                        onCheckedChange = { update(layer.copy(mirrorX = it)) })
+                }
+                } // foldPosition
+                }
+                if (actionPage == null) {
+                    Text("🎮 B. 动作与互动", style = MaterialTheme.typography.titleMedium)
+                    MotionEntry("👆 点触互动", layer.tapShake || layer.tapSwitchFrame,
+                        if (layer.tapFlexible.enabled) "柔性绑骨 · ${layer.tapFlexible.scope} · ${layer.tapFlexible.count} 次" else "整体动作 / 换帧",
+                        { update(layer.copy(interactionConfigured = true, tapShake = it,
+                            tapSwitchFrame = if (it) layer.tapSwitchFrame else false)) }, { actionPage = "tap" })
+                    MotionEntry("⏰ 定时动作", layer.periodicEnabled, "每 ${layer.periodicIntervalSeconds} 秒",
+                        { update(layer.copy(interactionConfigured = true, periodicEnabled = it)) }, { actionPage = "periodic" })
+                    MotionEntry("🌿 持续轻摆", layer.idleSwing, "${layer.swingMode} · ${layer.idleAmplitude}°",
+                        { update(layer.copy(idleSwing = it)) }, { actionPage = "swing" })
+                    if (rig.layers.any { it.frameOwner == layer.id }) MotionEntry("😉 自动眨眼", layer.idleBlinkEnabled,
+                        TapNestLayerActions.frameLabel(layer, rig.layers, layer.blinkFrame),
+                        { update(layer.copy(interactionConfigured = true, idleBlinkEnabled = it)) }, { actionPage = "blink" })
+                }
+                FoldHeader("🖼️ C. 素材与动作帧", foldFrames) { foldFrames = !foldFrames }
+                if (foldFrames && actionPage == null) {
                 Text("基础素材列表只放默认帧。此处可以为当前部位再传最多 3 张动作图；不上传也可以只用晃动。图片需与默认帧使用同一透明画布。",
                     style = MaterialTheme.typography.bodySmall)
                 val extraFrames = rig.layers.filter { it.frameOwner == layer.id }
                     .sortedBy { it.frameIndex }
                 extraFrames.forEach { frame ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("动作帧 ${frame.frameIndex}", modifier = Modifier.weight(1f))
+                        OutlinedTextField(value = frame.displayName, onValueChange = { text ->
+                            rig = rig.copy(layers = rig.layers.map { if (it.id == frame.id) it.copy(displayName = text.take(80)) else it })
+                        }, label = { Text("动作帧 ${frame.frameIndex} · 名称") }, modifier = Modifier.weight(1f))
                         TextButton(onClick = {
                             pickingLayer = frame.id
                             picker.launch(arrayOf("image/png"))
@@ -653,8 +676,7 @@ fun LayeredPetEditor(
                     }
                 }, enabled = extraFrames.size < 3) { Text("＋ 给本默认帧添加动作帧") }
                 } // foldFrames
-                FoldHeader("🎮 点触 / 定时 / 眨眼", foldActions) { foldActions = !foldActions }
-                if (foldActions) {
+                if (actionPage in listOf("tap", "periodic", "blink")) {
                 if (!layer.interactionConfigured) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("启用自定义动作（旧版角色原动作不变）",
@@ -664,6 +686,7 @@ fun LayeredPetEditor(
                         })
                     }
                 } else {
+                    if (actionPage == "tap") {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("点触时播放本部位动作", modifier = Modifier.weight(1f))
                         Switch(checked = layer.tapShake, onCheckedChange = {
@@ -708,7 +731,7 @@ fun LayeredPetEditor(
                             layer.hatFlightHeight, 0.08f, 0.40f) {
                             update(layer.copy(hatFlightHeight = it))
                         }
-                        Text("默认飞起约画布高度的 22%，约为旧动画的 4 倍。若飞出画布被截断，请在 PNG 画布顶部留透明空间，或稍微调低高度。",
+                        Text("默认飞起约画布高度的 22%，约为旧动画的 4 倍。顶部空间需要同时匹配预览与悬浮窗口。",
                             style = MaterialTheme.typography.bodySmall)
                     }
                     if (layer.tapSwitchFrame) {
@@ -718,10 +741,13 @@ fun LayeredPetEditor(
                             for (n in 1..3) FilterChip(
                                 selected = layer.tapFrame == n,
                                 onClick = { update(layer.copy(tapFrame = n)) },
-                                label = { Text("帧 ${n}") }
+                                label = { Text(TapNestLayerActions.frameLabel(layer, rig.layers, n)) }
                             )
                         }
                     }
+                    ImpulseSettings(layer.tapFlexible) { update(layer.copy(tapFlexible = it)) }
+                    }
+                    if (actionPage == "periodic") {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("每隔一段时间自动动作／换帧", modifier = Modifier.weight(1f))
                         Switch(checked = layer.periodicEnabled, onCheckedChange = {
@@ -785,11 +811,14 @@ fun LayeredPetEditor(
                                 for (n in 1..3) FilterChip(
                                     selected = layer.periodicFrame == n,
                                     onClick = { update(layer.copy(periodicFrame = n)) },
-                                    label = { Text("帧 ${n}") }
+                                    label = { Text(TapNestLayerActions.frameLabel(layer, rig.layers, n)) }
                                 )
                             }
                         }
                     }
+                    ImpulseSettings(layer.periodicFlexible) { update(layer.copy(periodicFlexible = it)) }
+                    }
+                    if (actionPage == "blink") {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Text("正常静置时偶尔眨眼（需上传闭眼动作帧）",
                             modifier = Modifier.weight(1f))
@@ -802,58 +831,16 @@ fun LayeredPetEditor(
                             for (n in 1..3) FilterChip(
                                 selected = layer.blinkFrame == n,
                                 onClick = { update(layer.copy(blinkFrame = n)) },
-                                label = { Text("眨眼帧 ${n}") }
+                                label = { Text(TapNestLayerActions.frameLabel(layer, rig.layers, n)) }
                             )
                         }
+                    }
                     }
                     Text("点触、定时短动作、连续摆动、眨眼分别设置；左右耳朵／翅膀默认共享定时节奏。",
                         style = MaterialTheme.typography.bodySmall)
                 }
                 } // foldActions
-                FoldHeader("📍 位置 / 缩放 / 父图层", foldPosition) { foldPosition = !foldPosition }
-                if (foldPosition) {
-                var parentMenu by remember(activeLayer) { mutableStateOf(false) }
-                Box {
-                    TextButton(onClick = { parentMenu = true }) {
-                        Text("绑定到父图层：${layer.parentId ?: "无（独立）"}  ▾")
-                    }
-                    DropdownMenu(expanded = parentMenu, onDismissRequest = { parentMenu = false }) {
-                        DropdownMenuItem(text = { Text("无（独立）") }, onClick = {
-                            update(layer.copy(parentId = null)); parentMenu = false
-                        })
-                        for (parent in rig.layers.filter { it.id != layer.id }) {
-                            val lineage = mutableSetOf<String>()
-                            var n: TapNestLayer? = parent
-                            while (n != null && lineage.add(n.id)) {
-                                n = rig.layers.firstOrNull { it.id == n?.parentId }
-                            }
-                            if (layer.id in lineage) continue
-                            DropdownMenuItem(text = { Text(parent.id) }, onClick = {
-                                update(layer.copy(parentId = parent.id)); parentMenu = false
-                            })
-                        }
-                    }
-                }
-                BindingSlider("水平位置 X", layer.x, -512f, 512f) { update(layer.copy(x = it)) }
-                BindingSlider("垂直位置 Y", layer.y, -512f, 512f) { update(layer.copy(y = it)) }
-                BindingSlider("旋转中心 X", layer.pivotX, 0f, 1f) { update(layer.copy(pivotX = it)) }
-                BindingSlider("旋转中心 Y", layer.pivotY, 0f, 1f) { update(layer.copy(pivotY = it)) }
-                BindingSlider("图层原始大小", layer.restScale, 0.2f, 3f) { update(layer.copy(restScale = it)) }
-                BindingSlider("前后层级", layer.zIndex.toFloat(), 0f, 50f) {
-                    update(layer.copy(zIndex = it.toInt()))
-                }
-                OutlinedButton(onClick = { update(layer.copy(x = 0f, y = 0f)) }) {
-                    Text("↺ 图层位置复位（恢复最初 X / Y）")
-                }
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("对本部位应用中轴镜像", modifier = Modifier.weight(1f),
-                        style = MaterialTheme.typography.bodySmall)
-                    Switch(checked = layer.mirrorX,
-                        onCheckedChange = { update(layer.copy(mirrorX = it)) })
-                }
-                } // foldPosition
-                FoldHeader("🌿 绑骨 / 闲置晃动", foldBones) { foldBones = !foldBones }
-                if (foldBones) {
+                if (actionPage == "swing" || actionPage == "bones") {
                 Text("尾巴、翅膀、耳朵都可以独立绑定。2～8 个点从根到尖，选中点位后可分别设置左右、上下或旋转方向。",
                     style = MaterialTheme.typography.bodySmall)
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -1191,6 +1178,7 @@ fun LayeredPetEditor(
             } // Base page save button
             Spacer(Modifier.height(18.dp))
         }
+        }
     }
 }
 
@@ -1233,5 +1221,41 @@ private fun FoldHeader(title: String, expanded: Boolean, onToggle: () -> Unit) {
                     color = colors.primary, style = MaterialTheme.typography.labelSmall)
             }
         }
+    }
+}
+
+@Composable
+private fun MotionEntry(title: String, enabled: Boolean, summary: String,
+                        onToggle: (Boolean) -> Unit, onOpen: () -> Unit) {
+    Card(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(12.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(title, Modifier.weight(1f)); Text(if (enabled) "开启" else "关闭")
+                Switch(enabled, onToggle)
+            }
+            Text(summary, style = MaterialTheme.typography.bodySmall)
+            TextButton(onClick = onOpen) { Text("进入设置 →") }
+        }
+    }
+}
+
+@Composable
+private fun ImpulseSettings(value: TapNestImpulse, update: (TapNestImpulse) -> Unit) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text("柔性绑骨（复用当前控制点）", Modifier.weight(1f))
+        Switch(value.enabled, { update(value.copy(enabled = it)) })
+    }
+    if (value.enabled) {
+        TapNestMotionScope.entries.forEach { scope ->
+            FilterChip(value.scope == scope, { update(value.copy(scope = scope)) }, label = {
+                Text(when(scope) { TapNestMotionScope.WHOLE -> "整段运动"; TapNestMotionScope.DISTAL -> "中后段运动"; TapNestMotionScope.TIP -> "只抖尖端" })
+            })
+        }
+        BindingSlider("摆动幅度", value.amplitude, 0f, 55f) { update(value.copy(amplitude = it)) }
+        BindingSlider("动作速度", value.speed, .5f, 6f) { update(value.copy(speed = it)) }
+        BindingSlider("柔软度", value.softness, 0f, 1f) { update(value.copy(softness = it)) }
+        BindingSlider("回弹阻尼", value.damping, .1f, 1.3f) { update(value.copy(damping = it)) }
+        BindingSlider("抖动次数", value.count.toFloat(), 1f, 6f) { update(value.copy(count = it.toInt())) }
+        BindingSlider("持续时间（毫秒）", value.durationMs.toFloat(), 200f, 3000f) { update(value.copy(durationMs = it.toLong())) }
     }
 }

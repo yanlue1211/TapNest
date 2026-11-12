@@ -51,6 +51,21 @@ enum class TapNestPartMotion { NOD, BOUNCE, FLAP, TWITCH, HAT_POP }
 enum class TapNestPeriodicAction { SHAKE, SWITCH_FRAME }
 
 @Serializable
+enum class TapNestMotionScope { WHOLE, DISTAL, TIP }
+
+@Serializable
+data class TapNestImpulse(
+    val enabled: Boolean = false,
+    val scope: TapNestMotionScope = TapNestMotionScope.TIP,
+    val amplitude: Float = 18f,
+    val speed: Float = 3f,
+    val softness: Float = .7f,
+    val damping: Float = .45f,
+    val count: Int = 2,
+    val durationMs: Long = 680L
+)
+
+@Serializable
 data class TapNestLayer(
     val id: String,
     val image: String,
@@ -95,6 +110,8 @@ data class TapNestLayer(
     val interactionConfigured: Boolean = false,
     /** Motion settings are edited on the owner/default-frame screen. */
     val tapShake: Boolean = false,
+    val tapFlexible: TapNestImpulse = TapNestImpulse(),
+    val periodicFlexible: TapNestImpulse = TapNestImpulse(),
     val tapMotion: TapNestPartMotion = TapNestPartMotion.NOD,
     /** Hat flight height as fraction of the full PNG canvas (e.g. .22 = 22%). */
     val hatFlightHeight: Float = 0.22f,

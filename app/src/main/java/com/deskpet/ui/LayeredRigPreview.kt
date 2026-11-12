@@ -437,10 +437,13 @@ internal fun LayeredRigPreview(
                 skinLayer.bones.size >= 2 && skinLayer.swingMode == TapNestSwingMode.SPRING
             val resolution = if (spring) TapNestFlexibleMesh.SPRING_GRID else TapNestFlexibleMesh.GRID
             val elapsed = (now - previewStartedAt).coerceAtLeast(0L)
-            val jointAngles = if (spring) {
+            val idleAngles = if (spring) {
                 springChains.getOrPut(skinLayer.id) { TapNestSpringChain() }.step(skinLayer, elapsed)
             } else null
-            if (spring && skinLayer.shapePreservation >= 0.999f &&
+            val jointAngles = if (mode == RigPreviewMode.TEST && !pickupPreview) TapNestLayerActions.jointAngles(
+                skinLayer, rig.layers, elapsed, touchElapsed, idleAngles) else null
+            val impulseActive = jointAngles !== idleAngles
+            if (spring && !impulseActive && skinLayer.shapePreservation >= 0.999f &&
                 skinLayer.bones.all { it.swingDirection == TapNestBoneSwingDirection.AUTO } &&
                 jointAngles != null && jointAngles.isNotEmpty()) {
                 val root = skinLayer.bones.first()
@@ -452,7 +455,7 @@ internal fun LayeredRigPreview(
                 native.restore()
             } else {
                 val mesh = if (mode == RigPreviewMode.TEST) TapNestFlexibleMesh.vertices(
-                    skinLayer, art.width, art.height, elapsed, resolution, jointAngles) else null
+                    if (impulseActive) skinLayer.copy(shapePreservation = 0f) else skinLayer, art.width, art.height, elapsed, resolution, jointAngles) else null
                 if (mesh != null) {
                     native.drawBitmapMesh(art.bitmap, resolution, resolution, mesh, 0, null, 0, paint)
                 } else native.drawBitmap(art.bitmap, null,
