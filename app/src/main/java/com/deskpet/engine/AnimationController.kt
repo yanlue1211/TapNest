@@ -20,6 +20,9 @@ class AnimationController(
      */
     data class Frame(val bitmap: Bitmap, val seq: Long, val topInset: Int = 0)
 
+    /** One render transaction: Compose must never combine independent flow generations. */
+    data class Presentation(val frame: Frame?, val width: Int, val height: Int, val topInset: Int = 0)
+
     companion object {
         private const val IDLE_FRAME_INTERVAL_NS = 500_000_000L
         private const val ANIM_FRAME_INTERVAL_NS = 200_000_000L
@@ -50,6 +53,9 @@ class AnimationController(
     val petWidth: StateFlow<Int> = _w
     private val _h = MutableStateFlow(PetEngine.DEFAULT_PET_HEIGHT)
     val petHeight: StateFlow<Int> = _h
+    private val _presentation = MutableStateFlow(Presentation(null,
+        PetEngine.DEFAULT_PET_WIDTH, PetEngine.DEFAULT_PET_HEIGHT))
+    val presentation: StateFlow<Presentation> = _presentation
 
     private val visualGeneration = java.util.concurrent.atomic.AtomicLong()
     @Volatile private var fi = 0
@@ -92,6 +98,7 @@ class AnimationController(
         // 先清掉上一只的帧再创建新 loader：createLoader 内部会释放旧引擎资源
         // （如 GIF 双缓冲位图），必须保证渲染端不再引用它们
         _frame.value = null
+        publishPresentation()
         actionVisual = null
         cancelInteraction()
         loader = petEngine.createLoader(p) ?: run {
@@ -170,8 +177,9 @@ class AnimationController(
                         if (visual == null) (l as? PetEngine.PetLoader.Layered)?.player?.topInset ?: 0 else 0)
                     if (l is PetEngine.PetLoader.Layered && presentedLayeredPickedUp != layeredPickedUp) {
                         presentedLayeredPickedUp = layeredPickedUp
-                        applyScale()
+                        applyScale(publish = false)
                     }
+                    publishPresentation()
                 }
                 fi++
                 val tf = petEngine.getFrameCount(l, _state.value)
@@ -304,8 +312,8 @@ class AnimationController(
         presentedLayeredPickedUp = false
         transparentTopFraction = top
         reset()
-        applyScale()
         _frame.value = Frame(first, ++frameSeq, baseTopInset)
+        applyScale()
         start()
         true
     }
@@ -314,9 +322,14 @@ class AnimationController(
         (loader as? PetEngine.PetLoader.Layered)?.player?.setAffection(value)
     }
 
-    private fun applyScale() {
+    private fun publishPresentation() {
+        _presentation.value = Presentation(_frame.value, _w.value, _h.value, renderTopInset)
+    }
+
+    private fun applyScale(publish: Boolean = true) {
         _w.value = (baseW * s).toInt().coerceAtLeast(MIN_PET_SIZE_PX)
         _h.value = ((if (presentedLayeredPickedUp) basePickupH else baseH) * s)
             .toInt().coerceAtLeast(MIN_PET_SIZE_PX)
+        if (publish) publishPresentation()
     }
 }

@@ -201,12 +201,18 @@ class LayeredPetPlayerTest {
             val heldHeight = controller.petHeight.value
             assertTrue(heldHeight > normalHeight)
             val heldFrame = controller.currentFrame.value!!
+            val heldPresentation = controller.presentation.value
+            assertEquals(heldFrame, heldPresentation.frame)
+            assertEquals(heldHeight, heldPresentation.height)
             controller.setLayeredPickedUp(false)
             // Main dispatcher has not rendered the replacement frame yet.
             assertEquals(heldHeight, controller.petHeight.value)
             assertEquals(heldFrame, controller.currentFrame.value)
+            assertEquals(heldPresentation, controller.presentation.value)
             controller.setScale(2f)
             assertEquals(heldHeight * 2, controller.petHeight.value)
+            assertEquals(heldHeight * 2, controller.presentation.value.height)
+            assertEquals(heldFrame, controller.presentation.value.frame)
             controller.setLayeredPickedUp(true)
             assertEquals(heldHeight * 2, controller.petHeight.value)
             controller.stop()
