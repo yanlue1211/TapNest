@@ -329,7 +329,12 @@ class LayeredPetPlayer private constructor(
             } else {
                 val flexible = if (held) null else TapNestFlexibleMesh.vertices(
                     if (impulseActive) skinLayer.copy(shapePreservation = 0f) else skinLayer, source.first, source.second, now - launchedAtMs, mesh, jointAngles, extraAngles,
-                    angleDriveAmplitude = TapNestLayerActions.activeFlexibleDriveAmplitude(
+                    // The spring motor already respects the configured angle
+                    // window. Never divide its bounded output by the original
+                    // overlarge slider amplitude a SECOND time in the mesh.
+                    angleDriveAmplitude = if (spring && !impulseActive &&
+                        skinLayer.idlePlane.enabled && !skinLayer.idlePlane.linear) 0f
+                    else TapNestLayerActions.activeFlexibleDriveAmplitude(
                         skinLayer, rig.layers, now - launchedAtMs, elapsed)
                 )
                 if (flexible != null) {
