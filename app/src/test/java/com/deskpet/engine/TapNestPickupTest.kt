@@ -19,7 +19,10 @@ class TapNestPickupTest {
     }
 
     @Test fun oldManualRigRemainsPickupArtDisabled() {
-        val oldRig = TapNestTemplates.manual()
+        // Old imported 1-layer rigs stay readable, even though new templates
+        // now offer an additional empty, non-destructive clothing slot.
+        val oldRig = TapNestRig(canvasWidth = 512, canvasHeight = 512,
+            layers = listOf(TapNestLayer("body", "")))
         assertFalse(oldRig.pickupArtworkEnabled)
         val json = Json.encodeToString(TapNestRig.serializer(), oldRig)
         val decoded = Json.decodeFromString(TapNestRig.serializer(), json)
