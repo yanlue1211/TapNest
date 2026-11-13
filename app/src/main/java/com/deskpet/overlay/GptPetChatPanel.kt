@@ -72,6 +72,9 @@ internal class GptPetChatPanel(
     var loginRequired by mutableStateOf(false)
         private set
     private var draft by mutableStateOf("")
+    private var pendingDraft = ""
+    private var style by mutableStateOf("Chat")
+    fun setStyle(value: String) { style = value }
 
     fun show(petX: Float, petW: Int, bounds: Rect) {
         dismiss()
@@ -153,6 +156,7 @@ internal class GptPetChatPanel(
     }
     fun updatePartial(text: String) { partial = text }
     fun complete(user: String, reply: String) {
+        pendingDraft = ""
         lastUser = user
         lastReply = reply
         partial = ""
@@ -160,6 +164,8 @@ internal class GptPetChatPanel(
         status = "已保存 · 聊天与小金毛共享"
     }
     fun fail(message: String) {
+        if (draft.isBlank() && pendingDraft.isNotBlank()) draft = pendingDraft
+        pendingDraft = ""
         error = message
         partial = ""
         busy = false
@@ -198,7 +204,7 @@ internal class GptPetChatPanel(
                 verticalArrangement = Arrangement.spacedBy(4.dp)
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text("🐾 和小金毛聊天", style = MaterialTheme.typography.titleSmall,
+                    Text("🐾 GPT · " + style + " 聊天", style = MaterialTheme.typography.titleSmall,
                         modifier = Modifier.weight(1f))
                     TextButton(onClick = { keyboard?.hide(); focusManager.clearFocus(); onClose() }) {
                         Text("✕")
@@ -247,6 +253,7 @@ internal class GptPetChatPanel(
                         keyboardActions = KeyboardActions(onSend = {
                             if (draft.isNotBlank() && model.isNotBlank() && !busy &&
                                 onSend(draft.trim(), model)) {
+                                pendingDraft = draft.trim()
                                 draft = ""
                                 keyboard?.hide()
                                 focusManager.clearFocus()
@@ -256,6 +263,7 @@ internal class GptPetChatPanel(
                     Button(
                         onClick = {
                             if (onSend(draft.trim(), model)) {
+                                pendingDraft = draft.trim()
                                 draft = ""
                                 keyboard?.hide()
                                 focusManager.clearFocus()
