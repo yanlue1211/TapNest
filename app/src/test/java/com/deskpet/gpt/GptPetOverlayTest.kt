@@ -50,6 +50,28 @@ class GptPetOverlayTest {
         assertTrue(GptBubbleSlices.split(" ").isEmpty())
     }
 
+    @Test fun tinyChatTransfersTextBeforeClosingWithoutDroppingAnUnsentDraft() {
+        val bus = com.deskpet.overlay.OverlayState
+        bus.clearPetChatSender()
+        assertFalse(bus.submitPetChat("pet-a", "first draft"))
+        val seen = mutableListOf<String>()
+        bus.registerPetChatSender { pet, text ->
+            if (pet != "pet-a") false
+            else {
+                seen.add(text)
+                true
+            }
+        }
+        try {
+            assertFalse(bus.submitPetChat("pet-b", "must stay in input"))
+            assertTrue(bus.submitPetChat("pet-a", "你好，小金毛"))
+            assertEquals(listOf("你好，小金毛"), seen)
+        } finally {
+            bus.clearPetChatSender()
+        }
+        assertFalse(bus.submitPetChat("pet-a", "service already gone"))
+    }
+
     @Test fun quotaErrorIsFriendlyAndNeverTriggersPaidFallback() {
         val msg = GptFriendlyErrors.text(IllegalStateException(
             "GPT 响应未完成：subscription_sharing_usage_limit_exceeded"))
