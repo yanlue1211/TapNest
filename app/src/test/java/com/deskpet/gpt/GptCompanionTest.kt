@@ -7,9 +7,40 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import java.util.UUID
+import java.io.StringReader
+import org.json.JSONArray
+import org.json.JSONObject
 
 @RunWith(RobolectricTestRunner::class)
 class GptCompanionTest {
+    @Test fun largeModelCatalogDoesNotGetCutOffAndKeepsServerOrder() {
+        val largeMetadata = "long metadata ".repeat(3000)
+        val catalog = JSONObject().put("models", JSONArray()
+            .put(JSONObject().put("slug", "gpt-6.1-sol")
+                .put("metadata", JSONObject().put("notes", largeMetadata)
+                    .put("nested", JSONArray().put(JSONObject().put("some", "other"))))
+                .put("visibility", "list").put("display_name", "GPT-6.1 Sol"))
+            .put(JSONObject().put("visibility", "hidden")
+                .put("slug", "internal").put("display_name", "Not for display"))
+            .put(JSONObject().put("visibility", "list")
+                .put("slug", "gpt-6.1").put("display_name", "GPT-6.1")))
+            .put("extra", "ignored")
+        val body = catalog.toString()
+        assertTrue("Ensure fixture exceeds original 16k limit", body.length > 16000)
+        val models = GptModelCatalog.parse(StringReader(body))
+        assertEquals(listOf("gpt-6.1-sol", "gpt-6.1"), models.map { it.slug })
+        assertEquals(listOf("GPT-6.1 Sol", "GPT-6.1"), models.map { it.name })
+    }
+
+    @Test fun catalogWithMissingModelsFailsWithoutRevealingRawJson() {
+        try {
+            GptModelCatalog.parse(StringReader("""{"status":"ok"}"""))
+            fail("must reject a missing catalog")
+        } catch (expected: IllegalStateException) {
+            assertTrue(expected.message.orEmpty().contains("models"))
+        }
+    }
+
     @Test fun chatAndWorkAreTwoStylesForOneGptIdentity() {
         val chat = GptStyle.instructions("Chat")
         val work = GptStyle.instructions("Work")
