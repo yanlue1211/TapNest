@@ -43,6 +43,7 @@ internal class CompanionFloatingPanel(
     private val savedOwner: SavedStateRegistryOwner,
     private val store: CompanionStore,
     private val onAction: (CompanionAction, String, Int, String?, String) -> Unit,
+    private val onGptChat: () -> Unit,
     private val onClose: () -> Unit
 ) {
     private var view: ComposeView? = null
@@ -104,6 +105,7 @@ internal class CompanionFloatingPanel(
                 )) {
                     PanelContent(title, petId, store,
                         onAction = onAction,
+                        onGptChat = onGptChat,
                         onClose = { dismiss(); onClose() })
                 }
             }
@@ -159,7 +161,8 @@ internal class CompanionFloatingPanel(
 @Composable
 private fun PanelContent(
     title: String, petId: String, store: CompanionStore,
-    onAction: (CompanionAction, String, Int, String?, String) -> Unit, onClose: () -> Unit
+    onAction: (CompanionAction, String, Int, String?, String) -> Unit,
+    onGptChat: () -> Unit, onClose: () -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -319,6 +322,9 @@ private fun PanelContent(
                             }
                         }
                     }
+                }
+                Button(onClick = { onGptChat(); onClose() }, modifier = Modifier.fillMaxWidth()) {
+                    Text("💬 和 GPT 聊天", style = MaterialTheme.typography.labelMedium)
                 }
                 OutlinedButton(onClick = { notes = true }, modifier = Modifier.fillMaxWidth()) {
                     Text("📝 定时备忘录", style = MaterialTheme.typography.labelMedium)
