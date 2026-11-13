@@ -95,7 +95,8 @@ fun PetListScreen(
     onManageCompanion: (PetInfo) -> Unit = {},
     onSaveDialogues: (String, Boolean, List<String>) -> Unit = { _, _, _ -> },
     onBackupAll: () -> Unit = {},
-    onShowHelp: () -> Unit = {}
+    onShowHelp: () -> Unit = {},
+    onGptChat: () -> Unit = {}
 ) {
     var deleteTarget by remember { mutableStateOf<String?>(null) }
     var actionTarget by remember { mutableStateOf<String?>(null) }
@@ -213,6 +214,11 @@ fun PetListScreen(
                 tag = if (isOverlayRunning) "● 正在运行" else "○ 休息中",
                 compact = isLandscape
             )
+            if (!isLoading) {
+                TextButton(onClick = onGptChat, modifier = Modifier.fillMaxWidth()) {
+                    Text("💬 GPT 聊天 · Chat / Work")
+                }
+            }
             Spacer(Modifier.height(8.dp))
 
         if (isLoading) {
