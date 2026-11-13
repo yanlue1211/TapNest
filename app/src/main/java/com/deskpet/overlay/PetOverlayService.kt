@@ -318,6 +318,162 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         }
     }
 
+    /** Launchable full screen is for first-time account authorization and viewing full chat history. */
+    private fun openGptAccount() {
+        gptPanel?.dismiss(); gptPanel = null
+        runCatching {
+            startActivity(Intent(this, com.deskpet.gpt.GptCompanionActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                .putExtra(com.deskpet.gpt.GptCompanionActivity.EXTRA_PET_ID, petId))
+        }.onFailure { Log.w(TAG, "GPT Activity could not open", it) }
+    }
+
+    private fun openGptPanel() {
+        val id = petId ?: return
+        actionPanel?.dismiss(); actionPanel = null
+        floatingPanel?.dismiss(); floatingPanel = null
+        formPanel?.dismiss(); formPanel = null
+        gptPanel?.dismiss()
+        val panel = GptPetChatPanel(this, wm, this, this, this,
+            onSend = { text, model -> dispatchGptMessage(text, model) },
+            onModel = { slug ->
+                sc.launch {
+                    val subject = withContext(Dispatchers.IO) { gptCredentials.read()?.subject }
+                    if (subject != null) gptPrefs.saveModel(subject, slug)
+                }
+            },
+            onAccount = ::openGptAccount,
+            onHistory = ::openGptAccount,
+            onClose = { gptPanel?.dismiss(); gptPanel = null }
+        )
+        gptPanel = panel
+        panel.show(wx, anim.petWidth.value, safeBounds())
+        if (gptSending) panel.updateBusy(true)
+        sc.launch {
+            try {
+                val session = withContext(Dispatchers.IO) { gptCredentials.read() }
+                if (gptPanel !== panel || petId != id) return@launch
+                if (session == null || !session.allowed) {
+                    panel.requireLogin()
+                    return@launch
+                }
+                panel.setLoading()
+                val snapshot = withContext(Dispatchers.IO) {
+                    GptHistory(this@PetOverlayService, session.subject).load().takeLast(2)
+                }
+                if (gptPanel !== panel || petId != id) return@launch
+                panel.updateHistory(snapshot.firstOrNull { it.role == "user" }?.text.orEmpty(),
+                    snapshot.lastOrNull { it.role == "assistant" }?.text.orEmpty())
+                val choices = withContext(Dispatchers.IO) {
+                    if (gptModelsFor == session.subject && gptModelList.isNotEmpty()) gptModelList
+                    else gptApi.models()
+                }
+                if (gptPanel !== panel || petId != id) return@launch
+                gptModelList = choices
+                gptModelsFor = session.subject
+                val saved = gptPrefs.selectedModel(session.subject)
+                val chosen = saved.takeIf { key -> choices.any { it.slug == key } }
+                    ?: choices.firstOrNull()?.slug.orEmpty()
+                panel.updateModels(choices, chosen)
+                if (gptSending) panel.updateBusy(true)
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
+                if (gptPanel === panel) {
+                    panel.fail(GptFriendlyErrors.text(e))
+                    Log.w(TAG, "GPT floating panel could not load account/models", e)
+                }
+            }
+        }
+    }
+
+    /** Single-flight GPT request shared by direct chat and opt-in physical interactions. */
+    private fun dispatchGptMessage(raw: String, chosenModel: String = "", isEvent: Boolean = false): Boolean {
+        val id = petId ?: return false
+        val prompt = raw.trim().take(4000)
+        if (prompt.isBlank() || gptSending) return false
+        // Reserve immediately on UI thread; rapid taps cannot race before first suspension.
+        gptSending = true
+        gptPanel?.updateBusy(true)
+        sc.launch {
+            var acquired: String? = null
+            try {
+                val session = withContext(Dispatchers.IO) { gptCredentials.read() }
+                    ?: throw IllegalStateException("请先在 GPT 聊天页面登录 ChatGPT")
+                check(session.allowed) { "ChatGPT 账号没有授权使用订阅额度" }
+                check(GptRequestGate.tryAcquire(session.subject)) { "另一处 GPT 对话正在回复，请等这轮结束" }
+                acquired = session.subject
+                val model = withContext(Dispatchers.IO) {
+                    if (chosenModel.isNotBlank()) chosenModel
+                    else {
+                        val options = if (gptModelsFor == session.subject && gptModelList.isNotEmpty())
+                            gptModelList else gptApi.models()
+                        if (options.isEmpty()) error("暂时没有可用的 GPT 模型")
+                        gptModelList = options
+                        gptModelsFor = session.subject
+                        val selected = gptPrefs.selectedModel(session.subject)
+                        selected.takeIf { value -> options.any { it.slug == value } } ?: options.first().slug
+                    }
+                }
+                val style = withContext(Dispatchers.IO) { GptStyle.current(this@PetOverlayService, id) }
+                val recent = withContext(Dispatchers.IO) {
+                    GptHistory(this@PetOverlayService, session.subject).load()
+                }
+                if (!isEvent && petId == id && screenOn) displayTapLine("我听见啦，正在想…", 6000)
+                var lastUpdate = 0L
+                val reply = withContext(Dispatchers.IO) {
+                    gptApi.reply(model, GptStyle.instructions(style), recent, prompt) { streamed ->
+                        val now = android.os.SystemClock.elapsedRealtime()
+                        if (now - lastUpdate > 160L) {
+                            lastUpdate = now
+                            sc.launch(Dispatchers.Main.immediate) {
+                                if (petId == id) gptPanel?.updatePartial(streamed)
+                            }
+                        }
+                    }
+                }
+                withContext(Dispatchers.IO) {
+                    GptHistory(this@PetOverlayService, session.subject).append(prompt, reply)
+                }
+                if (petId == id) {
+                    gptPanel?.complete(prompt, reply)
+                    if (screenOn) showGptReply(reply, id)
+                }
+            } catch (e: CancellationException) { throw e }
+            catch (e: Exception) {
+                Log.w(TAG, "GPT companion message failed", e)
+                if (petId == id) {
+                    val msg = GptFriendlyErrors.text(e)
+                    gptPanel?.fail(msg)
+                    if (screenOn && gptPanel == null) displayTapLine(msg, 6000)
+                }
+            } finally {
+                acquired?.let(GptRequestGate::release)
+                gptSending = false
+                if (petId == id) gptPanel?.updateBusy(false)
+            }
+        }
+        return true
+    }
+
+    /** Complete GPT replies are stored in history; the noninteractive pet bubble pages them. */
+    private fun showGptReply(reply: String, id: String) {
+        speechJob?.cancel()
+        val bubble = speechBubble ?: TapSpeechBubble(this, wm).also { speechBubble = it }
+        speechJob = sc.launch {
+            try {
+                for (part in GptBubbleSlices.split(reply)) {
+                    if (!screenOn || petId != id) break
+                    bubble.show(part)
+                    bubble.follow(wx, wy + bounceOffset,
+                        anim.petWidth.value, anim.petHeight.value, safeBounds())
+                    delay((1800L + part.length * 90L).coerceIn(2500L, 6500L))
+                }
+            } finally {
+                if (petId == id) bubble.dismiss()
+            }
+        }
+    }
+
     private fun displayTapLine(line: String, durationMs: Long = 3200L) {
         speechJob?.cancel()
         val bubble = speechBubble ?: TapSpeechBubble(this, wm).also { speechBubble = it }
