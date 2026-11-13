@@ -52,6 +52,7 @@ class GptCompanionActivity : ComponentActivity() {
         var status by remember { mutableStateOf("正在读取本地授权…") }
         var error by remember { mutableStateOf("") }
         var loggingIn by remember { mutableStateOf(false) }
+        var pendingLogin by remember { mutableStateOf<GptOAuth.Pending?>(null) }
         var sending by remember { mutableStateOf(false) }
         var loadingModels by remember { mutableStateOf(false) }
         var menuOpen by remember { mutableStateOf(false) }
@@ -96,11 +97,12 @@ class GptCompanionActivity : ComponentActivity() {
                 status = "即将打开浏览器授权，请在完成后返回点点栖"
                 try {
                     val pending = withContext(Dispatchers.IO) { oauth.begin() }
+                    pendingLogin = pending
                     try {
                         startActivity(Intent(Intent.ACTION_VIEW, pending.browserUri))
                         session = withContext(Dispatchers.IO) { oauth.complete(pending) }
                         status = if (session?.allowed == true) "账号授权成功" else "已登录，但未授予计划额度使用权限"
-                    } finally { pending.close() }
+                    } finally { pending.close(); pendingLogin = null }
                 } catch (e: Exception) {
                     error = "登录失败：" + (e.message ?: "请重试")
                     status = "授权未完成"
@@ -162,6 +164,9 @@ class GptCompanionActivity : ComponentActivity() {
                         Button(onClick = ::login, enabled = !loggingIn) {
                             Text(if (loggingIn) "等待浏览器授权…" else "继续使用 ChatGPT")
                         }
+                        if (loggingIn) TextButton(onClick = {
+                            runCatching { pendingLogin?.close() }
+                        }) { Text("取消等待") }
                     }
                 }
             } else {
@@ -171,6 +176,9 @@ class GptCompanionActivity : ComponentActivity() {
                         maxLines = 1, overflow = TextOverflow.Ellipsis,
                         modifier = Modifier.weight(1f))
                     TextButton(onClick = ::login, enabled = !loggingIn && !sending) { Text("重新授权") }
+                    if (loggingIn) TextButton(onClick = { runCatching { pendingLogin?.close() } }) {
+                        Text("取消等待")
+                    }
                     TextButton(onClick = {
                         if (!sending && !loggingIn) scope.launch {
                             try {
