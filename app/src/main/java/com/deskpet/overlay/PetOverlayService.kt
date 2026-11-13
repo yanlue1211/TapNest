@@ -328,64 +328,26 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         }.onFailure { Log.w(TAG, "GPT Activity could not open", it) }
     }
 
+    /**
+     * User-initiated double tap / menu action: open a compact native dialog Activity.
+     * HarmonyOS has been crashing when our service adds a focusable Compose overlay
+     * with an active IME. Android's Activity owns focus, keyboard and lifecycle.
+     * The pet's overlay service and all local interactions keep running underneath.
+     */
     private fun openGptPanel() {
         val id = petId ?: return
         actionPanel?.dismiss(); actionPanel = null
         floatingPanel?.dismiss(); floatingPanel = null
         formPanel?.dismiss(); formPanel = null
-        gptPanel?.dismiss()
-        val panel = GptPetChatPanel(this, wm, this, this, this,
-            onSend = { text, model -> dispatchGptMessage(text, model) },
-            onModel = { slug ->
-                sc.launch {
-                    val subject = withContext(Dispatchers.IO) { gptCredentials.read()?.subject }
-                    if (subject != null) gptPrefs.saveModel(subject, slug)
-                }
-            },
-            onAccount = ::openGptAccount,
-            onHistory = ::openGptAccount,
-            onClose = { gptPanel?.dismiss(); gptPanel = null }
-        )
-        gptPanel = panel
-        panel.show(wx, anim.petWidth.value, safeBounds())
-        if (gptSending) panel.updateBusy(true)
-        sc.launch {
-            try {
-                val session = withContext(Dispatchers.IO) { gptCredentials.read() }
-                if (gptPanel !== panel || petId != id) return@launch
-                panel.updateMode(withContext(Dispatchers.IO) {
-                    GptStyle.current(this@PetOverlayService, id)
-                })
-                if (session == null || !session.allowed) {
-                    panel.requireLogin()
-                    return@launch
-                }
-                panel.setLoading()
-                val snapshot = withContext(Dispatchers.IO) {
-                    GptHistory(this@PetOverlayService, session.subject).load().takeLast(2)
-                }
-                if (gptPanel !== panel || petId != id) return@launch
-                panel.updateHistory(snapshot.firstOrNull { it.role == "user" }?.text.orEmpty(),
-                    snapshot.lastOrNull { it.role == "assistant" }?.text.orEmpty())
-                val choices = withContext(Dispatchers.IO) {
-                    if (gptModelsFor == session.subject && gptModelList.isNotEmpty()) gptModelList
-                    else gptApi.models()
-                }
-                if (gptPanel !== panel || petId != id) return@launch
-                gptModelList = choices
-                gptModelsFor = session.subject
-                val saved = gptPrefs.selectedModel(session.subject)
-                val chosen = saved.takeIf { key -> choices.any { it.slug == key } }
-                    ?: choices.firstOrNull()?.slug.orEmpty()
-                panel.updateModels(choices, chosen)
-                if (gptSending) panel.updateBusy(true)
-            } catch (e: CancellationException) { throw e }
-            catch (e: Exception) {
-                if (gptPanel === panel) {
-                    panel.fail(GptFriendlyErrors.text(e))
-                    Log.w(TAG, "GPT floating panel could not load account/models", e)
-                }
-            }
+        gptPanel?.dismiss(); gptPanel = null
+        try {
+            startActivity(Intent(this, GptPetChatActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                .putExtra(GptPetChatActivity.EXTRA_PET_ID, id))
+        } catch (e: Exception) {
+            Log.e(TAG, "GPT compact chat Activity could not start", e)
+            Toast.makeText(this, "小金毛聊天框打开失败，改用完整聊天页", Toast.LENGTH_SHORT).show()
+            openGptAccount()
         }
     }
 
@@ -542,6 +504,13 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
         repo = (application as com.deskpet.DeskPetApp).petRepository
         companionStore = com.deskpet.data.CompanionStore(this)
+        sc.launch {
+            OverlayState.gptReplies.collect { event ->
+                if (event.petId == petId && screenOn) {
+                    showGptReply(event.reply, event.petId)
+                }
+            }
+        }
         sc.launch {
             OverlayState.interactions.collect { event ->
                 if (event.petId == petId) {
