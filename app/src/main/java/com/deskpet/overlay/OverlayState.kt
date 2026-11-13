@@ -39,6 +39,17 @@ object OverlayState {
         _interactions.tryEmit(CompanionActionEvent(petId, action, line, affection, emoji))
     }
 
+    /** The native dialog can hand a completed reply to the visible desktop pet.
+     * Only text and the pet id cross this in-process bus; tokens never do. */
+    data class GptReplyEvent(val petId: String, val reply: String)
+    private val _gptReplies = kotlinx.coroutines.flow.MutableSharedFlow<GptReplyEvent>(
+        extraBufferCapacity = 4
+    )
+    val gptReplies = _gptReplies.asSharedFlow()
+    fun postGptReply(petId: String, reply: String) {
+        if (reply.isNotBlank()) _gptReplies.tryEmit(GptReplyEvent(petId, reply))
+    }
+
     fun setRunning(id: String?) {
         _petId.value = id
         _running.value = id != null
