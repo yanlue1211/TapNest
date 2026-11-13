@@ -50,7 +50,7 @@ internal object GptStyle {
         if (petId.isNullOrBlank() || !petId.matches(Regex("[a-zA-Z0-9_-]{1,100}"))) return "Chat"
         val file = File(File(File(context.filesDir, "pets"), petId), "forms.json")
         val forms = runCatching { com.deskpet.engine.TapNestForms.parse(file) }.getOrNull()
-        val name = forms?.forms?.firstOrNull { it.id == forms.activeFormId }?.label ?: ""
+        val name = forms?.forms?.firstOrNull { it.id == forms.activeFormId }?.name ?: ""
         return if (name.contains("work", true) || name.contains("工作")) "Work" else "Chat"
     }
     fun instructions(style: String): String {
