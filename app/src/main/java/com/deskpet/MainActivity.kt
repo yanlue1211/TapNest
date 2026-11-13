@@ -343,7 +343,11 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 },
-                onShowHelp = { showHelp = true }
+                onShowHelp = { showHelp = true },
+                onGptChat = {
+                    startActivity(Intent(this@MainActivity, com.deskpet.gpt.GptCompanionActivity::class.java)
+                        .putExtra(com.deskpet.gpt.GptCompanionActivity.EXTRA_PET_ID, activeId))
+                }
             )
         }
     }
