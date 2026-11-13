@@ -353,6 +353,9 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
             try {
                 val session = withContext(Dispatchers.IO) { gptCredentials.read() }
                 if (gptPanel !== panel || petId != id) return@launch
+                panel.setStyle(withContext(Dispatchers.IO) {
+                    GptStyle.current(this@PetOverlayService, id)
+                })
                 if (session == null || !session.allowed) {
                     panel.requireLogin()
                     return@launch
