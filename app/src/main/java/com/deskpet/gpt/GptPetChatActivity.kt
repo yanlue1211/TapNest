@@ -126,7 +126,7 @@ class GptPetChatActivity : ComponentActivity() {
                         shape = RoundedCornerShape(14.dp),
                         maxLines = 3,
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
-                        keyboardActions = KeyboardActions(onSend = ::send)
+                        keyboardActions = KeyboardActions(onSend = { send() })
                     )
                     Button(
                         onClick = ::send,
