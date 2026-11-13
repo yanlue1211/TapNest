@@ -1,7 +1,7 @@
 package com.deskpet.gpt
 
 import android.content.Context
-import androidx.test.core.app.ApplicationProvider
+import org.robolectric.RuntimeEnvironment
 import org.junit.Assert.*
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -22,7 +22,7 @@ class GptCompanionTest {
     }
 
     @Test fun historyPersistsAndIsIsolatedByChatGptAccount() {
-        val app = ApplicationProvider.getApplicationContext<Context>()
+        val app = RuntimeEnvironment.getApplication() as Context
         val name = UUID.randomUUID().toString()
         val primary = GptHistory(app, name)
         val other = GptHistory(app, name + "-other")
