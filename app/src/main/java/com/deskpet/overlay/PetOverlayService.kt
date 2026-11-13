@@ -32,6 +32,7 @@ import com.deskpet.data.model.TapDialogue
 import com.deskpet.data.model.DragDirection
 import com.deskpet.data.model.PetAnimationState
 import com.deskpet.engine.*
+import com.deskpet.gpt.*
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.flow.first
@@ -56,6 +57,16 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
     private var reminderJob: Job? = null
     private var floatingPanel: CompanionFloatingPanel? = null
     private var formPanel: FormFloatingPanel? = null
+    private var actionPanel: PetQuickActionPanel? = null
+    private var gptPanel: GptPetChatPanel? = null
+    private var gptModelList: List<GptModel> = emptyList()
+    private var gptModelsFor: String? = null
+    private var gptSending = false
+    private var gptTapAt = 0L
+    private val gptPrefs by lazy { GptPetPreferences(this) }
+    private val gptCredentials by lazy { GptCredentials(this) }
+    private val gptOAuth by lazy { GptOAuth(gptCredentials) }
+    private val gptApi by lazy { GptChatApi(gptOAuth) }
     private var formSwitchJob: Job? = null
     private var currentPet: PetInfo? = null
     private var touchLineIndex = 0
@@ -103,6 +114,10 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
                     auto?.stop()
                     speechJob?.cancel()
                     speechBubble?.dismiss()
+                    gptPanel?.dismiss()
+                    gptPanel = null
+                    actionPanel?.dismiss()
+                    actionPanel = null
                 }
                 Intent.ACTION_SCREEN_ON -> {
                     screenOn = true
@@ -160,6 +175,11 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         }
         auto?.onUserTouch()
         val pet = currentPet
+        if (pet != null && gptPrefs.aiForPet(pet.id) &&
+            android.os.SystemClock.elapsedRealtime() - gptTapAt >= 10_000L) {
+            gptTapAt = android.os.SystemClock.elapsedRealtime()
+            dispatchGptMessage("【桌宠互动】用户刚刚轻轻戳了你一下。请用当前形态的口气自然回应一句话，别把它说成工作报告。", isEvent = true)
+        }
         if (pet != null && pet.tapBubbleEnabled) {
             val lines = anim.tapDialogues(pet.tapDialogues)
             val line = TapDialogue.at(lines, touchLineIndex)
@@ -171,24 +191,50 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
     }
 
     private fun onHoldClose() {
-        // Closing is an explicit user action; disable auto-resume just like notification Stop.
-        formPanel?.dismiss()
-        formPanel = null
+        // Closing is explicit. Preserve stored forms, chat and credentials.
+        actionPanel?.dismiss(); actionPanel = null
+        gptPanel?.dismiss(); gptPanel = null
+        floatingPanel?.dismiss(); floatingPanel = null
+        formPanel?.dismiss(); formPanel = null
         repo.setOverlayAutoResumeAsync(false)
         stopSelf()
     }
 
+    /** 1–5 second stationary hold: choose actions first instead of piling up options. */
     private fun onHoldMenu() {
+        val pet = currentPet ?: return
+        floatingPanel?.dismiss(); floatingPanel = null
+        formPanel?.dismiss(); formPanel = null
+        gptPanel?.dismiss(); gptPanel = null
+        actionPanel?.dismiss()
+        actionPanel = PetQuickActionPanel(this, wm, this, this, this,
+            onWardrobe = {
+                actionPanel?.dismiss(); actionPanel = null
+                openWardrobe()
+            },
+            onLife = {
+                actionPanel?.dismiss(); actionPanel = null
+                openCompanionActions()
+            },
+            onChat = {
+                actionPanel?.dismiss(); actionPanel = null
+                openGptPanel()
+            },
+            onAiChange = { enabled -> gptPrefs.setAiForPet(pet.id, enabled) },
+            onClose = { actionPanel?.dismiss(); actionPanel = null }
+        ).also { it.show(wx, wy, anim.petWidth.value, anim.petHeight.value, safeBounds(),
+            showWardrobe = anim.isLayeredPet(), aiEnabled = gptPrefs.aiForPet(pet.id)) }
+    }
+
+    /** Keep the original wardrobe and all its per-part selectors unchanged. */
+    private fun openWardrobe() {
         val pet = currentPet ?: return
         if (!anim.isLayeredPet()) return
         runCatching {
             val forms = com.deskpet.data.TapNestFormStore(this).load(pet)
-            // Don't raise a meaningless wardrobe panel if the pet has only
-            // one form and no uploaded accessory at all.
             if (forms.forms.size <= 1 &&
                 com.deskpet.engine.TapNestForms.availableParts(forms).isEmpty()) return
-            floatingPanel?.dismiss()
-            floatingPanel = null
+            floatingPanel?.dismiss(); floatingPanel = null
             formPanel?.dismiss()
             formPanel = FormFloatingPanel(this, wm, this, this, this).also { panel ->
                 panel.show(forms, wx, wy, anim.petWidth.value, anim.petHeight.value, safeBounds(),
@@ -234,11 +280,14 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         }
     }
 
-    private fun onDoubleTap() {
+    /** Double tap now opens an actual keyboard/chat bubble above other apps. */
+    private fun onDoubleTap() = openGptPanel()
+
+    /** Original feed / wash / play panel is still available from the long-hold menu. */
+    private fun openCompanionActions() {
         val id = petId ?: return
         val person = currentPet ?: return
-        formPanel?.dismiss()
-        formPanel = null
+        formPanel?.dismiss(); formPanel = null
         floatingPanel?.dismiss()
         floatingPanel = CompanionFloatingPanel(
             this, wm, this, this, this, companionStore,
@@ -246,14 +295,19 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
                 anim.setAffection(affection)
                 displayTapLine(line)
                 animateCompanion(id, action, emoji, artwork)
+                if (gptPrefs.aiForPet(id)) {
+                    val item = when (action) {
+                        com.deskpet.data.CompanionAction.FEED -> "喂你吃了 ${emoji.ifBlank { "小零食" }}"
+                        com.deskpet.data.CompanionAction.BATH -> "给你洗了澡"
+                        com.deskpet.data.CompanionAction.PLAY -> "拿着 ${emoji.ifBlank { "玩具" }} 陪你玩"
+                    }
+                    dispatchGptMessage(
+                        "【桌宠互动】用户刚刚${item}。你已经完成了桌宠动作。用当前形态自然回应一到两句话，不要重复说明动画过程。",
+                        isEvent = true
+                    )
+                }
             },
-            onGptChat = {
-                runCatching {
-                    startActivity(Intent(this, com.deskpet.gpt.GptCompanionActivity::class.java)
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                        .putExtra(com.deskpet.gpt.GptCompanionActivity.EXTRA_PET_ID, id))
-                }.onFailure { Log.w(TAG, "GPT screen launch failed", it) }
-            },
+            onGptChat = ::openGptPanel,
             onClose = {
                 floatingPanel?.dismiss()
                 floatingPanel = null
