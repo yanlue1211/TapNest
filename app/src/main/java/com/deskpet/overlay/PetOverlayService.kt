@@ -485,6 +485,13 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         wm = getSystemService(WINDOW_SERVICE) as WindowManager
         repo = (application as com.deskpet.DeskPetApp).petRepository
         companionStore = com.deskpet.data.CompanionStore(this)
+        OverlayState.registerPetChatSender { targetId, text ->
+            if (targetId != petId || !screenOn || !::anim.isInitialized) {
+                false
+            } else {
+                dispatchGptMessage(text)
+            }
+        }
         sc.launch {
             OverlayState.gptReplies.collect { event ->
                 if (event.petId == petId && screenOn) {
@@ -644,6 +651,7 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         // 异步落盘，不用 runBlocking 阻塞主线程（最多 2s 的 ANR 余量风险）；
         // 手势结束时的同步保存已经兜底了主要的数据丢失路径
         persistPositionAsync()
+        OverlayState.clearPetChatSender()
         OverlayState.setRunning(null)
         scaleJob?.cancel()
         cancelCompanionAnimation()
