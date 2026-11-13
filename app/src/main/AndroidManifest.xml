@@ -42,7 +42,9 @@
             android:name=".gpt.GptPetChatActivity"
             android:exported="false"
             android:theme="@style/Theme.DeskPet.PetChat"
-            android:windowSoftInputMode="adjustResize" />
+            android:taskAffinity="com.deskpet.gpt.pet_input"
+            android:excludeFromRecents="true"
+            android:windowSoftInputMode="adjustResize|stateAlwaysVisible" />
 
         <activity
             android:name=".gpt.GptCompanionActivity"
