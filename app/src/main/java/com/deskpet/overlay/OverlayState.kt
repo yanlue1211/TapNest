@@ -51,6 +51,27 @@ object OverlayState {
         if (reply.isNotBlank()) _gptReplies.tryEmit(GptReplyEvent(petId, reply))
     }
 
+    /**
+     * Tiny keyboard Activity hands text to the already-running desktop pet service
+     * before disappearing. The service, not the Activity, owns the model call.
+     * Returning false keeps the user's draft intact.
+     */
+    private var petChatSend: ((String, String) -> Boolean)? = null
+
+    @androidx.annotation.MainThread
+    fun registerPetChatSender(sender: (String, String) -> Boolean) {
+        petChatSend = sender
+    }
+
+    @androidx.annotation.MainThread
+    fun clearPetChatSender() {
+        petChatSend = null
+    }
+
+    @androidx.annotation.MainThread
+    fun submitPetChat(petId: String, text: String): Boolean =
+        petChatSend?.invoke(petId, text) == true
+
     fun setRunning(id: String?) {
         _petId.value = id
         _running.value = id != null
