@@ -247,6 +247,13 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
                 displayTapLine(line)
                 animateCompanion(id, action, emoji, artwork)
             },
+            onGptChat = {
+                runCatching {
+                    startActivity(Intent(this, com.deskpet.gpt.GptCompanionActivity::class.java)
+                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                        .putExtra(com.deskpet.gpt.GptCompanionActivity.EXTRA_PET_ID, id))
+                }.onFailure { Log.w(TAG, "GPT screen launch failed", it) }
+            },
             onClose = {
                 floatingPanel?.dismiss()
                 floatingPanel = null
