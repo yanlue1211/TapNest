@@ -697,6 +697,10 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         formSwitchJob?.cancel()
         formPanel?.dismiss()
         formPanel = null
+        actionPanel?.dismiss()
+        actionPanel = null
+        gptPanel?.dismiss()
+        gptPanel = null
         removeOverlayView()
         if (::anim.isInitialized) anim.stop()
         auto?.stop()
@@ -778,6 +782,10 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         reminderJob?.cancel()
         floatingPanel?.dismiss()
         floatingPanel = null
+        actionPanel?.dismiss()
+        actionPanel = null
+        gptPanel?.dismiss()
+        gptPanel = null
         speechBubble?.dismiss()
         currentPet = info
         touchLineIndex = 0
