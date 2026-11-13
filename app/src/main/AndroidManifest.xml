@@ -38,6 +38,11 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".gpt.GptCompanionActivity"
+            android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+
         <service
             android:name=".overlay.PetOverlayService"
             android:exported="false"
