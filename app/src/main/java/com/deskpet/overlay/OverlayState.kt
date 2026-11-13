@@ -3,6 +3,7 @@ package com.deskpet.overlay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 
 /**
  * 悬浮窗运行状态（进程内共享）。
