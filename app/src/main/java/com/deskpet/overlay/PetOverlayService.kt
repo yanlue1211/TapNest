@@ -58,7 +58,6 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
     private var floatingPanel: CompanionFloatingPanel? = null
     private var formPanel: FormFloatingPanel? = null
     private var actionPanel: PetQuickActionPanel? = null
-    private var gptPanel: GptPetChatPanel? = null
     private var gptModelList: List<GptModel> = emptyList()
     private var gptModelsFor: String? = null
     private var gptSending = false
@@ -114,8 +113,6 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
                     auto?.stop()
                     speechJob?.cancel()
                     speechBubble?.dismiss()
-                    gptPanel?.dismiss()
-                    gptPanel = null
                     actionPanel?.dismiss()
                     actionPanel = null
                 }
@@ -193,7 +190,6 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
     private fun onHoldClose() {
         // Closing is explicit. Preserve stored forms, chat and credentials.
         actionPanel?.dismiss(); actionPanel = null
-        gptPanel?.dismiss(); gptPanel = null
         floatingPanel?.dismiss(); floatingPanel = null
         formPanel?.dismiss(); formPanel = null
         repo.setOverlayAutoResumeAsync(false)
@@ -205,7 +201,6 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         val pet = currentPet ?: return
         floatingPanel?.dismiss(); floatingPanel = null
         formPanel?.dismiss(); formPanel = null
-        gptPanel?.dismiss(); gptPanel = null
         actionPanel?.dismiss()
         actionPanel = PetQuickActionPanel(this, wm, this, this, this,
             onWardrobe = {
@@ -320,7 +315,6 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
 
     /** Launchable full screen is for first-time account authorization and viewing full chat history. */
     private fun openGptAccount() {
-        gptPanel?.dismiss(); gptPanel = null
         runCatching {
             startActivity(Intent(this, com.deskpet.gpt.GptCompanionActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -339,7 +333,6 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         actionPanel?.dismiss(); actionPanel = null
         floatingPanel?.dismiss(); floatingPanel = null
         formPanel?.dismiss(); formPanel = null
-        gptPanel?.dismiss(); gptPanel = null
         try {
             startActivity(Intent(this, GptPetChatActivity::class.java)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -358,7 +351,6 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         if (prompt.isBlank() || gptSending) return false
         // Reserve immediately on UI thread; rapid taps cannot race before first suspension.
         gptSending = true
-        gptPanel?.updateBusy(true)
         sc.launch {
             var acquired: String? = null
             try {
@@ -384,23 +376,14 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
                     GptHistory(this@PetOverlayService, session.subject).load()
                 }
                 if (!isEvent && petId == id && screenOn) displayTapLine("我听见啦，正在想…", 6000)
-                var lastUpdate = 0L
                 val reply = withContext(Dispatchers.IO) {
-                    gptApi.reply(model, GptStyle.instructions(style), recent, prompt) { streamed ->
-                        val now = android.os.SystemClock.elapsedRealtime()
-                        if (now - lastUpdate > 160L) {
-                            lastUpdate = now
-                            sc.launch(Dispatchers.Main.immediate) {
-                                if (petId == id) gptPanel?.updatePartial(streamed)
-                            }
-                        }
-                    }
+                    // AI interactions need only the completed reply, not a focusable UI.
+                    gptApi.reply(model, GptStyle.instructions(style), recent, prompt) { }
                 }
                 withContext(Dispatchers.IO) {
                     GptHistory(this@PetOverlayService, session.subject).append(prompt, reply)
                 }
                 if (petId == id) {
-                    gptPanel?.complete(prompt, reply)
                     if (screenOn) showGptReply(reply, id)
                 }
             } catch (e: CancellationException) { throw e }
@@ -408,13 +391,11 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
                 Log.w(TAG, "GPT companion message failed", e)
                 if (petId == id) {
                     val msg = GptFriendlyErrors.text(e)
-                    gptPanel?.fail(msg)
-                    if (screenOn && gptPanel == null) displayTapLine(msg, 6000)
+                    if (screenOn) displayTapLine(msg, 6000)
                 }
             } finally {
                 acquired?.let(GptRequestGate::release)
                 gptSending = false
-                if (petId == id) gptPanel?.updateBusy(false)
             }
         }
         return true
@@ -671,8 +652,6 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         formPanel = null
         actionPanel?.dismiss()
         actionPanel = null
-        gptPanel?.dismiss()
-        gptPanel = null
         removeOverlayView()
         if (::anim.isInitialized) anim.stop()
         auto?.stop()
@@ -756,8 +735,6 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         floatingPanel = null
         actionPanel?.dismiss()
         actionPanel = null
-        gptPanel?.dismiss()
-        gptPanel = null
         speechBubble?.dismiss()
         currentPet = info
         touchLineIndex = 0
