@@ -53,3 +53,30 @@ internal object GptFriendlyErrors {
         }
     }
 }
+
+/** Page longer model answers through the existing short non-touchable pet bubble. */
+internal object GptBubbleSlices {
+    fun split(text: String, maxCharacters: Int = 56, maxPages: Int = 8): List<String> {
+        val clean = text.trim()
+        if (clean.isEmpty()) return emptyList()
+        val result = mutableListOf<String>()
+        var index = 0
+        val soft = setOf('。', '！', '？', '!', '?', '；', ';', '，', ',', '\n')
+        while (index < clean.length && result.size < maxPages) {
+            var end = minOf(index + maxCharacters, clean.length)
+            if (end < clean.length) {
+                val candidate = (end - 1 downTo index + maxCharacters / 3)
+                    .firstOrNull { clean[it] in soft }
+                if (candidate != null) end = candidate + 1
+            }
+            val part = clean.substring(index, end).trim()
+            if (part.isNotBlank()) result.add(part)
+            index = end
+        }
+        if (index < clean.length) {
+            if (result.isEmpty()) return listOf("回复太长啦，请打开聊天记录查看完整内容。")
+            result[result.lastIndex] = result.last().take((maxCharacters - 10).coerceAtLeast(12)) + "…更多见聊天记录"
+        }
+        return result
+    }
+}
