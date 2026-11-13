@@ -56,7 +56,7 @@ internal object GptFriendlyErrors {
 
 /** Page longer model answers through the existing short non-touchable pet bubble. */
 internal object GptBubbleSlices {
-    fun split(text: String, maxCharacters: Int = 56, maxPages: Int = 8): List<String> {
+    fun split(text: String, maxCharacters: Int = 44, maxPages: Int = 10): List<String> {
         val clean = text.trim()
         if (clean.isEmpty()) return emptyList()
         val result = mutableListOf<String>()
