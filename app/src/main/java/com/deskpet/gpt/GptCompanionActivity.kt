@@ -63,7 +63,7 @@ class GptCompanionActivity : ComponentActivity() {
                 .onSuccess { session = it; status = if (it == null) "未连接 ChatGPT" else "已保存登录，可继续聊天" }
                 .onFailure { error = "本地授权记录无法读取：" + (it.message ?: "请检查设备密钥") }
         }
-        LaunchedEffect(session?.subject) {
+        LaunchedEffect(session?.accessToken) {
             val profile = session ?: run { messages = emptyList(); modelList = emptyList(); return@LaunchedEffect }
             try {
                 messages = withContext(Dispatchers.IO) { GptHistory(applicationContext, profile.subject).load() }
