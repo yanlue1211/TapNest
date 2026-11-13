@@ -77,7 +77,9 @@ class GptCompanionActivity : ComponentActivity() {
             try {
                 val choices = withContext(Dispatchers.IO) { api.models() }
                 modelList = choices
-                modelSlug = if (choices.any { it.slug == modelSlug }) modelSlug else choices.firstOrNull()?.slug.orEmpty()
+                val saved = GptPetPreferences(applicationContext).selectedModel(profile.subject)
+                modelSlug = saved.takeIf { value -> choices.any { it.slug == value } }
+                    ?: choices.firstOrNull()?.slug.orEmpty()
                 status = if (choices.isEmpty()) "未返回可用模型，请检查账号权限" else "已连接 · 可聊天"
             } catch (e: Exception) {
                 error = "获取模型失败：" + (e.message ?: "")
@@ -117,6 +119,10 @@ class GptCompanionActivity : ComponentActivity() {
             if (sending || text.isBlank() || model.isBlank() || !connected.allowed) return
             if (text.length > 4000) { error = "单条消息最多 4000 字"; return }
             scope.launch {
+                if (!GptRequestGate.tryAcquire(connected.subject)) {
+                    error = "另一处 GPT 对话正在回复，请等这轮结束"
+                    return@launch
+                }
                 sending = true; error = ""; draft = ""; partial = ""
                 try {
                     val mode = withContext(Dispatchers.IO) { GptStyle.current(applicationContext, petId) }
@@ -136,9 +142,12 @@ class GptCompanionActivity : ComponentActivity() {
                 } catch (e: Exception) {
                     // Failed/incomplete streaming never enters chat history.
                     if (draft.isBlank()) draft = text
-                    error = "发送失败：" + (e.message ?: "未知错误")
+                    error = "发送失败：" + GptFriendlyErrors.text(e)
                     partial = ""
-                } finally { sending = false }
+                } finally {
+                    sending = false
+                    GptRequestGate.release(connected.subject)
+                }
             }
         }
 
@@ -205,6 +214,7 @@ class GptCompanionActivity : ComponentActivity() {
                                 modelList.forEach { model ->
                                     DropdownMenuItem(text = { Text(model.name) }, onClick = {
                                         modelSlug = model.slug
+                                        session?.subject?.let { GptPetPreferences(applicationContext).saveModel(it, model.slug) }
                                         menuOpen = false
                                     })
                                 }
