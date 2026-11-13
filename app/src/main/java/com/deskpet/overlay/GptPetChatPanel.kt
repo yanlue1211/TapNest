@@ -74,7 +74,7 @@ internal class GptPetChatPanel(
     private var draft by mutableStateOf("")
     private var pendingDraft = ""
     private var style by mutableStateOf("Chat")
-    fun setStyle(value: String) { style = value }
+    fun updateMode(value: String) { style = value }
 
     fun show(petX: Float, petW: Int, bounds: Rect) {
         dismiss()
