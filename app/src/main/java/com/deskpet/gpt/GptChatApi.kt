@@ -2,9 +2,12 @@ package com.deskpet.gpt
 
 import android.content.Context
 import android.util.AtomicFile
+import android.util.JsonReader
+import android.util.JsonToken
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.File
+import java.io.Reader
 import java.net.HttpURLConnection
 import java.net.URL
 import java.security.MessageDigest
@@ -65,16 +68,84 @@ internal object GptStyle {
     }
 }
 
+/** A ChatGPT plan model catalog includes huge nested metadata, not just display names.
+ * Stream the complete JSON response and skip metadata we do not use. Never truncate success JSON.
+ */
+internal object GptModelCatalog {
+    fun parse(reader: Reader): List<GptModel> = JsonReader(reader).use { json ->
+        val result = mutableListOf<GptModel>()
+        json.beginObject()
+        var found = false
+        while (json.hasNext()) {
+            if (json.nextName() != "models") {
+                json.skipValue()
+                continue
+            }
+            found = true
+            json.beginArray()
+            while (json.hasNext()) {
+                if (json.peek() != JsonToken.BEGIN_OBJECT) {
+                    json.skipValue()
+                    continue
+                }
+                var slug = ""
+                var name = ""
+                var visibility = ""
+                json.beginObject()
+                while (json.hasNext()) {
+                    when (json.nextName()) {
+                        "slug" -> slug = json.stringOrSkip()
+                        "display_name" -> name = json.stringOrSkip()
+                        "visibility" -> visibility = json.stringOrSkip()
+                        else -> json.skipValue()
+                    }
+                }
+                json.endObject()
+                if (visibility == "list" && slug.isNotBlank()) {
+                    result.add(GptModel(slug, name.ifBlank { slug }))
+                }
+            }
+            json.endArray()
+        }
+        json.endObject()
+        check(found) { "模型响应缺少 models 字段" }
+        result.distinctBy { it.slug }
+    }
+
+    private fun JsonReader.stringOrSkip(): String {
+        if (peek() == JsonToken.STRING) return nextString()
+        skipValue()
+        return ""
+    }
+}
+
 internal class GptChatApi(private val oauth: GptOAuth) {
     fun models(): List<GptModel> {
-        val raw = GptNetwork.request("https://api.openai.com/v1/models", bearer = oauth.accessToken())
-        val list = raw.optJSONArray("models") ?: return emptyList()
-        return (0 until list.length()).mapNotNull { i ->
-            val j = list.optJSONObject(i) ?: return@mapNotNull null
-            val slug = j.optString("slug")
-            if (j.optString("visibility") != "list" || slug.isBlank()) null
-            else GptModel(slug, j.optString("display_name").ifBlank { slug })
-        }.distinctBy { it.slug }
+        val c = URL("https://api.openai.com/v1/models").openConnection() as HttpURLConnection
+        c.connectTimeout = 15000
+        c.readTimeout = 30000
+        c.requestMethod = "GET"
+        c.instanceFollowRedirects = false
+        c.setRequestProperty("Authorization", "Bearer " + oauth.accessToken())
+        c.setRequestProperty("Accept", "application/json")
+        try {
+            val status = c.responseCode
+            if (status !in 200..299) {
+                // Never display raw model metadata or the body of a failed request.
+                val errorCode = runCatching {
+                    val detail = c.errorStream?.bufferedReader(Charsets.UTF_8)
+                        ?.use { it.readText().take(4000) }.orEmpty()
+                    JSONObject(detail).optJSONObject("error")?.optString("code").orEmpty()
+                }.getOrDefault("")
+                throw IllegalStateException("模型列表请求失败 HTTP " + status +
+                    if (errorCode.isNotBlank()) " · " + errorCode.take(80) else "")
+            }
+            return try {
+                c.inputStream.bufferedReader(Charsets.UTF_8).use { GptModelCatalog.parse(it) }
+            } catch (e: Exception) {
+                throw IllegalStateException("模型列表读取失败（数据不完整或格式变化），请刷新重试", e)
+            }
+        } finally { c.disconnect() }
     }
 
     /** Stream is successful only after response.completed; partial output isn't saved as history. */
