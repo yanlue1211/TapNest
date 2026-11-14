@@ -169,6 +169,10 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
 
     private fun onTap() {
         cancelCompanionAnimation()
+        // Only recognized SINGLE taps count for the existing angry-expression
+        // animation. A fast double-tap belongs to the GPT input gesture and
+        // must not be counted as two pokes (as in the SullyOS interaction spec).
+        if (anim.isLayeredPet()) anim.recordLayeredPhysicalTap()
         if (anim.isCodexPet()) {
             anim.switchState(PetAnimationState.WAVING)
         } else {
@@ -584,7 +588,7 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
             onDoubleTap = ::onDoubleTap,
             onHoldMenu = ::onHoldMenu,
             onHoldClose = ::onHoldClose,
-            onPhysicalTap = { anim.recordLayeredPhysicalTap() },
+            onPhysicalTap = { /* The confirmed onTap excludes quick double-taps. */ },
             isCodexPet = anim::isCodexPet,
             onScale = ::onScale,
             onDragStart = {
