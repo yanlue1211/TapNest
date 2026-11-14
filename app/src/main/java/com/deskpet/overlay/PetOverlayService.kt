@@ -61,6 +61,7 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
     private var gptModelList: List<GptModel> = emptyList()
     private var gptModelsFor: String? = null
     private var gptSending = false
+    private var gptInputPanel: GptTinyInputOverlay? = null
     private var gptTapAt = 0L
     private val gptPrefs by lazy { GptPetPreferences(this) }
     private val gptCredentials by lazy { GptCredentials(this) }
@@ -115,6 +116,8 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
                     speechBubble?.dismiss()
                     actionPanel?.dismiss()
                     actionPanel = null
+                    gptInputPanel?.dismiss()
+                    gptInputPanel = null
                 }
                 Intent.ACTION_SCREEN_ON -> {
                     screenOn = true
@@ -189,6 +192,7 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
 
     private fun onHoldClose() {
         // Closing is explicit. Preserve stored forms, chat and credentials.
+        gptInputPanel?.dismiss(); gptInputPanel = null
         actionPanel?.dismiss(); actionPanel = null
         floatingPanel?.dismiss(); floatingPanel = null
         formPanel?.dismiss(); formPanel = null
@@ -199,6 +203,7 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
     /** 1–5 second stationary hold: choose actions first instead of piling up options. */
     private fun onHoldMenu() {
         val pet = currentPet ?: return
+        gptInputPanel?.dismiss(); gptInputPanel = null
         floatingPanel?.dismiss(); floatingPanel = null
         formPanel?.dismiss(); formPanel = null
         actionPanel?.dismiss()
@@ -323,24 +328,30 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
     }
 
     /**
-     * User-initiated double tap / menu action: open a compact native dialog Activity.
-     * HarmonyOS has been crashing when our service adds a focusable Compose overlay
-     * with an active IME. Android's Activity owns focus, keyboard and lifecycle.
-     * The pet's overlay service and all local interactions keep running underneath.
+     * GPT版专用：双击只显示一个紧挨小金毛的原生输入条。
+     * 不启动 Activity、不覆盖用户当前屏幕，也不加载完整聊天窗口。
+     * 输入框发完即销毁，API 请求继续由前台桌宠服务持有。
      */
     private fun openGptPanel() {
         val id = petId ?: return
+        if (!::anim.isInitialized) return
         actionPanel?.dismiss(); actionPanel = null
         floatingPanel?.dismiss(); floatingPanel = null
         formPanel?.dismiss(); formPanel = null
-        try {
-            startActivity(Intent(this, GptPetChatActivity::class.java)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                .putExtra(GptPetChatActivity.EXTRA_PET_ID, id))
-        } catch (e: Exception) {
-            Log.e(TAG, "GPT compact chat Activity could not start", e)
-            Toast.makeText(this, "小金毛聊天框打开失败，改用完整聊天页", Toast.LENGTH_SHORT).show()
-            openGptAccount()
+        gptInputPanel?.dismiss()
+        gptInputPanel = null
+
+        lateinit var panel: GptTinyInputOverlay
+        panel = GptTinyInputOverlay(
+            context = this, wm = wm,
+            onSend = { msg -> if (petId == id && screenOn) dispatchGptMessage(msg) else false },
+            onDismiss = { if (gptInputPanel === panel) gptInputPanel = null }
+        )
+        if (panel.show(wx, wy + bounceOffset, anim.petWidth.value,
+                anim.petHeight.value, safeBounds())) {
+            gptInputPanel = panel
+        } else {
+            Log.w(TAG, "Cannot show GPT tiny input overlay; no Activity fallback")
         }
     }
 
@@ -660,6 +671,8 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         formPanel = null
         actionPanel?.dismiss()
         actionPanel = null
+        gptInputPanel?.dismiss()
+        gptInputPanel = null
         removeOverlayView()
         if (::anim.isInitialized) anim.stop()
         auto?.stop()
@@ -743,6 +756,8 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         floatingPanel = null
         actionPanel?.dismiss()
         actionPanel = null
+        gptInputPanel?.dismiss()
+        gptInputPanel = null
         speechBubble?.dismiss()
         currentPet = info
         touchLineIndex = 0
