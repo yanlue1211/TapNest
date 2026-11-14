@@ -37,19 +37,22 @@ internal class PetQuickActionPanel(
     private val onLife: () -> Unit,
     private val onChat: () -> Unit,
     private val onAiChange: (Boolean) -> Unit,
+    private val onPokeMinimum: (Int) -> Unit,
     private val onClose: () -> Unit
 ) {
     private var view: ComposeView? = null
     private var enabled by mutableStateOf(false)
+    private var minPokes by mutableIntStateOf(1)
 
     fun show(petX: Float, petY: Float, petW: Int, petH: Int,
-             bounds: Rect, showWardrobe: Boolean, aiEnabled: Boolean) {
+             bounds: Rect, showWardrobe: Boolean, aiEnabled: Boolean, pokeMinimum: Int = 1) {
         dismiss()
         enabled = aiEnabled
+        minPokes = pokeMinimum.coerceIn(1, 50)
         val density = context.resources.displayMetrics.density
         fun dp(value: Int) = (value * density).toInt()
         val width = minOf(dp(252), (bounds.width() - dp(16)).coerceAtLeast(1))
-        val height = minOf(dp(258), (bounds.height() - dp(18)).coerceAtLeast(1))
+        val height = minOf(dp(315), (bounds.height() - dp(18)).coerceAtLeast(1))
         val x = (petX + petW / 2f - width / 2f).toInt().coerceIn(
             bounds.left + dp(4), (bounds.right - width - dp(4)).coerceAtLeast(bounds.left + dp(4)))
         val below = petY + petH + dp(10)
@@ -100,6 +103,32 @@ internal class PetQuickActionPanel(
                                     enabled = it
                                     onAiChange(it)
                                 })
+                            }
+                            if (enabled) {
+                                Text("停手 3 秒后整段只请求一次；快速双击只打开输入框。",
+                                    style = MaterialTheme.typography.labelSmall)
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text("至少戳几下才回复：",
+                                        modifier = Modifier.weight(1f),
+                                        style = MaterialTheme.typography.bodySmall)
+                                    OutlinedButton(
+                                        onClick = {
+                                            minPokes = (minPokes - 1).coerceAtLeast(1)
+                                            onPokeMinimum(minPokes)
+                                        },
+                                        enabled = minPokes > 1,
+                                        contentPadding = PaddingValues(horizontal = 8.dp)
+                                    ) { Text("−") }
+                                    Text("  " + minPokes + "  ")
+                                    OutlinedButton(
+                                        onClick = {
+                                            minPokes = (minPokes + 1).coerceAtMost(50)
+                                            onPokeMinimum(minPokes)
+                                        },
+                                        enabled = minPokes < 50,
+                                        contentPadding = PaddingValues(horizontal = 8.dp)
+                                    ) { Text("+") }
+                                }
                             }
                         }
                     }
