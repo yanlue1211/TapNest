@@ -26,8 +26,10 @@ android {
     }
 
     defaultConfig {
-        applicationId = if (parallelRestoreBuild) "com.tapnest.pet.recovery" else "com.tapnest.pet"
-        manifestPlaceholders["tapNestLabel"] = if (parallelRestoreBuild) "点点栖 · 独立测试版" else "@string/app_name"
+        // This branch is GPT EDITION ONLY. Do not reuse the regular TapNest
+        // or SullyOS-linked package identifiers, even for an unsigned test build.
+        applicationId = if (parallelRestoreBuild) "com.tapnest.pet.gpt.test" else "com.tapnest.pet.gpt"
+        manifestPlaceholders["tapNestLabel"] = if (parallelRestoreBuild) "点点栖 GPT版 · 测试" else "点点栖 GPT版"
         minSdk = 26
         targetSdk = 35
         // GitHub Actions run numbers increase on every build. Signed updates must
@@ -35,7 +37,7 @@ android {
         // Local builds stay at 1; CI installs use a monotonic build number.
         versionCode = (System.getenv("GITHUB_RUN_NUMBER")?.toIntOrNull() ?: 1)
             .coerceAtLeast(1)
-        versionName = "0.1.0"
+        versionName = "0.1.0-gpt"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         // 语言资源过滤：应用 UI 只有中文（默认 values/），依赖库却携带几十种
         // 语言的翻译资源，全部裁掉，resources.arsc 与 res/ 同步瘦身
