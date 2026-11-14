@@ -1,3 +1,13 @@
+# 点点栖 GPT版 · TapNest for GPT 🐶
+
+> **独立 GPT 小金毛桌宠 APK，专用分支：\`personal/gpt-edition\`。不是糯米机桌宠，不接 SullyOS Char、API、记忆系统、AutoJs6 桥接。** 具体边界见 [GPT版开发说明](docs/GPT_EDITION.md)。
+>
+> 安卓包名 \`com.tapnest.pet.gpt\`，**可以与原点点栖 \`com.tapnest.pet\` 并排安装**；两个包的数据不互通。这里绝对不要直接用 GPT版覆盖 TapNest main 或糯米机相关分支。
+
+下面保留原点点栖的功能与源码文档供参考（GPT版增加官方 ChatGPT 账号登录、Chat/Work 两种形态语气与小输入框，尚未实现共享外接记忆库）。
+
+## 原版功能说明
+
 # 点点栖 · TapNest 🌱
 
 **轻轻一点，栖在身边。**
@@ -46,7 +56,7 @@ CI 会额外检查 Android lint、仪器测试编译和 APK 构建。自动化�
 
 ## 隐私
 
-应用不请求互联网访问权限；角色图片、聊天式预设气泡及本地记录不会主动上传。悬浮桌宠需要 Android 悬浮窗权限及前台服务授权；用户可以主动关闭。
+GPT版请求联网权限：用户主动授权 ChatGPT 后，发送文本和本轮检索的本地聊天上下文到 OpenAI 模型接口。原版预设台词、素材和本地存档不会因为添加 GPT 而自动上传。悬浮桌宠需要 Android 悬浮窗权限及前台服务授权；用户可以主动关闭。
 
 ## 开源协议与致谢
 
