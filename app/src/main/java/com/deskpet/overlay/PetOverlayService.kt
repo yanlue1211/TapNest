@@ -62,7 +62,9 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
     private var gptModelsFor: String? = null
     private var gptSending = false
     private var gptInputPanel: GptTinyInputOverlay? = null
-    private var gptTapAt = 0L
+    private val gptPokes = GptPokeBurstCounter()
+    private var gptPokeDebounce: Job? = null
+    private var gptQueuedPoke: Pair<String, Int>? = null
     private val gptPrefs by lazy { GptPetPreferences(this) }
     private val gptCredentials by lazy { GptCredentials(this) }
     private val gptOAuth by lazy { GptOAuth(gptCredentials) }
@@ -175,11 +177,9 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         }
         auto?.onUserTouch()
         val pet = currentPet
-        if (pet != null && gptPrefs.aiForPet(pet.id) &&
-            android.os.SystemClock.elapsedRealtime() - gptTapAt >= 10_000L) {
-            gptTapAt = android.os.SystemClock.elapsedRealtime()
-            dispatchGptMessage("【桌宠互动】用户刚刚轻轻戳了你一下。请用当前形态的口气自然回应一句话，别把它说成工作报告。", isEvent = true)
-        }
+        // GPT版借鉴糯米机「连续戳动」规则：不即时调用 API。
+        // 3 秒以内连续计数，停手超过 3 秒再整段请求一次。
+        if (pet != null && gptPrefs.aiForPet(pet.id)) onGptPoke(pet.id)
         if (pet != null && pet.tapBubbleEnabled) {
             val lines = anim.tapDialogues(pet.tapDialogues)
             val line = TapDialogue.at(lines, touchLineIndex)
@@ -190,8 +190,53 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         }
     }
 
+    /** One quick double-tap opens input and never calls onTap in GestureHandler. */
+    private fun onGptPoke(id: String) {
+        gptPokes.tap(android.os.SystemClock.elapsedRealtime())
+        gptPokeDebounce?.cancel()
+        gptPokeDebounce = sc.launch {
+            delay(3100L)
+            if (id != petId || !screenOn || !gptPrefs.aiForPet(id)) return@launch
+            val n = gptPokes.finishIfQuiet(
+                android.os.SystemClock.elapsedRealtime(), gptPrefs.pokeMinimum(id)
+            ) ?: return@launch
+            if (gptSending) {
+                // Cap pending work at one segment while model is occupied. Do not
+                // bombard subscription API with an unbounded backlog of pokes.
+                gptQueuedPoke = id to n
+            } else {
+                dispatchGptMessage(pokePrompt(n), isEvent = true)
+            }
+        }
+    }
+
+    private fun pokePrompt(count: Int): String =
+        "【桌宠连续戳动事件】用户刚才在一段连续互动中戳了你 ${count} 下；" +
+            "每下之间没有超过 3 秒，现在用户已停手超过 3 秒。" +
+            (if (count >= 6) "第 6 下起可能触发连续戳动生气表情，结合已配置素材自然回应；" else "") +
+            "请以当前 GPT 形态的自然口气回应一两句，不要编造素材、身体动作或用户反应。"
+
+    private fun clearGptPokeBurst() {
+        gptPokeDebounce?.cancel()
+        gptPokeDebounce = null
+        gptPokes.reset()
+        gptQueuedPoke = null
+    }
+
+    private fun dispatchQueuedPoke() {
+        val queued = gptQueuedPoke ?: return
+        if (gptSending || queued.first != petId || !screenOn ||
+            !gptPrefs.aiForPet(queued.first)) {
+            if (!gptSending) gptQueuedPoke = null
+            return
+        }
+        gptQueuedPoke = null
+        dispatchGptMessage(pokePrompt(queued.second), isEvent = true)
+    }
+
     private fun onHoldClose() {
         // Closing is explicit. Preserve stored forms, chat and credentials.
+        clearGptPokeBurst()
         gptInputPanel?.dismiss(); gptInputPanel = null
         actionPanel?.dismiss(); actionPanel = null
         floatingPanel?.dismiss(); floatingPanel = null
@@ -220,10 +265,15 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
                 actionPanel?.dismiss(); actionPanel = null
                 openGptPanel()
             },
-            onAiChange = { enabled -> gptPrefs.setAiForPet(pet.id, enabled) },
+            onAiChange = { enabled ->
+                gptPrefs.setAiForPet(pet.id, enabled)
+                if (!enabled) clearGptPokeBurst()
+            },
+            onPokeMinimum = { count -> gptPrefs.setPokeMinimum(pet.id, count) },
             onClose = { actionPanel?.dismiss(); actionPanel = null }
         ).also { it.show(wx, wy, anim.petWidth.value, anim.petHeight.value, safeBounds(),
-            showWardrobe = anim.isLayeredPet(), aiEnabled = gptPrefs.aiForPet(pet.id)) }
+            showWardrobe = anim.isLayeredPet(), aiEnabled = gptPrefs.aiForPet(pet.id),
+            pokeMinimum = gptPrefs.pokeMinimum(pet.id)) }
     }
 
     /** Keep the original wardrobe and all its per-part selectors unchanged. */
@@ -364,6 +414,7 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
         gptSending = true
         sc.launch {
             var acquired: String? = null
+            var requestSucceeded = false
             try {
                 val session = withContext(Dispatchers.IO) { gptCredentials.read() }
                     ?: throw IllegalStateException("请先在 GPT 聊天页面登录 ChatGPT")
@@ -386,7 +437,9 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
                 val recent = withContext(Dispatchers.IO) {
                     GptHistory(this@PetOverlayService, session.subject).load()
                 }
-                if (!isEvent && petId == id && screenOn) displayTapLine("我听见啦，正在想…", 6000)
+                if (petId == id && screenOn) {
+                    displayTapLine(if (isEvent) "…" else "我听见啦，正在想…", 12000)
+                }
                 val reply = withContext(Dispatchers.IO) {
                     // AI interactions need only the completed reply, not a focusable UI.
                     gptApi.reply(model, GptStyle.instructions(style), recent, prompt) { }
@@ -394,6 +447,7 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
                 withContext(Dispatchers.IO) {
                     GptHistory(this@PetOverlayService, session.subject).append(prompt, reply)
                 }
+                requestSucceeded = true
                 if (petId == id) {
                     if (screenOn) showGptReply(reply, id)
                 }
@@ -407,6 +461,8 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
             } finally {
                 acquired?.let(GptRequestGate::release)
                 gptSending = false
+                if (requestSucceeded) dispatchQueuedPoke()
+                else gptQueuedPoke = null // Failed/limited requests are never automatically retried.
             }
         }
         return true
@@ -659,6 +715,7 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
     }
 
     override fun onDestroy() {
+        clearGptPokeBurst()
         // 异步落盘，不用 runBlocking 阻塞主线程（最多 2s 的 ANR 余量风险）；
         // 手势结束时的同步保存已经兜底了主要的数据丢失路径
         persistPositionAsync()
@@ -750,6 +807,7 @@ class PetOverlayService : LifecycleService(), ViewModelStoreOwner, SavedStateReg
                 Log.w(TAG, "Failed to save previous pet position", e)
             }
         }
+        clearGptPokeBurst()
         speechJob?.cancel()
         reminderJob?.cancel()
         floatingPanel?.dismiss()
