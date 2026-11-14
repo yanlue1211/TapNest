@@ -30,6 +30,14 @@ internal class GptPetPreferences(context: Context) {
     fun setAiForPet(petId: String, enabled: Boolean) {
         prefs.edit().putBoolean("ai_interactions_" + petId, enabled).apply()
     }
+
+    /** SullyOS-style quiet burst: minimum poke count, 1 means empty/default. */
+    fun pokeMinimum(petId: String): Int =
+        prefs.getInt("poke_minimum_" + petId, 1).coerceIn(1, 50)
+
+    fun setPokeMinimum(petId: String, value: Int) {
+        prefs.edit().putInt("poke_minimum_" + petId, value.coerceIn(1, 50)).apply()
+    }
 }
 
 /** Avoid two overlapping model requests from Activity and overlay corrupting shared history. */
